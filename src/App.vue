@@ -39,7 +39,7 @@ document.addEventListener('keydown', (e) => {
 
 
 <template @keyup.alt.enter="isMenubarDisabled = false">
-  <Menubar v-if="!isMenubarDisabled" class="navbar" :isPopupClosed="isPopupClosed" @close-modal="closeModal"
+  <Menubar v-if="!isMenubarDisabled" :isPopupClosed="isPopupClosed" @close-modal="closeModal"
     @disable-menubar="isMenubarDisabled = true" />
   <main class="main" :class="isMenubarDisabled ? 'main-full-height' : 'main-with-menubar'" @click="isPopupClosed = false" @mouseup="endDragging">
     <Connections :style="{ width: dividerPosition + '%' }" />
