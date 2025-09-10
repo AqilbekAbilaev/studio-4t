@@ -2,6 +2,8 @@
 import { ref } from "vue"
 import { invoke } from "@tauri-apps/api/core"
 import Menubar from "./components/menubar/menubar.vue"
+// import { WebviewWindow } from '@tauri-apps/api/window'
+
 import Connections from "./components/connections.vue";
 import Dashboard from "./components/dashboard.vue";
 
@@ -10,6 +12,7 @@ const dividerPosition = ref(30);
 const isMenubarDisabled = ref(false)
 
 function closeModal() {
+  console.log("I got the fucking event man")
   isPopupClosed.value = !isPopupClosed.value;
 }
 

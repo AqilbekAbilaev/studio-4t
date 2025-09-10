@@ -162,7 +162,7 @@ const menuItems = [
                     @mouseover="openModalId = item.id">
                     {{ item.name }}
                 </a>
-                <Modal class="option" v-if="openModalId == item.id && isPopupClosed" :options="item.options" />
+                <Modal class="option" v-if="openModalId == item.id && isPopupClosed" :options="item.options" @close-modal="$emit('close-modal')" />
             </div>
         </div>
 

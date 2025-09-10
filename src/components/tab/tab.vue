@@ -1,4 +1,7 @@
 <script setup>
+// import { WebviewWindow } from '@tauri-apps/api/window'
+import { Window } from "@tauri-apps/api/window"
+
 import { ref } from "vue";
 import { getImageUrl } from "../../utils"
 
