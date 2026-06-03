@@ -6,7 +6,7 @@ const props = defineProps(['collections'])
 </script>
 <template>
     <div class="collections-container">
-        <Collection v-for="collection in collections" :collection="collection" />
+        <Collection v-for="name in collections" :key="name" :collection="{ name }" />
     </div>
 </template>
 

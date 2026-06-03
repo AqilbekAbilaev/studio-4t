@@ -1,58 +1,40 @@
 <script setup>
 import { getImageUrl } from '../../utils'
-import { invoke } from "@tauri-apps/api/core"
-import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { Webview } from '@tauri-apps/api/webview'
-import { getCurrentWindow, Window } from '@tauri-apps/api/window'
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 const emit = defineEmits(['close-modal'])
-
-
+const props = defineProps(['options'])
 
 async function open_connection() {
-    console.log("hi")
-    const position = await getCurrentWindow().innerPosition()
-    const width = await getCurrentWindow().innerSize()
-    console.log(width)
-    
-
-    const webview = new WebviewWindow('my-label', {
-        url: 'https://kun.uz',
-        // center: true,
+    const webview = new WebviewWindow('connect-window', {
+        url: 'src/pages/connect.html',
+        title: 'New Connection',
+        width: 480,
+        height: 460,
+        resizable: false,
         alwaysOnTop: true,
-        // visible: false,
-        // center: true,
-        parent: getCurrentWebviewWindow(),
-        // maxHeight: 250,
-        // maxWidth: 450,
-        x: position.x + width.width / 2 - 225,
-        y: position.y + width.height / 2 - 125,
-    });
-
-
-    // since the webview window is created asynchronously,
-    // Tauri emits the `tauri://created` and `tauri://error` to notify you of the creation response
-    webview.once('tauri://created', async function () {
-        // webview window successfully created
-        // const position = await appWindow.innerPosition()
-        // console.log(position)
-        emit('close-modal')
-        console.log()
-
+        center: true,
     })
-    webview.once('tauri://error', function (e) {
-        console.log(e)
-        // an error occurred during webview window creation
+
+    webview.once('tauri://created', () => {
+        emit('close-modal')
+    })
+
+    webview.once('tauri://error', (e) => {
+        console.error('Failed to open connection dialog:', e)
     })
 }
 
-const props = defineProps(['options'])
-
+function handleOptionClick(item) {
+    if (item.id === 1) {
+        open_connection()
+    }
+}
 </script>
 <template>
     <div class="modal">
-        <div class="option-container pointer" v-for="item in options" @click="open_connection">
-            <img v-if="item.icon" :src="getImageUrl(item.icon)" alt="shit" width="24px" />
+        <div class="option-container pointer" v-for="item in options" @click="handleOptionClick(item)">
+            <img v-if="item.icon" :src="getImageUrl(item.icon)" alt="" width="16px" />
             {{ item.name }}
         </div>
     </div>
@@ -71,20 +53,13 @@ const props = defineProps(['options'])
 .option-container {
     display: flex;
     align-items: center;
-    /* justify-content: space-between; */
+    gap: 8px;
     padding: 4px 10px;
     font-weight: 300;
     color: white;
-    position: relative;
 }
 
 .option-container:hover {
-    background-color: #3489eb;
-}
-
-.option-text {}
-
-.option-text:hover {
     background-color: #3489eb;
 }
 </style>

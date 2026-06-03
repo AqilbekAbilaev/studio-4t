@@ -1,65 +1,37 @@
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import Connection from "./database/connection.vue";
-const props = defineProps(['options'])
 
-const databaseConnections = [
-    {
-        id: 1,
-        name: "Local",
-        databases: [
-            {
-                name: "admin",
-                collections: [
-                    {
-                        name: "users"
-                    }
-                ]
-            },
-            {
-                name: "roles",
-                collections: [
-                    {
-                        name: "users"
-                    }
-                ]
-            },
-            {
-                name: "shits",
-                collections: [
-                    {
-                        name: "users"
-                    }
-                ]
-            }
-        ],
-    },
-    {
-        id: 2,
-        name: "Prod",
-        collections: [
-            {
-                name: "admin",
-                documents: [
-                    {
-                        name: "users",
-                    },
-                    {
-                        name: "roles"
-                    }
-                ]
-            }
-        ],
+const databaseConnections = ref([]);
+const selectedConnectionId = ref(null);
+
+onMounted(async () => {
+    try {
+        databaseConnections.value = await invoke("list_connections");
+    } catch (e) {
+        console.error("Failed to load connections:", e);
     }
-]
-const selectedConnectionId = ref(0);
 
+    await listen("connection-saved", (event) => {
+        databaseConnections.value.push(event.payload);
+    });
+});
 </script>
 <template>
     <div class="container">
         <div class="connections">
-            <Connection v-for="databaseConnection in databaseConnections" :connection="databaseConnection"
-                :selectedConnectionId="selectedConnectionId" @select-connection="e => selectedConnectionId = e" />
+            <Connection
+                v-for="connection in databaseConnections"
+                :key="connection.id"
+                :connection="connection"
+                :selectedConnectionId="selectedConnectionId"
+                @select-connection="e => selectedConnectionId = e"
+            />
+            <div v-if="databaseConnections.length === 0" class="empty-state">
+                No connections. Use File → Connect to add one.
+            </div>
         </div>
     </div>
 </template>
@@ -72,13 +44,18 @@ const selectedConnectionId = ref(0);
     background-color: #3c3c3c;
     height: 100%;
     padding: 4px;
-    /* border: 1px solid #4d4d4d; */
 }
 
 .connections {
     height: 100%;
-    /* background-color: white; */
     border: 1px solid #575757;
     padding: 6px;
+}
+
+.empty-state {
+    color: #777;
+    font-size: 12px;
+    padding: 12px 4px;
+    text-align: center;
 }
 </style>

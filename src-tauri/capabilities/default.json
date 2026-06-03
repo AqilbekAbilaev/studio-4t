@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": ["main", "connect-window"],
   "permissions": [
     "core:default",
     "opener:default",
@@ -12,6 +12,9 @@
     "core:webview:default",
     "core:webview:allow-create-webview",
     "core:window:allow-cursor-position",
-    "core:window:allow-get-all-windows"
+    "core:window:allow-get-all-windows",
+    "core:path:default",
+    "core:event:allow-emit",
+    "core:window:allow-close"
   ]
 }
