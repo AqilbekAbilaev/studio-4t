@@ -37,5 +37,4 @@ serde = "1.0.188"
 uuid = { version = "1", features = ["v4"] }
 
 [dependencies.mongodb]
-features = ["sync"]
 version = "3.2.1"
