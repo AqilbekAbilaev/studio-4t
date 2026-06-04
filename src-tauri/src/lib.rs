@@ -1,4 +1,4 @@
-use mongodb::sync::Client;
+use mongodb::Client;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::Manager;
@@ -42,34 +42,56 @@ fn save_connections(path: &Path, list: &Vec<ConnectionConfig>) -> Result<(), Str
 }
 
 #[tauri::command]
-fn test_connection(uri: String) -> Result<(), String> {
-    // Fast path: TCP probe before invoking the MongoDB driver.
+async fn test_connection(uri: String) -> Result<(), String> {
+    // Fast path: async TCP probe before invoking the MongoDB driver.
     // When a port is closed the OS returns ECONNREFUSED in milliseconds,
     // so we surface that immediately instead of waiting for the driver timeout.
     // Only applies to standard mongodb:// URIs (not SRV or other schemes).
     if let Some(host_port) = extract_host_port(&uri) {
-        use std::net::ToSocketAddrs;
-        use std::time::Duration;
-
-        let addrs: Vec<_> = host_port
-            .to_socket_addrs()
+        let addrs: Vec<_> = tokio::net::lookup_host(&host_port)
+            .await
             .map_err(|e| format!("Invalid address \"{}\": {}", host_port, e))?
             .collect();
 
         if let Some(addr) = addrs.first() {
-            std::net::TcpStream::connect_timeout(addr, Duration::from_secs(3))
-                .map_err(|e| format!("Cannot reach {}: {}", host_port, e))?;
+            tokio::time::timeout(
+                std::time::Duration::from_secs(3),
+                tokio::net::TcpStream::connect(addr),
+            )
+            .await
+            .map_err(|_| format!("Cannot reach {} (timed out)", host_port))?
+            .map_err(|e| format!("Cannot reach {}: {}", host_port, e))?;
         }
     }
 
     // TCP layer is open — hand off to the MongoDB driver for auth/handshake.
     let timeout_uri = append_timeout_params(&uri);
-    let client = Client::with_uri_str(&timeout_uri).map_err(|e| e.to_string())?;
+    let client = Client::with_uri_str(&timeout_uri).await.map_err(|e| e.to_string())?;
     client
         .list_database_names()
-        .run()
+        .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+async fn list_databases(uri: String) -> Result<Vec<DatabaseInfo>, String> {
+    let timeout_uri = append_timeout_params(&uri);
+    let client = Client::with_uri_str(&timeout_uri).await.map_err(|e| e.to_string())?;
+    let db_names = client
+        .list_database_names()
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut databases = Vec::new();
+    for name in db_names {
+        let collections = client
+            .database(&name)
+            .list_collection_names()
+            .await
+            .map_err(|e| e.to_string())?;
+        databases.push(DatabaseInfo { name, collections });
+    }
+    Ok(databases)
 }
 
 // Extracts "host:port" from a mongodb:// URI for the TCP probe.
@@ -138,25 +160,6 @@ fn delete_connection(app_handle: tauri::AppHandle, id: String) -> Result<(), Str
     let mut connections = load_connections(&path);
     connections.retain(|c| c.id != id);
     save_connections(&path, &connections)
-}
-
-#[tauri::command]
-fn list_databases(uri: String) -> Result<Vec<DatabaseInfo>, String> {
-    let client = Client::with_uri_str(&uri).map_err(|e| e.to_string())?;
-    let db_names = client
-        .list_database_names()
-        .run()
-        .map_err(|e| e.to_string())?;
-    let mut databases = Vec::new();
-    for name in db_names {
-        let collections = client
-            .database(&name)
-            .list_collection_names()
-            .run()
-            .map_err(|e| e.to_string())?;
-        databases.push(DatabaseInfo { name, collections });
-    }
-    Ok(databases)
 }
 
 #[tauri::command]
