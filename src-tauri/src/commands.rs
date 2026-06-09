@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::pool::ConnectionPool;
 use crate::storage::{ConnectionConfig, Storage};
 use crate::uri;
+use mongodb::bson;
 use mongodb::Client;
 use serde::Serialize;
 use tauri::State;
@@ -65,6 +66,39 @@ pub async fn disconnect(
 ) -> Result<(), AppError> {
     pool.remove(&id).await;
     Ok(())
+}
+
+fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
+    let trimmed = filter.trim();
+    if trimmed.is_empty() || trimmed == "{}" {
+        return Ok(bson::doc! {});
+    }
+    let json: serde_json::Value = serde_json::from_str(trimmed)?;
+    bson::to_document(&json).map_err(|e| AppError::Bson(e.to_string()))
+}
+
+#[tauri::command]
+pub async fn find_documents(
+    pool: State<'_, ConnectionPool>,
+    id: String,
+    uri: String,
+    database: String,
+    collection: String,
+    filter: String,
+) -> Result<Vec<serde_json::Value>, AppError> {
+    let client = pool.get_or_create(&id, &uri::with_timeout(&uri)).await?;
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+
+    let filter_doc = parse_filter(&filter)?;
+    let mut cursor = col.find(filter_doc).limit(50_i64).await?;
+    let mut docs = Vec::new();
+    while cursor.advance().await? {
+        let doc: bson::Document = cursor.deserialize_current()?;
+        docs.push(serde_json::to_value(&doc)?);
+    }
+    Ok(docs)
 }
 
 #[tauri::command]

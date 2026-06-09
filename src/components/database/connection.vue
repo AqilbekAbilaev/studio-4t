@@ -47,7 +47,13 @@ async function toggleExpand() {
         <div v-if="loadError" class="error-state">{{ loadError }}</div>
 
         <div v-if="!isCollapsed && !isLoading">
-            <Database v-for="database in databases" :key="database.name" :database="database" />
+            <Database
+                v-for="database in databases"
+                :key="database.name"
+                :database="database"
+                :connectionId="connection.id"
+                :connectionUri="connection.uri"
+            />
         </div>
     </div>
 </template>

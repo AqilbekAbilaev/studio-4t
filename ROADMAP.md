@@ -13,20 +13,17 @@
 - Fast TCP probe — instant "connection refused" feedback before invoking the MongoDB driver
 - Rust backend module structure: `error`, `storage`, `pool`, `uri`, `commands`
 - Unit tests — 22 tests covering storage, URI utilities, and pool state
-
----
-
-## In Progress 🔧
-
-- Query tab UI — toolbar exists (Run, Load query, Save query, Visual Query Builder, Query input) but nothing is wired up yet
+- **Query execution** — click a collection, type a filter `{}`, press Run → documents shown as JSON
+  - `find_documents` Tauri command with configurable filter (JSON) and 50-doc limit
+  - Collection selection tracked app-wide via Vue provide/inject
+  - Ctrl+Enter / Cmd+Enter keyboard shortcut to run
+  - Results panel shows document count + pretty-printed JSON per document
 
 ---
 
 ## Up Next 📋
 
 ### Core query workflow
-- [ ] Execute a query (Run button) — send MQL to the selected collection, get documents back
-- [ ] Display query results — document list / table view in the dashboard panel
 - [ ] View a single document in a readable format (JSON tree or formatted view)
 - [ ] Edit a document inline and save changes
 - [ ] Insert a new document

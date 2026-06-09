@@ -1,7 +1,11 @@
 <script setup>
-import { ref } from "vue"
+import { ref, provide } from "vue"
 import Connections from "./components/connections.vue";
 import Dashboard from "./components/dashboard.vue";
+
+const activeCollection = ref(null)
+// Shape: { connectionId, uri, dbName, collectionName } | null
+provide('activeCollection', activeCollection)
 
 const dividerPosition = ref(30);
 

@@ -1,12 +1,17 @@
 <script setup>
 import Collection from './collection.vue';
-const props = defineProps(['collections'])
-
-
+const props = defineProps(['collections', 'connectionId', 'connectionUri', 'dbName'])
 </script>
 <template>
     <div class="collections-container">
-        <Collection v-for="name in collections" :key="name" :collection="{ name }" />
+        <Collection
+            v-for="name in collections"
+            :key="name"
+            :collection="{ name }"
+            :connectionId="connectionId"
+            :connectionUri="connectionUri"
+            :dbName="dbName"
+        />
     </div>
 </template>
 
