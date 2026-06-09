@@ -17,6 +17,8 @@ pub enum AppError {
     #[error("Connection timed out: {address}")]
     Timeout { address: String },
 
+    #[error("BSON error: {0}")]
+    Bson(String),
 }
 
 // Tauri commands return Result<T, E> where E must implement serde::Serialize.

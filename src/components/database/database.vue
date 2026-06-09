@@ -5,7 +5,7 @@ import { getImageUrl } from '../../utils';
 import Collections from './collections.vue';
 
 
-const props = defineProps(['database'])
+const props = defineProps(['database', 'connectionId', 'connectionUri'])
 
 const isCollapsed = ref(true)
 
@@ -18,7 +18,13 @@ const isCollapsed = ref(true)
             {{ database.name }}
         </div>
         <div>
-            <Collections v-if="!isCollapsed" :collections="database.collections" />
+            <Collections
+                v-if="!isCollapsed"
+                :collections="database.collections"
+                :connectionId="connectionId"
+                :connectionUri="connectionUri"
+                :dbName="database.name"
+            />
         </div>
     </div>
 </template>
