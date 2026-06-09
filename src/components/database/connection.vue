@@ -20,7 +20,7 @@ async function toggleExpand() {
         isLoading.value = true
         loadError.value = null
         try {
-            databases.value = await invoke('list_databases', { uri: props.connection.uri })
+            databases.value = await invoke('list_databases', { id: props.connection.id, uri: props.connection.uri })
             hasLoaded.value = true
         } catch (e) {
             loadError.value = String(e)
