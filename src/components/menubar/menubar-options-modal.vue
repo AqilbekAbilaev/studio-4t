@@ -12,7 +12,6 @@ async function open_connection() {
         width: 480,
         height: 460,
         resizable: false,
-        alwaysOnTop: true,
         center: true,
     })
 
