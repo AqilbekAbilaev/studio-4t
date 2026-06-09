@@ -1,5 +1,6 @@
 mod commands;
 mod error;
+mod menu;
 mod pool;
 mod storage;
 mod uri;
@@ -16,6 +17,11 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             app.manage(Storage::new(data_dir.join("connections.json")));
             app.manage(ConnectionPool::new());
+
+            let native_menu = menu::build(app.handle())?;
+            app.set_menu(native_menu)?;
+            app.on_menu_event(menu::handle_event);
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())

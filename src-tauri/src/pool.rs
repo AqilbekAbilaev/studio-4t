@@ -67,10 +67,4 @@ mod tests {
         pool.remove("ghost").await; // must not panic
     }
 
-    #[tokio::test]
-    async fn not_found_error_message_contains_id() {
-        let id = "missing-connection";
-        let err = AppError::NotFound { id: id.into() };
-        assert!(err.to_string().contains(id));
-    }
 }

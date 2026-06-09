@@ -17,8 +17,6 @@ pub enum AppError {
     #[error("Connection timed out: {address}")]
     Timeout { address: String },
 
-    #[error("Connection not found: {id}")]
-    NotFound { id: String },
 }
 
 // Tauri commands return Result<T, E> where E must implement serde::Serialize.
