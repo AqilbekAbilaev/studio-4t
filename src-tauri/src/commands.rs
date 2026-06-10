@@ -73,7 +73,13 @@ fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
     if trimmed.is_empty() || trimmed == "{}" {
         return Ok(bson::doc! {});
     }
-    let json: serde_json::Value = serde_json::from_str(trimmed)?;
+    let json: serde_json::Value = serde_json::from_str(trimmed).map_err(|e| {
+        // serde_json's "key must be a string" fires on unquoted keys like { name: 1 }.
+        // The frontend preprocesses these, so if we still hit this, surface a clear hint.
+        AppError::Bson(format!(
+            "Invalid query JSON ({e}). Keys must be quoted, e.g. {{\"name\": 1}}"
+        ))
+    })?;
     bson::to_document(&json).map_err(|e| AppError::Bson(e.to_string()))
 }
 
