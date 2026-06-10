@@ -20,6 +20,16 @@ const runError = ref(null)
 const viewMode = ref('table') // 'table' | 'json'
 const selectedRow = ref(null)
 
+// Convert MongoDB-style query (unquoted keys) to strict JSON.
+// Handles the common case: { name: "x", age: 25 } → { "name": "x", "age": 25 }
+function toStrictJson(raw) {
+    const s = raw.trim()
+    if (!s || s === '{}') return '{}'
+    // Quote any bare identifier key that isn't already quoted.
+    // Matches: optional leading { or , then whitespace, then identifier, then :
+    return s.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$.]*)\s*:/g, '$1"$2":')
+}
+
 async function runQuery() {
     if (!activeCollection.value) return
     isRunning.value = true
@@ -31,9 +41,9 @@ async function runQuery() {
             uri: activeCollection.value.uri,
             database: activeCollection.value.dbName,
             collection: activeCollection.value.collectionName,
-            filter: filter.value.trim() || '{}',
-            projection: projection.value.trim() || '{}',
-            sort: sort.value.trim() || '{}',
+            filter: toStrictJson(filter.value),
+            projection: toStrictJson(projection.value),
+            sort: toStrictJson(sort.value),
             skip: skip.value || 0,
             limit: limit.value || 50,
         })
