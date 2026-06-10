@@ -120,16 +120,6 @@ async function runQuery(tabId, params) {
 
 <template>
   <div class="app-layout">
-    <!-- Titlebar -->
-    <div class="titlebar">
-      <div class="traffic">
-        <span class="light r"></span>
-        <span class="light y"></span>
-        <span class="light g"></span>
-      </div>
-      <div class="title">Studio-4T</div>
-    </div>
-
     <!-- Toolbar -->
     <div class="toolbar">
       <template v-for="(t, i) in TOOLS" :key="i">
@@ -246,7 +236,7 @@ async function runQuery(tabId, params) {
 .tbtn:hover .ic { color: var(--text); }
 .tbtn .lbl { font-size: 10.5px; color: var(--text-dim); white-space: nowrap; }
 .tbtn .drop { position: absolute; right: 2px; top: 3px; color: var(--text-faint); }
-.tb-sep { width: 1px; background: var(--border-soft); margin: 6px 4px; }
+.tb-sep { width: 1px; flex: none; background: var(--border-soft); margin: 6px 4px; align-self: stretch; }
 .ic-badge { position: relative; }
 .dotmark {
   position: absolute;
