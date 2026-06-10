@@ -1,0 +1,61 @@
+/* ===== Studio-4T design tokens ===== */
+:root {
+  --bg-window:   #1f2023;
+  --bg-titlebar: #2c2e31;
+  --bg-toolbar:  #28292c;
+  --bg-panel:    #232427;
+  --bg-panel-2:  #1c1d20;
+  --bg-input:    #1a1b1e;
+  --bg-row-alt:  #25262a;
+  --bg-row:      #1f2023;
+  --bg-hover:    #2f3135;
+  --bg-active:   #3a3d42;
+  --border:      #131416;
+  --border-soft: #34363a;
+  --text:        #d6d7da;
+  --text-dim:    #9a9ca1;
+  --text-faint:  #6c6e73;
+  --accent:      #3b82f6;
+  --accent-soft: #2563eb;
+  --prod:        #e07a6b;
+  --prod-dim:    #c96b5d;
+  --link:        #6ea8fe;
+  --green:       #4caf78;
+  --purple:      #b07ddb;
+  --warn:        #e0a35e;
+  --cell-str:    #c98a6b;
+  --cell-num:    #b6c46b;
+  --cell-key:    #9ccad9;
+  --cell-op:     #6ea8fe;
+  --mono: "SF Mono","JetBrains Mono","Menlo","Consolas",monospace;
+  --sans: -apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",sans-serif;
+  --radius: 7px;
+}
+
+*, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #app {
+  height: 100%;
+  background: var(--bg-window);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button { font-family: inherit; color: inherit; cursor: pointer; }
+input  { font-family: inherit; color: inherit; }
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #45474c;
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #55575c;
+  background-clip: padding-box;
+}
