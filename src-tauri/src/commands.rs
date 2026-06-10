@@ -85,6 +85,10 @@ pub async fn find_documents(
     database: String,
     collection: String,
     filter: String,
+    projection: String,
+    sort: String,
+    skip: i64,
+    limit: i64,
 ) -> Result<Vec<serde_json::Value>, AppError> {
     let client = pool.get_or_create(&id, &uri::with_timeout(&uri)).await?;
     let col = client
@@ -92,7 +96,18 @@ pub async fn find_documents(
         .collection::<bson::Document>(&collection);
 
     let filter_doc = parse_filter(&filter)?;
-    let mut cursor = col.find(filter_doc).limit(50_i64).await?;
+    let projection_doc = parse_filter(&projection)?;
+    let sort_doc = parse_filter(&sort)?;
+
+    let mut query = col.find(filter_doc).limit(limit).skip(skip as u64);
+    if !projection_doc.is_empty() {
+        query = query.projection(projection_doc);
+    }
+    if !sort_doc.is_empty() {
+        query = query.sort(sort_doc);
+    }
+
+    let mut cursor = query.await?;
     let mut docs = Vec::new();
     while cursor.advance().await? {
         let doc: bson::Document = cursor.deserialize_current()?;
