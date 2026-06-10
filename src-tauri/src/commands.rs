@@ -111,7 +111,9 @@ pub async fn find_documents(
     let mut docs = Vec::new();
     while cursor.advance().await? {
         let doc: bson::Document = cursor.deserialize_current()?;
-        docs.push(serde_json::to_value(&doc)?);
+        // Use bson's own From impl (not serde_json::to_value) — bson's Serialize
+        // targets the bson wire format, not JSON, so to_value produces wrong output.
+        docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
     }
     Ok(docs)
 }
