@@ -1,13 +1,14 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import BaseIcon from './BaseIcon.vue'
 
 const props = defineProps({
-  activeCollectionKey: String, // "connId/dbName/collName"
+  activeCollectionKey: String,
+  expandId: String,
 })
-const emit = defineEmits(['select-collection'])
+const emit = defineEmits(['select-collection', 'expanded'])
 
 const connections = ref([])
 const expandedConns = ref({})      // connId → boolean
@@ -62,6 +63,15 @@ function collectionKey(connId, dbName, collName) {
   return `${connId}/${dbName}/${collName}`
 }
 
+watch(() => props.expandId, (id) => {
+  if (!id) return
+  const conn = connections.value.find(c => c.id === id)
+  if (conn && !expandedConns.value[id]) {
+    toggleConnection(conn)
+  }
+  emit('expanded')
+})
+
 const filteredConnections = ref([])
 import { computed } from 'vue'
 const filtered = computed(() => {
@@ -94,7 +104,11 @@ const filtered = computed(() => {
         <!-- Connection root -->
         <div
           class="tnode"
-          :class="{ sel: activeCollectionKey?.startsWith(conn.id) }"
+          :class="{
+            sel: activeCollectionKey?.startsWith(conn.id),
+            prod: conn.tag === 'red',
+            bold: conn.tag === 'red',
+          }"
           style="padding-left: 6px"
           @click="toggleConnection(conn)"
         >
@@ -121,6 +135,7 @@ const filtered = computed(() => {
             <!-- Database row -->
             <div
               class="tnode"
+              :class="{ prod: conn.tag === 'red' }"
               style="padding-left: 21px"
               @click="toggleDatabase(conn.id, db.name)"
             >
@@ -129,6 +144,7 @@ const filtered = computed(() => {
               </span>
               <span class="ti"><BaseIcon name="dbSmall" :size="15" /></span>
               <span class="tt">{{ db.name }}</span>
+              <span v-if="db.collections.length" class="cnt">({{ db.collections.length }})</span>
             </div>
 
             <!-- Collections -->
@@ -137,7 +153,10 @@ const filtered = computed(() => {
                 v-for="coll in db.collections"
                 :key="coll"
                 class="tnode"
-                :class="{ sel: activeCollectionKey === collectionKey(conn.id, db.name, coll) }"
+                :class="{
+                  sel: activeCollectionKey === collectionKey(conn.id, db.name, coll),
+                  prod: conn.tag === 'red',
+                }"
                 style="padding-left: 51px"
                 @click="selectCollection(conn, db, coll)"
               >
@@ -244,4 +263,10 @@ const filtered = computed(() => {
 
 .ti { flex: none; color: var(--text-dim); }
 .tt { overflow: hidden; text-overflow: ellipsis; }
+
+.cnt { color: var(--text-faint); font-size: 11.5px; margin-left: 4px; }
+
+.tnode.prod .tt,
+.tnode.prod .ti { color: var(--prod); }
+.tnode.prod.bold .tt { font-weight: 700; }
 </style>

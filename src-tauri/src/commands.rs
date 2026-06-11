@@ -34,6 +34,8 @@ pub async fn save_connection(
         id: id.clone(),
         name,
         uri: uri.clone(),
+        last_accessed: None,
+        tag: None,
     })?;
 
     // Create and cache the client immediately so the first expand is instant.
@@ -122,6 +124,37 @@ pub async fn find_documents(
         docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
     }
     Ok(docs)
+}
+
+#[tauri::command]
+pub fn set_connection_tag(
+    storage: State<'_, Storage>,
+    id: String,
+    tag: String,
+) -> Result<(), AppError> {
+    let mut connections = storage.load();
+    if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+        c.tag = if tag.is_empty() { None } else { Some(tag) };
+    }
+    storage.save(&connections)
+}
+
+#[tauri::command]
+pub fn update_last_accessed(
+    storage: State<'_, Storage>,
+    id: String,
+    timestamp: String,
+) -> Result<(), AppError> {
+    let mut connections = storage.load();
+    if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+        c.last_accessed = Some(timestamp);
+    }
+    storage.save(&connections)
+}
+
+#[tauri::command]
+pub fn open_connect_window(app: tauri::AppHandle) {
+    crate::menu::open_connect_window(&app);
 }
 
 #[tauri::command]

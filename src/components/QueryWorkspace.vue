@@ -3,10 +3,11 @@ import { ref, computed } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 
 const props = defineProps({
-  tabs:        { type: Array,  required: true },
-  activeTabId: { type: String, required: true },
+  tabs:        { type: Array,   required: true },
+  activeTabId: { type: String,  required: true },
+  vqbOpen:     { type: Boolean, default: false },
 })
-const emit = defineEmits(['activate-tab', 'close-tab', 'run-query'])
+const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'toggle-vqb'])
 
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
 
@@ -140,9 +141,11 @@ function columns(results) {
         <button class="qbtn" disabled><BaseIcon name="load"    :size="16" class="ic" /> Load query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
         <button class="qbtn" disabled><BaseIcon name="save"    :size="16" class="ic" /> Save query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
         <button class="qbtn" disabled><BaseIcon name="history" :size="16" class="ic" /> Query history</button>
+        <button class="qbtn" disabled><BaseIcon name="anchor"  :size="16" class="ic" /> Set default query <BaseIcon name="caretDown" :size="11" class="drop" /></button>
         <button class="qbtn" disabled><BaseIcon name="copy"    :size="16" class="ic" /> Copy</button>
+        <button class="qbtn" disabled><BaseIcon name="paste"   :size="16" class="ic" /> Paste</button>
         <span class="qbar-spacer"></span>
-        <button class="vqb-toggle" disabled>
+        <button class="vqb-toggle" :class="{ on: vqbOpen }" @click="emit('toggle-vqb')">
           <BaseIcon name="aggregate" :size="15" /> Visual Query Builder
         </button>
       </div>
@@ -424,6 +427,7 @@ function columns(results) {
   color: var(--text-dim);
   font-size: 12px;
 }
+.vqb-toggle.on { color: var(--accent); border-color: var(--accent-soft); }
 .vqb-toggle:disabled { opacity: .4; }
 
 /* Query fields */
@@ -599,9 +603,9 @@ table.grid tr.selrow td { background: rgba(59,130,246,.18); }
 
 .tcell { display: inline-flex; align-items: center; gap: 6px; }
 .ticon { color: var(--text-faint); display: grid; place-items: center; flex: none; }
-.cell-oid { color: var(--link); }
-.cell-str { color: var(--cell-str); }
-.cell-num { color: var(--cell-num); }
+.cell-oid   { color: var(--link); }
+.cell-str   { color: var(--cell-str-green); }
+.cell-num   { color: var(--cell-num); }
 .cell-faint { color: var(--text-faint); }
 
 .empty-rows { background: var(--bg-window); }
