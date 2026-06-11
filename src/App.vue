@@ -4,6 +4,8 @@ import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
+import ConnectionManager from './components/ConnectionManager.vue'
+import VisualQueryBuilder from './components/VisualQueryBuilder.vue'
 
 // ── toolbar definition ─────────────────────────────────────
 const TOOLS = [
@@ -32,6 +34,9 @@ const tabs = ref([
 const activeTabId = ref('t0')
 const toast = ref(null)
 let toastTimer = null
+const showConnectionManager = ref(false)
+const expandConnectionId = ref(null)
+const vqbOpen = ref(false)
 
 function showToast(msg) {
   clearTimeout(toastTimer)
@@ -50,12 +55,16 @@ const activeCollectionKey = computed(() => {
 // ── toolbar handler ────────────────────────────────────────
 function handleTool(name) {
   if (name === 'connect') {
-    // open connect dialog (existing menu item already handles this; wire here if needed)
-    showToast('Use File → Connect to add a connection')
+    showConnectionManager.value = true
     return
   }
   const label = TOOLS.find(t => t.name === name)?.label || name
   showToast(`${label} — coming to Studio-4T`)
+}
+
+function onManagerConnect(id) {
+  showConnectionManager.value = false
+  expandConnectionId.value = id
 }
 
 // ── tab management ─────────────────────────────────────────
@@ -146,18 +155,30 @@ async function runQuery(tabId, params) {
       <!-- Sidebar -->
       <ConnectionTree
         :active-collection-key="activeCollectionKey"
+        :expand-id="expandConnectionId"
         @select-collection="openCollectionTab"
+        @expanded="expandConnectionId = null"
       />
 
       <!-- Workspace -->
       <QueryWorkspace
         :tabs="tabs"
         :active-tab-id="activeTabId"
+        :vqb-open="vqbOpen"
         @activate-tab="activateTab"
         @close-tab="closeTab"
         @run-query="runQuery"
+        @toggle-vqb="vqbOpen = !vqbOpen"
       />
+      <VisualQueryBuilder v-if="vqbOpen" />
     </div>
+
+    <!-- Connection Manager modal -->
+    <ConnectionManager
+      v-if="showConnectionManager"
+      @close="showConnectionManager = false"
+      @connect="onManagerConnect"
+    />
 
     <!-- Toast -->
     <div v-if="toast" class="toast">{{ toast }}</div>

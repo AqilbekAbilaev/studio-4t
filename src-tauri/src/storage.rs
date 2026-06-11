@@ -7,6 +7,10 @@ pub struct ConnectionConfig {
     pub id: String,
     pub name: String,
     pub uri: String,
+    #[serde(default)]
+    pub last_accessed: Option<String>,
+    #[serde(default)]
+    pub tag: Option<String>,
 }
 
 pub struct Storage {
@@ -58,6 +62,8 @@ mod tests {
             id: id.into(),
             name: name.into(),
             uri: uri.into(),
+            last_accessed: None,
+            tag: None,
         }
     }
 

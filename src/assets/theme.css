@@ -23,7 +23,8 @@
   --green:       #4caf78;
   --purple:      #b07ddb;
   --warn:        #e0a35e;
-  --cell-str:    #c98a6b;
+  --cell-str:        #c98a6b;   /* query syntax strings */
+  --cell-str-green:  #87b366;   /* table-view string cells */
   --cell-num:    #b6c46b;
   --cell-key:    #9ccad9;
   --cell-op:     #6ea8fe;

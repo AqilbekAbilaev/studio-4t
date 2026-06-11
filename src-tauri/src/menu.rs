@@ -57,7 +57,7 @@ pub fn handle_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     }
 }
 
-fn open_connect_window(app: &AppHandle) {
+pub fn open_connect_window(app: &AppHandle) {
     // If the window already exists, just focus it instead of opening a duplicate.
     if let Some(w) = app.get_webview_window("connect-window") {
         w.set_focus().ok();

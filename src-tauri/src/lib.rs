@@ -31,6 +31,9 @@ pub fn run() {
             list_connections,
             delete_connection,
             disconnect,
+            set_connection_tag,
+            update_last_accessed,
+            open_connect_window,
             list_databases,
             find_documents,
         ])
