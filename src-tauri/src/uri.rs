@@ -30,11 +30,17 @@ pub fn with_timeout(uri: &str) -> String {
 /// Extracts "host:port" from a standard `mongodb://` URI for the TCP probe.
 /// Returns `None` for `mongodb+srv://` or URIs we cannot parse safely.
 pub fn extract_host_port(uri: &str) -> Option<String> {
-    let rest = uri.strip_prefix("mongodb://")?;
+    let rest = match uri.strip_prefix("mongodb://") {
+        Some(val) => val,
+        None => return None,
+    };
     // Drop credentials (user:pass@host → host)
     let rest = rest.find('@').map_or(rest, |i| &rest[i + 1..]);
     // Take the first host before any '/' or '?'
-    let host_port = rest.split(|c| c == '/' || c == '?').next()?;
+    let host_port = match rest.split(|c: char| c == '/' || c == '?').next() {
+        Some(val) => val,
+        None => return None,
+    };
     if host_port.is_empty() {
         return None;
     }
@@ -50,36 +56,43 @@ pub fn extract_host_port(uri: &str) -> Option<String> {
 /// for unreachable hosts (firewall, wrong IP, etc.).
 /// No-op for `mongodb+srv://` or URIs we cannot parse.
 pub async fn tcp_probe(uri: &str) -> Result<(), AppError> {
-    let Some(host_port) = extract_host_port(uri) else {
-        return Ok(());
+    let host_port = match extract_host_port(uri) {
+        Some(val) => val,
+        None => return Ok(()),
     };
 
-    let addrs: Vec<_> = tokio::net::lookup_host(&host_port)
-        .await
-        .map_err(|e| AppError::Unreachable {
+    let addrs: Vec<_> = match tokio::net::lookup_host(&host_port).await {
+        Ok(val) => val.collect(),
+        Err(e) => return Err(AppError::Unreachable {
             address: host_port.clone(),
             reason: e.to_string(),
-        })?
-        .collect();
-
-    let Some(addr) = addrs.first() else {
-        return Ok(());
+        }),
     };
 
-    tokio::time::timeout(
-        std::time::Duration::from_secs(TCP_PROBE_SECS),
-        tokio::net::TcpStream::connect(addr),
-    )
-    .await
-    .map_err(|_| AppError::Timeout {
-        address: host_port.clone(),
-    })?
-    .map_err(|e| AppError::Unreachable {
-        address: host_port,
-        reason: e.to_string(),
-    })?;
+    if addrs.is_empty() {
+        return Ok(());
+    }
 
-    Ok(())
+    // Try every resolved address (e.g. ::1 and 127.0.0.1 for "localhost").
+    // Succeed as soon as any one connects; only fail if all are refused/timeout.
+    let mut last_err = String::new();
+    for addr in &addrs {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(TCP_PROBE_SECS),
+            tokio::net::TcpStream::connect(addr),
+        )
+        .await
+        {
+            Ok(Ok(_)) => return Ok(()),
+            Ok(Err(e)) => last_err = e.to_string(),
+            Err(_) => last_err = format!("timed out connecting to {addr}"),
+        }
+    }
+
+    Err(AppError::Unreachable {
+        address: host_port,
+        reason: last_err,
+    })
 }
 
 #[cfg(test)]

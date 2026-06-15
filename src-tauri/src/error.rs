@@ -14,9 +14,6 @@ pub enum AppError {
     #[error("Cannot reach {address}: {reason}")]
     Unreachable { address: String, reason: String },
 
-    #[error("Connection timed out: {address}")]
-    Timeout { address: String },
-
     #[error("BSON error: {0}")]
     Bson(String),
 }

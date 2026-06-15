@@ -38,7 +38,10 @@ impl ConnectionPool {
         }
 
         // Slow path: create without holding the lock.
-        let client = Client::with_uri_str(uri).await?;
+        let client = match Client::with_uri_str(uri).await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
 
         // Re-acquire and insert; another task may have beaten us to it,
         // in which case we prefer the existing client and drop ours.

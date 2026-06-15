@@ -4,48 +4,100 @@ use tauri::{
 };
 
 pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
-    let menu = Menu::new(app)?;
+    let menu = match Menu::new(app) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     // File
-    let connect = MenuItem::with_id(app, "file:connect", "Connect...", true, None::<&str>)?;
-    let file = Submenu::with_items(
-        app,
-        "File",
-        true,
-        &[
-            &connect,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, Some("Exit"))?,
-        ],
-    )?;
+    let connect = match MenuItem::with_id(app, "file:connect", "Connect...", true, None::<&str>) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let separator_file = match PredefinedMenuItem::separator(app) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let quit = match PredefinedMenuItem::quit(app, Some("Exit")) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let file = match Submenu::with_items(app, "File", true, &[&connect, &separator_file, &quit]) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     // Edit — predefined items give macOS the standard Cmd+C/V/Z shortcuts
-    let edit = Submenu::with_items(
+    let undo = match PredefinedMenuItem::undo(app, None) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let redo = match PredefinedMenuItem::redo(app, None) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let separator_edit = match PredefinedMenuItem::separator(app) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let cut = match PredefinedMenuItem::cut(app, None) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let copy = match PredefinedMenuItem::copy(app, None) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let paste = match PredefinedMenuItem::paste(app, None) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let select_all = match PredefinedMenuItem::select_all(app, None) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let edit = match Submenu::with_items(
         app,
         "Edit",
         true,
-        &[
-            &PredefinedMenuItem::undo(app, None)?,
-            &PredefinedMenuItem::redo(app, None)?,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::cut(app, None)?,
-            &PredefinedMenuItem::copy(app, None)?,
-            &PredefinedMenuItem::paste(app, None)?,
-            &PredefinedMenuItem::select_all(app, None)?,
-        ],
-    )?;
+        &[&undo, &redo, &separator_edit, &cut, &copy, &paste, &select_all],
+    ) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     // Placeholder menus — items will be wired up as features are built
-    let database = Submenu::new(app, "Database", true)?;
-    let collection = Submenu::new(app, "Collection", true)?;
-    let index = Submenu::new(app, "Index", true)?;
-    let grid_fs = Submenu::new(app, "GridFS", true)?;
-    let view = Submenu::new(app, "View", true)?;
-    let help = Submenu::new(app, "Help", true)?;
+    let database = match Submenu::new(app, "Database", true) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let collection = match Submenu::new(app, "Collection", true) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let index = match Submenu::new(app, "Index", true) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let grid_fs = match Submenu::new(app, "GridFS", true) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let view = match Submenu::new(app, "View", true) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let help = match Submenu::new(app, "Help", true) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
-    menu.append_items(&[
+    match menu.append_items(&[
         &file, &edit, &database, &collection, &index, &grid_fs, &view, &help,
-    ])?;
+    ]) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     Ok(menu)
 }
