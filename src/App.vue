@@ -439,7 +439,7 @@ async function runQuery(tabId, params) {
   width: 5px;
   flex: none;
   cursor: col-resize;
-  background: transparent;
+  background: var(--border);
   position: relative;
   display: flex;
   align-items: center;
@@ -450,6 +450,7 @@ async function runQuery(tabId, params) {
   height: 32px;
   background: transparent;
   border-radius: 1px;
+  cursor: col-resize;
   transition: background 0.12s;
 }
 .resizer:hover .resizer-grip,
