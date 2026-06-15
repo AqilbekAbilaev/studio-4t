@@ -14,12 +14,21 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let data_dir = app.path().app_data_dir()?;
+            let data_dir = match app.path().app_data_dir() {
+                Ok(val) => val,
+                Err(e) => return Err(e.into()),
+            };
             app.manage(Storage::new(data_dir.join("connections.json")));
             app.manage(ConnectionPool::new());
 
-            let native_menu = menu::build(app.handle())?;
-            app.set_menu(native_menu)?;
+            let native_menu = match menu::build(app.handle()) {
+                Ok(val) => val,
+                Err(e) => return Err(e.into()),
+            };
+            match app.set_menu(native_menu) {
+                Ok(val) => val,
+                Err(e) => return Err(e.into()),
+            };
             app.on_menu_event(menu::handle_event);
 
             Ok(())

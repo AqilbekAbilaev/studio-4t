@@ -7,8 +7,11 @@ import BaseIcon from './BaseIcon.vue'
 const props = defineProps({
   activeCollectionKey: String,
   expandId: String,
+  width: { type: Number, default: 320 },
+  tagOverrides: { type: Object, default: () => ({}) },
+  contextActiveNodeKey: { type: String, default: null },
 })
-const emit = defineEmits(['select-collection', 'expanded'])
+const emit = defineEmits(['select-collection', 'expanded', 'context-menu'])
 
 const connections = ref([])
 const expandedConns = ref({})      // connId → boolean
@@ -72,17 +75,58 @@ watch(() => props.expandId, (id) => {
   emit('expanded')
 })
 
-const filteredConnections = ref([])
 import { computed } from 'vue'
 const filtered = computed(() => {
   if (!searchText.value) return connections.value
   const q = searchText.value.toLowerCase()
   return connections.value.filter(c => c.name.toLowerCase().includes(q))
 })
+
+function effectiveTag(conn) {
+  return props.tagOverrides[conn.id] !== undefined ? props.tagOverrides[conn.id] : conn.tag
+}
+
+function onNodeContext(e, type, label, nodeData) {
+  emit('context-menu', { type: type, x: e.clientX, y: e.clientY, label: label, nodeData: nodeData })
+}
+
+function disconnectConn(connId) {
+  connections.value = connections.value.filter(c => c.id !== connId)
+  delete expandedConns.value[connId]
+  delete loadingConns.value[connId]
+  delete connDatabases.value[connId]
+  delete connErrors.value[connId]
+  for (const key of Object.keys(expandedDbs.value)) {
+    if (key.startsWith(connId + '/')) {
+      delete expandedDbs.value[key]
+    }
+  }
+}
+
+async function refreshConn(connId, uri) {
+  if (!expandedConns.value[connId]) return
+  delete connDatabases.value[connId]
+  loadingConns.value[connId] = true
+  connErrors.value[connId] = null
+  try {
+    connDatabases.value[connId] = await invoke('list_databases', { id: connId, uri: uri })
+  } catch (e) {
+    connErrors.value[connId] = String(e)
+    expandedConns.value[connId] = false
+  } finally {
+    loadingConns.value[connId] = false
+  }
+}
+
+function getConnections() {
+  return connections.value
+}
+
+defineExpose({ disconnectConn, refreshConn, getConnections })
 </script>
 
 <template>
-  <div class="sidebar">
+  <div class="sidebar" :style="{ width: props.width + 'px' }">
     <!-- Search row -->
     <div class="side-search">
       <div class="search-box">
@@ -106,11 +150,13 @@ const filtered = computed(() => {
           class="tnode"
           :class="{
             sel: activeCollectionKey?.startsWith(conn.id),
-            prod: conn.tag === 'red',
-            bold: conn.tag === 'red',
+            'ctx-sel': props.contextActiveNodeKey === conn.id,
+            prod: effectiveTag(conn) === 'red',
+            bold: effectiveTag(conn) === 'red',
           }"
           style="padding-left: 6px"
           @click="toggleConnection(conn)"
+          @contextmenu.prevent="onNodeContext($event, 'connection', conn.name, { connId: conn.id, connName: conn.name, uri: conn.uri })"
         >
           <span class="tw">
             <BaseIcon :name="expandedConns[conn.id] ? 'caretDown' : 'caret'" :size="12" />
@@ -125,8 +171,8 @@ const filtered = computed(() => {
         </div>
 
         <!-- Error -->
-        <div v-if="connErrors[conn.id]" class="tnode" style="padding-left: 36px">
-          <span class="tt" style="color:#e07070;font-size:11.5px">{{ connErrors[conn.id] }}</span>
+        <div v-if="connErrors[conn.id]" class="tnode err-node" style="padding-left: 36px">
+          <span class="err-msg">{{ connErrors[conn.id] }}</span>
         </div>
 
         <!-- Databases -->
@@ -135,16 +181,22 @@ const filtered = computed(() => {
             <!-- Database row -->
             <div
               class="tnode"
-              :class="{ prod: conn.tag === 'red' }"
+              :class="{
+                prod: effectiveTag(conn) === 'red',
+                locked: !db.accessible,
+                'ctx-sel': props.contextActiveNodeKey === conn.id + '/' + db.name,
+              }"
               style="padding-left: 21px"
-              @click="toggleDatabase(conn.id, db.name)"
+              @click="db.accessible && toggleDatabase(conn.id, db.name)"
+              @contextmenu.prevent="onNodeContext($event, 'database', db.name, { connId: conn.id, dbName: db.name, uri: conn.uri })"
             >
               <span class="tw">
-                <BaseIcon :name="expandedDbs[`${conn.id}/${db.name}`] ? 'caretDown' : 'caret'" :size="12" />
+                <BaseIcon v-if="!db.accessible" name="lock" :size="12" />
+                <BaseIcon v-else :name="expandedDbs[`${conn.id}/${db.name}`] ? 'caretDown' : 'caret'" :size="12" />
               </span>
               <span class="ti"><BaseIcon name="dbSmall" :size="15" /></span>
               <span class="tt">{{ db.name }}</span>
-              <span v-if="db.collections.length" class="cnt">({{ db.collections.length }})</span>
+              <span v-if="db.accessible && db.collections.length" class="cnt">({{ db.collections.length }})</span>
             </div>
 
             <!-- Collections -->
@@ -155,10 +207,12 @@ const filtered = computed(() => {
                 class="tnode"
                 :class="{
                   sel: activeCollectionKey === collectionKey(conn.id, db.name, coll),
-                  prod: conn.tag === 'red',
+                  'ctx-sel': props.contextActiveNodeKey === collectionKey(conn.id, db.name, coll),
+                  prod: effectiveTag(conn) === 'red',
                 }"
                 style="padding-left: 51px"
                 @click="selectCollection(conn, db, coll)"
+                @contextmenu.prevent="onNodeContext($event, 'collection', coll, { connId: conn.id, connName: conn.name, uri: conn.uri, dbName: db.name, collName: coll })"
               >
                 <span class="tw empty"><BaseIcon name="caret" :size="12" /></span>
                 <span class="ti"><BaseIcon name="collSmall" :size="15" /></span>
@@ -174,7 +228,6 @@ const filtered = computed(() => {
 
 <style scoped>
 .sidebar {
-  width: 320px;
   flex: none;
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
@@ -249,8 +302,9 @@ const filtered = computed(() => {
   user-select: none;
 }
 
-.tnode:hover { background: var(--bg-hover); }
-.tnode.sel  { background: var(--bg-active); }
+.tnode:hover  { background: var(--bg-hover); }
+.tnode.sel    { background: var(--bg-active); }
+.tnode.ctx-sel { background: var(--bg-hover); }
 
 .tw {
   width: 16px;
@@ -266,7 +320,15 @@ const filtered = computed(() => {
 
 .cnt { color: var(--text-faint); font-size: 11.5px; margin-left: 4px; }
 
+.err-node { align-items: flex-start; cursor: default; }
+.err-msg { color: #e07070; font-size: 11.5px; white-space: pre-wrap; word-break: break-word; line-height: 1.5; padding: 2px 0; }
+
 .tnode.prod .tt,
 .tnode.prod .ti { color: var(--prod); }
 .tnode.prod.bold .tt { font-weight: 700; }
+
+.tnode.locked { cursor: default; }
+.tnode.locked .tt,
+.tnode.locked .ti,
+.tnode.locked .tw { color: var(--text-faint); }
 </style>

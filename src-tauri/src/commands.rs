@@ -12,13 +12,23 @@ use uuid::Uuid;
 pub struct DatabaseInfo {
     pub name: String,
     pub collections: Vec<String>,
+    pub accessible: bool,
 }
 
 #[tauri::command]
 pub async fn test_connection(uri: String) -> Result<(), AppError> {
-    uri::tcp_probe(&uri).await?;
-    let client = Client::with_uri_str(&uri::with_timeout(&uri)).await?;
-    client.list_database_names().await?;
+    match uri::tcp_probe(&uri).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let client = match Client::with_uri_str(&uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    match client.list_database_names().await {
+        Ok(_) => {},
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
     Ok(())
 }
 
@@ -30,16 +40,22 @@ pub async fn save_connection(
     uri: String,
 ) -> Result<String, AppError> {
     let id = Uuid::new_v4().to_string();
-    storage.add(ConnectionConfig {
+    match storage.add(ConnectionConfig {
         id: id.clone(),
-        name,
+        name: name,
         uri: uri.clone(),
         last_accessed: None,
         tag: None,
-    })?;
+    }) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     // Create and cache the client immediately so the first expand is instant.
-    let client = Client::with_uri_str(&uri::with_timeout(&uri)).await?;
+    let client = match Client::with_uri_str(&uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
     pool.insert(id.clone(), client).await;
 
     Ok(id)
@@ -56,7 +72,10 @@ pub async fn delete_connection(
     pool: State<'_, ConnectionPool>,
     id: String,
 ) -> Result<(), AppError> {
-    storage.remove(&id)?;
+    match storage.remove(&id) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
     pool.remove(&id).await;
     Ok(())
 }
@@ -75,14 +94,18 @@ fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
     if trimmed.is_empty() || trimmed == "{}" {
         return Ok(bson::doc! {});
     }
-    let json: serde_json::Value = serde_json::from_str(trimmed).map_err(|e| {
-        // serde_json's "key must be a string" fires on unquoted keys like { name: 1 }.
-        // The frontend preprocesses these, so if we still hit this, surface a clear hint.
-        AppError::Bson(format!(
+    let json: serde_json::Value = match serde_json::from_str(trimmed) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Bson(format!(
+            // serde_json's "key must be a string" fires on unquoted keys like { name: 1 }.
+            // The frontend preprocesses these, so if we still hit this, surface a clear hint.
             "Invalid query JSON ({e}). Keys must be quoted, e.g. {{\"name\": 1}}"
-        ))
-    })?;
-    bson::to_document(&json).map_err(|e| AppError::Bson(e.to_string()))
+        ))),
+    };
+    match bson::to_document(&json) {
+        Ok(val) => Ok(val),
+        Err(e) => Err(AppError::Bson(e.to_string())),
+    }
 }
 
 #[tauri::command]
@@ -98,14 +121,26 @@ pub async fn find_documents(
     skip: i64,
     limit: i64,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let client = pool.get_or_create(&id, &uri::with_timeout(&uri)).await?;
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
     let col = client
         .database(&database)
         .collection::<bson::Document>(&collection);
 
-    let filter_doc = parse_filter(&filter)?;
-    let projection_doc = parse_filter(&projection)?;
-    let sort_doc = parse_filter(&sort)?;
+    let filter_doc = match parse_filter(&filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let projection_doc = match parse_filter(&projection) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let sort_doc = match parse_filter(&sort) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     let mut query = col.find(filter_doc).limit(limit).skip(skip as u64);
     if !projection_doc.is_empty() {
@@ -115,10 +150,23 @@ pub async fn find_documents(
         query = query.sort(sort_doc);
     }
 
-    let mut cursor = query.await?;
+    let mut cursor = match query.await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
     let mut docs = Vec::new();
-    while cursor.advance().await? {
-        let doc: bson::Document = cursor.deserialize_current()?;
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
         // Use bson's own From impl (not serde_json::to_value) — bson's Serialize
         // targets the bson wire format, not JSON, so to_value produces wrong output.
         docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
@@ -163,13 +211,33 @@ pub async fn list_databases(
     id: String,
     uri: String,
 ) -> Result<Vec<DatabaseInfo>, AppError> {
-    let client = pool.get_or_create(&id, &uri::with_timeout(&uri)).await?;
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
-    let db_names = client.list_database_names().await?;
+    let db_names = match client.list_database_names().await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
     let mut databases = Vec::new();
     for name in db_names {
-        let collections = client.database(&name).list_collection_names().await?;
-        databases.push(DatabaseInfo { name, collections });
+        let collections = match client.database(&name).list_collection_names().await {
+            Ok(val) => val,
+            Err(_) => {
+                databases.push(DatabaseInfo {
+                    name: name,
+                    collections: Vec::new(),
+                    accessible: false,
+                });
+                continue;
+            }
+        };
+        databases.push(DatabaseInfo {
+            name: name,
+            collections: collections,
+            accessible: true,
+        });
     }
     Ok(databases)
 }

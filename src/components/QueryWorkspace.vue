@@ -623,6 +623,8 @@ table.grid tr.selrow td { background: rgba(59,130,246,.18); }
   border-left: 2px solid var(--border-soft);
   padding: 8px 0 8px 14px;
   margin-bottom: 10px;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* Footer */

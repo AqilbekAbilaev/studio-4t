@@ -6,6 +6,7 @@ import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
 import ConnectionManager from './components/ConnectionManager.vue'
 import VisualQueryBuilder from './components/VisualQueryBuilder.vue'
+import ContextMenu from './components/ContextMenu.vue'
 
 // ── toolbar definition ─────────────────────────────────────
 const TOOLS = [
@@ -34,9 +35,43 @@ const tabs = ref([
 const activeTabId = ref('t0')
 const toast = ref(null)
 let toastTimer = null
+const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
 const expandConnectionId = ref(null)
 const vqbOpen = ref(false)
+const contextMenu = ref(null)
+const tagOverrides = ref({})
+
+const contextActiveNodeKey = computed(() => {
+  if (!contextMenu.value) return null
+  const nd = contextMenu.value.nodeData
+  if (contextMenu.value.type === 'connection') return nd.connId
+  if (contextMenu.value.type === 'database') return nd.connId + '/' + nd.dbName
+  return nd.connId + '/' + nd.dbName + '/' + nd.collName
+})
+const sidebarWidth = ref(320)
+const sidebarResizing = ref(false)
+
+function startSidebarResize(e) {
+  e.preventDefault()
+  const startX = e.clientX
+  const startW = sidebarWidth.value
+  sidebarResizing.value = true
+  const onMove = (ev) => {
+    sidebarWidth.value = Math.max(200, Math.min(560, startW + (ev.clientX - startX)))
+  }
+  const onUp = () => {
+    sidebarResizing.value = false
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
 
 function showToast(msg) {
   clearTimeout(toastTimer)
@@ -67,6 +102,93 @@ function onManagerConnect(id) {
   expandConnectionId.value = id
 }
 
+async function handleContextAction(action) {
+  const saved = contextMenu.value
+  contextMenu.value = null
+
+  if (action === 'Open Collection') {
+    openCollectionTab({
+      connectionId: saved.nodeData.connId,
+      connectionName: saved.nodeData.connName,
+      uri: saved.nodeData.uri,
+      dbName: saved.nodeData.dbName,
+      collectionName: saved.nodeData.collName,
+    })
+    return
+  }
+
+  if (action.startsWith('Choose Color:')) {
+    const color = action.split(':')[1]
+    tagOverrides.value = { ...tagOverrides.value, [saved.nodeData.connId]: color }
+    showToast('Color tag updated')
+    return
+  }
+
+  if (action === 'Copy Name') {
+    navigator.clipboard.writeText(saved.label)
+    showToast('Copied')
+    return
+  }
+
+  if (action === 'Disconnect') {
+    try {
+      await invoke('disconnect', { id: saved.nodeData.connId })
+    } catch (_) {}
+    connectionTreeRef.value.disconnectConn(saved.nodeData.connId)
+    tabs.value = tabs.value.filter(t => t.connectionId !== saved.nodeData.connId)
+    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
+      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
+    }
+    showToast('Disconnected from ' + saved.label)
+    return
+  }
+
+  if (action === 'Disconnect Others') {
+    const others = connectionTreeRef.value.getConnections()
+      .filter(c => c.id !== saved.nodeData.connId)
+    for (const conn of others) {
+      try { await invoke('disconnect', { id: conn.id }) } catch (_) {}
+      connectionTreeRef.value.disconnectConn(conn.id)
+    }
+    tabs.value = tabs.value.filter(t => t.kind !== 'collection' || t.connectionId === saved.nodeData.connId)
+    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
+      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
+    }
+    showToast('Disconnected all other connections')
+    return
+  }
+
+  if (action === 'Disconnect All') {
+    const all = connectionTreeRef.value.getConnections()
+    for (const conn of all) {
+      try { await invoke('disconnect', { id: conn.id }) } catch (_) {}
+      connectionTreeRef.value.disconnectConn(conn.id)
+    }
+    tabs.value = tabs.value.filter(t => t.kind !== 'collection')
+    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
+      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
+    }
+    showToast('All connections closed')
+    return
+  }
+
+  if (action === 'Refresh Selected Item' || action === 'Refresh') {
+    await connectionTreeRef.value.refreshConn(saved.nodeData.connId, saved.nodeData.uri)
+    showToast('Refreshed')
+    return
+  }
+
+  if (action === 'Refresh All') {
+    for (const conn of connectionTreeRef.value.getConnections()) {
+      await connectionTreeRef.value.refreshConn(conn.id, conn.uri)
+    }
+    showToast('All connections refreshed')
+    return
+  }
+
+  showToast(action + ' — coming to Studio-4T')
+}
+
 // ── tab management ─────────────────────────────────────────
 function openCollectionTab({ connectionId, connectionName, uri, dbName, collectionName }) {
   const existing = tabs.value.find(t =>
@@ -87,6 +209,7 @@ function openCollectionTab({ connectionId, connectionName, uri, dbName, collecti
     selectedRow: -1, elapsedMs: null,
   })
   activeTabId.value = id
+  runQuery(id, { filter: '{}', projection: '{}', sort: '{}', skip: 0, limit: 50 })
 }
 
 function activateTab(id) { activeTabId.value = id }
@@ -154,11 +277,19 @@ async function runQuery(tabId, params) {
 
       <!-- Sidebar -->
       <ConnectionTree
+        ref="connectionTreeRef"
+        :width="sidebarWidth"
         :active-collection-key="activeCollectionKey"
         :expand-id="expandConnectionId"
+        :tag-overrides="tagOverrides"
+        :context-active-node-key="contextActiveNodeKey"
         @select-collection="openCollectionTab"
         @expanded="expandConnectionId = null"
+        @context-menu="contextMenu = $event"
       />
+      <div class="resizer" :class="{ dragging: sidebarResizing }" title="Drag to resize" @mousedown="startSidebarResize">
+        <span class="resizer-grip"></span>
+      </div>
 
       <!-- Workspace -->
       <QueryWorkspace
@@ -172,6 +303,14 @@ async function runQuery(tabId, params) {
       />
       <VisualQueryBuilder v-if="vqbOpen" />
     </div>
+
+    <!-- Context menu -->
+    <ContextMenu
+      v-if="contextMenu"
+      :menu="contextMenu"
+      @close="contextMenu = null"
+      @pick="handleContextAction"
+    />
 
     <!-- Connection Manager modal -->
     <ConnectionManager
@@ -294,6 +433,27 @@ async function runQuery(tabId, params) {
   color: var(--text-dim);
   letter-spacing: .3px;
 }
+
+/* ── Resizer ── */
+.resizer {
+  width: 5px;
+  flex: none;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resizer-grip {
+  width: 2px;
+  height: 32px;
+  background: transparent;
+  border-radius: 1px;
+  transition: background 0.12s;
+}
+.resizer:hover .resizer-grip,
+.resizer.dragging .resizer-grip { background: var(--accent); }
 
 /* ── Toast ── */
 .toast {

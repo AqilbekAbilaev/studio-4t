@@ -19,7 +19,7 @@ pub struct Storage {
 
 impl Storage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path }
+        Self { path: path }
     }
 
     pub fn load(&self) -> Vec<ConnectionConfig> {
@@ -32,10 +32,19 @@ impl Storage {
 
     pub fn save(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
         if let Some(parent) = self.path.parent() {
-            std::fs::create_dir_all(parent)?;
+            match std::fs::create_dir_all(parent) {
+                Ok(val) => val,
+                Err(e) => return Err(AppError::Io(e)),
+            };
         }
-        let content = serde_json::to_string_pretty(connections)?;
-        std::fs::write(&self.path, content)?;
+        let content = match serde_json::to_string_pretty(connections) {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Serde(e)),
+        };
+        match std::fs::write(&self.path, content) {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Io(e)),
+        };
         Ok(())
     }
 

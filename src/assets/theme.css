@@ -33,7 +33,9 @@
   --radius: 7px;
 }
 
-*, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-select: none; user-select: none; }
+
+input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
 
 html, body, #app {
   height: 100%;
