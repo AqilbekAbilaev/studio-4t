@@ -45,6 +45,9 @@ pub fn run() {
             open_connect_window,
             list_databases,
             find_documents,
+            insert_document,
+            replace_document,
+            delete_document,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

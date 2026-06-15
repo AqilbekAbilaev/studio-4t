@@ -94,7 +94,10 @@ fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
     if trimmed.is_empty() || trimmed == "{}" {
         return Ok(bson::doc! {});
     }
-    let json: serde_json::Value = match serde_json::from_str(trimmed) {
+    // Deserialize via bson::Bson so that extended-JSON types ({"$oid": "..."}, {"$date": "..."})
+    // are correctly decoded into their BSON equivalents. serde_json::Value + bson::to_document
+    // would treat {"$oid": "..."} as a plain nested document, breaking _id filters.
+    let bson_val: bson::Bson = match serde_json::from_str(trimmed) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Bson(format!(
             // serde_json's "key must be a string" fires on unquoted keys like { name: 1 }.
@@ -102,9 +105,9 @@ fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
             "Invalid query JSON ({e}). Keys must be quoted, e.g. {{\"name\": 1}}"
         ))),
     };
-    match bson::to_document(&json) {
-        Ok(val) => Ok(val),
-        Err(e) => Err(AppError::Bson(e.to_string())),
+    match bson_val {
+        bson::Bson::Document(doc) => Ok(doc),
+        _ => Err(AppError::Bson("Filter must be a JSON object".to_string())),
     }
 }
 
@@ -240,4 +243,91 @@ pub async fn list_databases(
         });
     }
     Ok(databases)
+}
+
+#[tauri::command]
+pub async fn insert_document(
+    pool: State<'_, ConnectionPool>,
+    id: String,
+    uri: String,
+    database: String,
+    collection: String,
+    document: String,
+) -> Result<String, AppError> {
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let doc = match parse_filter(&document) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let result = match col.insert_one(doc).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(result.inserted_id.to_string())
+}
+
+#[tauri::command]
+pub async fn replace_document(
+    pool: State<'_, ConnectionPool>,
+    id: String,
+    uri: String,
+    database: String,
+    collection: String,
+    id_filter: String,
+    document: String,
+) -> Result<(), AppError> {
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let filter_doc = match parse_filter(&id_filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let mut replacement = match parse_filter(&document) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    // MongoDB errors if the replacement contains an _id that differs from the filter.
+    // Remove it unconditionally — the existing _id is preserved by replace_one.
+    replacement.remove("_id");
+    match col.replace_one(filter_doc, replacement).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
+pub async fn delete_document(
+    pool: State<'_, ConnectionPool>,
+    id: String,
+    uri: String,
+    database: String,
+    collection: String,
+    id_filter: String,
+) -> Result<(), AppError> {
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let filter_doc = match parse_filter(&id_filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    match col.delete_one(filter_doc).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
 }
