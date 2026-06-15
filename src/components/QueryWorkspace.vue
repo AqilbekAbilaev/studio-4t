@@ -161,17 +161,13 @@ let resizeStartWidth = 0
 function startResize(e, col) {
   e.preventDefault()
   e.stopPropagation()
-  // Capture natural browser-measured widths on the very first drag
-  if (Object.keys(colWidths.value).length === 0) {
-    const cols = columns(activeTab.value?.results || [])
-    const ths  = tableRef.value?.querySelectorAll('thead th:not(.col-filler):not(.rownum)') || []
-    const snap = {}
-    ths.forEach((th, i) => { if (cols[i]) snap[cols[i]] = th.offsetWidth })
-    colWidths.value = snap
-  }
+  // Measure only the column being dragged so we never snap all columns at once
+  const cols     = columns(activeTab.value?.results || [])
+  const nthChild = cols.indexOf(col) + 2
+  const th       = tableRef.value?.querySelector(`thead th:nth-child(${nthChild})`)
   resizeCol        = col
   resizeStartX     = e.clientX
-  resizeStartWidth = colWidths.value[col] || 80
+  resizeStartWidth = th ? th.offsetWidth : (colWidths.value[col] || 80)
   document.body.style.cursor     = 'col-resize'
   document.body.style.userSelect = 'none'
   document.addEventListener('mousemove', onResizeMove)
@@ -195,15 +191,7 @@ function autoFitColumn(e, col) {
   e.stopPropagation()
   if (!tableRef.value) return
 
-  // Ensure fixed-layout mode before setting a single column width
   const cols = columns(activeTab.value?.results || [])
-  if (Object.keys(colWidths.value).length === 0) {
-    const ths = tableRef.value.querySelectorAll('thead th:not(.col-filler):not(.rownum)')
-    const snap = {}
-    ths.forEach((th, i) => { if (cols[i]) snap[cols[i]] = th.offsetWidth })
-    colWidths.value = snap
-  }
-
   // +2: child 1 is the rownum column, data columns start at child 2
   const nthChild = cols.indexOf(col) + 2
   if (nthChild < 2) return
@@ -683,7 +671,6 @@ const queryCode = computed(() => {
           <template v-else>
             <table
               class="grid"
-              :class="{ 'fixed-cols': Object.keys(colWidths).length > 0 }"
               ref="tableRef"
             >
               <thead>
@@ -692,7 +679,7 @@ const queryCode = computed(() => {
                   <th
                     v-for="col in columns(activeTab.results)"
                     :key="col"
-                    :style="colWidths[col] ? { width: colWidths[col] + 'px' } : {}"
+                    :style="colWidths[col] ? { minWidth: colWidths[col] + 'px', maxWidth: colWidths[col] + 'px' } : {}"
                   >
                     {{ col === '_id' ? '{Document id}' : col }}
                     <div class="col-resize-handle" @mousedown="startResize($event, col)" @dblclick.stop="autoFitColumn($event, col)"></div>
@@ -1153,7 +1140,7 @@ table.grid td {
 table.grid tr:nth-child(even) td { background: var(--bg-row-alt); }
 table.grid tr:hover td { background: var(--bg-hover); }
 table.grid tr.selrow td { background: #34373c; box-shadow: inset 0 0 0 9999px rgba(255,255,255,.02); }
-table.grid td.selcell { outline: 1px solid var(--accent); outline-offset: -1px; }
+table.grid td.selcell { outline: 1px solid var(--accent); outline-offset: -1px; position: relative; z-index: 4; }
 /* rownum — sticky left gutter column */
 table.grid th.rownum,
 table.grid td.rownum {
@@ -1172,11 +1159,7 @@ table.grid tr.selrow td.rownum { background: #2e3033; }
 /* filler rows extend the column grid below real documents */
 table.grid tr.filler td { height: 25px; padding: 0; }
 table.grid tr.filler:nth-child(even) td { background: var(--bg-row-alt); }
-table.grid.fixed-cols { table-layout: fixed; }
-th.col-filler, td.col-filler { border-right: none; }
-/* In auto layout the filler needs a width hint to absorb leftover space;
-   in fixed layout it's the only unspecified column so it gets remaining space naturally. */
-table.grid:not(.fixed-cols) .col-filler { width: 100%; }
+th.col-filler, td.col-filler { border-right: none; width: 100%; }
 
 /* Cell context menu */
 .cell-ctx-backdrop { position: fixed; inset: 0; z-index: 80; }
@@ -1211,12 +1194,12 @@ table.grid:not(.fixed-cols) .col-filler { width: 100%; }
   position: absolute;
   top: 0;
   right: 0;
-  width: 5px;
+  width: 12px;
   height: 100%;
   cursor: col-resize;
   z-index: 1;
+  transform: translateX(50%);
 }
-.col-resize-handle:hover { background: var(--accent); opacity: .5; }
 
 .tcell { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
 .ticon { color: var(--text-faint); display: grid; place-items: center; flex: none; }
