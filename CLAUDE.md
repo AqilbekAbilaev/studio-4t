@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Studio-4T — Claude Guidelines
 
 ## Rust
@@ -36,6 +40,65 @@
       None => return None,
   };
   ```
+
+## Commands
+
+```bash
+# Run the full app (Vite dev server + Tauri shell)
+npm run tauri dev
+
+# Verify Rust compiles after any backend change
+cd src-tauri && cargo build
+
+# Run Rust unit tests
+cd src-tauri && cargo test
+
+# Frontend-only Vite dev server (no Tauri; invoke() calls won't work)
+npm run dev
+```
+
+There are no frontend tests — Vitest/Jest are not configured.
+
+---
+
+## Architecture
+
+**Stack:** Tauri 2 (Rust backend) + Vue 3 (frontend, Vite). No router, no Pinia — plain `ref`/`computed`.
+
+### Data flow
+
+```
+App.vue  (owns all app state: tabs[], showConnectionManager, etc.)
+  ├── ConnectionTree.vue   (sidebar; calls list_connections, list_databases on mount/expand)
+  ├── QueryWorkspace.vue   (tabs + query UI; emits run-query → App.vue calls find_documents)
+  ├── ConnectionManager.vue (modal; calls list_connections, delete_connection, update_last_accessed)
+  │     └── NewConnection.vue (calls test_connection, save_connection, set_connection_tag)
+  └── ContextMenu.vue      (handled entirely in App.vue's handleContextAction)
+```
+
+**Tab state** lives in `App.vue`'s `tabs` ref as plain objects. Child components mutate tab properties directly (e.g. `tab.filter`, `tab.skip`) — this works because Vue 3 makes array items reactive. `QueryWorkspace` receives `tabs` as a prop and reads `activeTab` via a computed, then emits `run-query` up to App.vue which calls `invoke('find_documents', ...)`.
+
+### Rust backend (`src-tauri/src/`)
+
+| File | Responsibility |
+|---|---|
+| `commands.rs` | All `#[tauri::command]` functions wired into the invoke handler |
+| `pool.rs` | `ConnectionPool`: `HashMap<id, Client>` behind a `tokio::Mutex`; `get_or_create` avoids holding the lock during network I/O |
+| `storage.rs` | JSON file persistence for `ConnectionConfig` at the OS app-data dir (`connections.json`) |
+| `uri.rs` | `with_timeout()` appends MongoDB timeout params; `tcp_probe()` does a fast TCP check before the MongoDB handshake |
+| `error.rs` | `AppError` enum serialized as a plain string so the frontend receives a human-readable message |
+| `menu.rs` | Native system menu; File → Connect opens a **second Tauri webview window** at `src/pages/connect.html` |
+
+### Design reference
+
+`ui-design/` contains the authoritative design prototype (React/JSX, browser-runnable). Before implementing any new screen or component, read the relevant JSX file and `ui-design/design_handoff_studio4t/README.md` for exact spacing, colors, and interaction spec.
+
+Key rules from the handoff:
+- **Dialog headers must not have macOS traffic lights.** Only the real OS window gets them. Dialogs use a centered title + a single close ✕ button on the right.
+- All colors come from CSS custom properties in `src/assets/theme.css` — never hardcode hex values that already exist as tokens.
+- Icons are inline SVG rendered by `BaseIcon.vue` via a `name` prop — add new icons there, never use external icon fonts or raster images.
+
+---
 
 ## Workflow
 
