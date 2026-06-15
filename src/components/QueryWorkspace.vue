@@ -12,9 +12,10 @@ const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'toggle-vqb'
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
 
 // per-tab local state for result sub-tab and view mode
-const rtab     = ref('Result')
-const viewMode = ref('table')
-const viewMenu = ref(false)
+const rtab         = ref('Result')
+const viewMode     = ref('table')
+const viewMenu     = ref(false)
+const pageSizeMenu = ref(false)
 
 // ── query helpers ──────────────────────────────────────────
 function toStrictJson(raw) {
@@ -75,6 +76,88 @@ function columns(results) {
   const rest = [...seen].filter(k => k !== '_id').sort()
   return seen.has('_id') ? ['_id', ...rest] : rest
 }
+
+// ── JSON syntax highlighter ────────────────────────────
+function syntaxHighlight(json) {
+  return json
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      (match) => {
+        if (match[0] === '"') {
+          if (/:$/.test(match)) {
+            return match[1] === '$'
+              ? `<span class="jop">${match}</span>`
+              : `<span class="jk">${match}</span>`
+          }
+          return `<span class="js">${match}</span>`
+        }
+        if (match === 'true' || match === 'false') return `<span class="jb">${match}</span>`
+        if (match === 'null') return `<span class="jl">${match}</span>`
+        return `<span class="jn">${match}</span>`
+      }
+    )
+}
+
+// ── pagination ─────────────────────────────────────────
+const PAGE_SIZES = [10, 25, 50, 100, 200, 500]
+
+function goFirst() {
+  const tab = activeTab.value
+  if (!tab) return
+  tab.skip = 0
+  runQuery()
+}
+
+function goPrev() {
+  const tab = activeTab.value
+  if (!tab) return
+  tab.skip = Math.max(0, (tab.skip || 0) - (tab.limit || 50))
+  runQuery()
+}
+
+function goNext() {
+  const tab = activeTab.value
+  if (!tab) return
+  tab.skip = (tab.skip || 0) + (tab.limit || 50)
+  runQuery()
+}
+
+function setPageSize(size) {
+  const tab = activeTab.value
+  if (!tab) return
+  tab.limit = size
+  tab.skip = 0
+  pageSizeMenu.value = false
+  runQuery()
+}
+
+// ── copy document ──────────────────────────────────────
+function copySelectedDocument() {
+  const tab = activeTab.value
+  if (!tab || tab.selectedRow < 0) return
+  navigator.clipboard.writeText(JSON.stringify(tab.results[tab.selectedRow], null, 2))
+}
+
+// ── query code ─────────────────────────────────────────
+const queryCode = computed(() => {
+  const tab = activeTab.value
+  if (!tab || tab.kind !== 'collection') return ''
+  const filter = tab.filter?.trim() || '{}'
+  const projection = tab.projection?.trim() || ''
+  const sort = tab.sort?.trim() || ''
+  const skip = tab.skip || 0
+  const limit = tab.limit || 50
+  let cmd = `db.${tab.collectionName}.find(${filter}`
+  if (projection) cmd += `, ${projection}`
+  cmd += ')'
+  if (sort) cmd += `.sort(${sort})`
+  if (skip) cmd += `.skip(${skip})`
+  cmd += `.limit(${limit})`
+  return cmd
+})
 </script>
 
 <template>
@@ -175,19 +258,42 @@ function columns(results) {
         <div class="qinput">
           <input class="qval" v-model="activeTab.projection" placeholder="{}" />
         </div>
-        <span class="qlabel">Skip</span>
-        <div class="qinput">
-          <input class="qval qval-short" v-model.number="activeTab.skip" type="number" min="0" placeholder="0" />
+        <div class="num-cluster">
+          <span class="qlabel">Limit</span>
+          <div class="numbox">
+            <input
+              :value="activeTab.limit || 50"
+              placeholder="50"
+              inputmode="numeric"
+              @input="activeTab.limit = Math.max(1, parseInt($event.target.value) || 1)"
+            />
+            <div class="num-steppers">
+              <button tabindex="-1" @click="activeTab.limit = Math.max(1, (activeTab.limit || 50) + 1)">
+                <BaseIcon name="caret" :size="9" style="transform: rotate(-90deg)" />
+              </button>
+              <button tabindex="-1" @click="activeTab.limit = Math.max(1, (activeTab.limit || 50) - 1)">
+                <BaseIcon name="caret" :size="9" style="transform: rotate(90deg)" />
+              </button>
+            </div>
+          </div>
+          <span class="qlabel">Skip</span>
+          <div class="numbox">
+            <input
+              :value="activeTab.skip || 0"
+              placeholder="0"
+              inputmode="numeric"
+              @input="activeTab.skip = Math.max(0, parseInt($event.target.value) || 0)"
+            />
+            <div class="num-steppers">
+              <button tabindex="-1" @click="activeTab.skip = Math.max(0, (activeTab.skip || 0) + 1)">
+                <BaseIcon name="caret" :size="9" style="transform: rotate(-90deg)" />
+              </button>
+              <button tabindex="-1" @click="activeTab.skip = Math.max(0, (activeTab.skip || 0) - 1)">
+                <BaseIcon name="caret" :size="9" style="transform: rotate(90deg)" />
+              </button>
+            </div>
+          </div>
         </div>
-        <span></span>
-
-        <span class="qlabel"></span>
-        <span></span>
-        <span class="qlabel">Limit</span>
-        <div class="qinput">
-          <input class="qval qval-short" v-model.number="activeTab.limit" type="number" min="1" max="1000" placeholder="50" />
-        </div>
-        <span></span>
       </div>
 
       <!-- Results -->
@@ -208,17 +314,38 @@ function columns(results) {
           <button class="icon-btn" @click="runQuery" :disabled="activeTab.isRunning">
             <BaseIcon name="refresh" :size="16" />
           </button>
-          <button class="icon-btn" disabled><BaseIcon name="first" :size="16" /></button>
-          <button class="icon-btn" disabled><BaseIcon name="prev"  :size="16" /></button>
-          <button class="icon-btn" disabled><BaseIcon name="next"  :size="16" /></button>
-          <button class="icon-btn" disabled><BaseIcon name="last"  :size="16" /></button>
-          <span class="page-size">{{ activeTab.limit || 50 }} <BaseIcon name="caretDown" :size="12" /></span>
+          <button class="icon-btn"
+            :disabled="!activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
+            @click="goFirst"><BaseIcon name="first" :size="16" /></button>
+          <button class="icon-btn"
+            :disabled="!activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
+            @click="goPrev"><BaseIcon name="prev" :size="16" /></button>
+          <button class="icon-btn"
+            :disabled="!activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
+            @click="goNext"><BaseIcon name="next" :size="16" /></button>
+          <button class="icon-btn" disabled><BaseIcon name="last" :size="16" /></button>
+          <div class="page-size-wrap">
+            <span class="page-size" @click="pageSizeMenu = !pageSizeMenu">
+              {{ activeTab.limit || 50 }} <BaseIcon name="caretDown" :size="12" />
+            </span>
+            <div v-if="pageSizeMenu" class="page-size-menu">
+              <div
+                v-for="sz in PAGE_SIZES"
+                :key="sz"
+                class="psm-item"
+                :class="{ on: (activeTab.limit || 50) === sz }"
+                @click="setPageSize(sz)"
+              >{{ sz }}</div>
+            </div>
+          </div>
           <span class="docs-range">
             Documents {{ activeTab.results?.length ? `1 to ${activeTab.results.length}` : '-- to --' }}
           </span>
           <button class="icon-btn" disabled><BaseIcon name="lock"  :size="16" /></button>
           <button class="icon-btn" disabled><BaseIcon name="plus"  :size="16" /></button>
-          <button class="icon-btn" disabled><BaseIcon name="copy"  :size="16" /></button>
+          <button class="icon-btn"
+            :disabled="activeTab.selectedRow < 0"
+            @click="copySelectedDocument"><BaseIcon name="copy" :size="16" /></button>
           <button class="icon-btn" disabled><BaseIcon name="edit"  :size="16" /></button>
           <span class="rtoolbar-spacer"></span>
 
@@ -302,7 +429,12 @@ function columns(results) {
         <!-- JSON view -->
         <div v-else-if="rtab === 'Result' && viewMode === 'json'" class="json-view">
           <div v-if="!activeTab.results?.length" style="padding:32px;color:var(--text-faint);font-size:12px">No documents</div>
-          <div v-else class="json-doc" v-for="(doc, i) in activeTab.results" :key="i">{{ JSON.stringify(doc, null, 2) }}</div>
+          <div v-else class="json-doc" v-for="(doc, i) in activeTab.results" :key="i" v-html="syntaxHighlight(JSON.stringify(doc, null, 2))"></div>
+        </div>
+
+        <!-- Query Code sub-tab -->
+        <div v-else-if="rtab === 'Query Code'" class="qcode-view">
+          <pre class="qcode-pre"><span class="qcode-prompt">&gt;</span> {{ queryCode }}</pre>
         </div>
 
         <!-- Other sub-tabs placeholder -->
@@ -411,6 +543,7 @@ function columns(results) {
   font-size: 12.5px;
 }
 .qbtn:hover:not(:disabled) { background: var(--bg-hover); }
+.qbtn.run { min-width: 92px; }
 .qbtn.run .ic { color: var(--green); }
 .qbtn .ic  { color: var(--text-dim); }
 .qbtn .drop { color: var(--text-faint); }
@@ -465,8 +598,57 @@ function columns(results) {
   min-width: 0;
 }
 .qval::placeholder { color: var(--text-faint); }
-.qval-short { max-width: 70px; }
 .qicons { display: flex; gap: 4px; color: var(--text-faint); flex: none; }
+
+/* Limit + Skip side by side, spanning the right 3 grid columns */
+.num-cluster {
+  grid-column: 3 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* numeric stepper (Skip / Limit) */
+.numbox {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  width: 72px;
+  overflow: hidden;
+}
+.numbox:focus-within { border-color: var(--accent); }
+.numbox input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 6px 0 6px 9px;
+}
+.numbox input::placeholder { color: var(--text-faint); }
+.num-steppers {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  border-left: 1px solid var(--border-soft);
+}
+.num-steppers button {
+  flex: 1;
+  width: 17px;
+  display: grid;
+  place-items: center;
+  background: var(--bg-toolbar);
+  border: none;
+  color: var(--text-dim);
+  padding: 0;
+}
+.num-steppers button:first-child { border-bottom: 1px solid var(--border-soft); }
+.num-steppers button:hover { background: var(--bg-hover); color: var(--text); }
 
 /* Results */
 .results { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -626,6 +808,53 @@ table.grid tr.selrow td { background: rgba(59,130,246,.18); }
   -webkit-user-select: text;
   user-select: text;
 }
+/* syntax highlight token classes */
+.json-doc :deep(.jk)  { color: var(--cell-key); }
+.json-doc :deep(.jop) { color: var(--cell-op); }
+.json-doc :deep(.js)  { color: var(--cell-str); }
+.json-doc :deep(.jn)  { color: var(--cell-num); }
+.json-doc :deep(.jb)  { color: var(--cell-num); }
+.json-doc :deep(.jl)  { color: var(--text-faint); }
+
+/* page size dropdown */
+.page-size-wrap { position: relative; }
+.page-size { cursor: pointer; }
+.page-size-menu {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  width: 70px;
+  background: #2a2c30;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.55);
+  z-index: 20;
+  padding: 4px;
+}
+.psm-item {
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: right;
+}
+.psm-item:hover { background: var(--bg-hover); color: var(--text); }
+.psm-item.on    { color: var(--accent); font-weight: 600; }
+
+/* Query Code sub-tab */
+.qcode-view { flex: 1; overflow: auto; padding: 16px 20px; }
+.qcode-pre {
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.qcode-prompt { color: var(--text-faint); margin-right: 8px; }
 
 /* Footer */
 .rfooter {
