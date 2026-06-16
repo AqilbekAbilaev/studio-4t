@@ -2,58 +2,74 @@
 
 ## Done ✅
 
-- Basic UI layout — split pane (sidebar + dashboard), draggable divider
+### Foundation
 - Native macOS menu bar (File, Edit, Database, Collection, Index, GridFS, View, Help)
-- New Connection dialog — Server tab (host/port/auth fields) + URI tab, Test Connection, Save & Connect
-- Persist connections to disk (`app_data_dir/connections.json`)
-- Connection tree — collapsible Connection → Database → Collection nodes
-- Live MongoDB data — real databases and collections loaded on expand
-- Connection pool — one `Client` per connection, reused across operations (no reconnect per call)
+- Connection pool — one `Client` per connection, reused across operations
 - Async MongoDB commands — concurrent connections don't block each other
-- Fast TCP probe — instant "connection refused" feedback before invoking the MongoDB driver
+- Fast TCP probe — instant "connection refused" feedback before the MongoDB handshake
 - Rust backend module structure: `error`, `storage`, `pool`, `uri`, `commands`
 - Unit tests — 22 tests covering storage, URI utilities, and pool state
-- **Query execution** — click a collection, type a filter `{}`, press Run → documents shown as JSON
-  - `find_documents` Tauri command with configurable filter (JSON) and 50-doc limit
-  - Collection selection tracked app-wide via Vue provide/inject
-  - Ctrl+Enter / Cmd+Enter keyboard shortcut to run
-  - Results panel shows document count + pretty-printed JSON per document
+
+### Connections
+- Connection Manager redesign — modal with grid (Name / DB Server / Security / Last Accessed),
+  filter row, toolbar (New/Edit/Delete/Duplicate/Import/Export/To URI stubs wired for New/Edit/Delete)
+- New Connection dialog — Server tab (host/port/auth) + URI tab, Test Connection, Save & Connect
+- Persist connections to disk (`app_data_dir/connections.json`)
+- Connection color-tagging (red/blue/green/purple/none), honored through the tree subtree
+- Connection tree — collapsible Connection → Database → Collection nodes, live data on expand
+- Tree context menu: Open Collection, Copy Name, Disconnect / Disconnect Others / Disconnect All,
+  Refresh / Refresh All — all wired to real behavior
+- `update_last_accessed`, `set_connection_tag`, `delete_connection` backend commands
+
+### Query workspace
+- Multiple tabs, each bound to a collection + its own query state
+- Auto-run query on collection open
+- Query bar: filter (JSON), sort, projection, skip, limit fields with syntax-colored JSON
+- Skip/Limit as steppers (click +/- or type directly)
+- Ctrl+Enter / Cmd+Enter to run
+- Result paging: first/prev/next/last, page-size picker (20/50/100/...)
+- View modes: **Table View** and **JSON View** (with syntax highlighting + text selection) —
+  **Tree View** is in the menu but not yet implemented (falls through to nothing)
+- "Query Code" sub-tab — renders the equivalent `db.collection.find(...)` shell command
+- "Explain" sub-tab is a placeholder ("coming soon")
+- Result table redesign — zebra rows, `_id`/number/string cell coloring, row selection,
+  resizable columns (no layout jump, centered handle)
+- Right-click cell/row context menu: Copy Value, Copy as JSON, Copy Document
+- Document CRUD: insert (`insert_document`), edit/replace (`replace_document`),
+  delete (`delete_document`) via `DocumentModal.vue`
+- Compact result-toolbar menus (page size, view mode)
+
+### Design system
+- `BaseIcon.vue` — inline SVG icon set, no external icon fonts/images
+- Theming via CSS custom properties in `theme.css`
 
 ---
 
 ## Up Next 📋
 
-### Core query workflow
-- [ ] View a single document in a readable format (JSON tree or formatted view)
-- [ ] Edit a document inline and save changes
-- [ ] Insert a new document
-- [ ] Delete a document
+### Query workspace gaps
+- [ ] Tree View result mode (menu entry exists, not implemented)
+- [ ] Explain sub-tab (currently a "coming soon" placeholder)
+- [ ] Visual Query Builder — `VisualQueryBuilder.vue` exists as a shell but isn't wired to
+      generate/sync the actual filter/sort/projection
+- [ ] Load query from file / Save query to file
+- [ ] Query history (recent queries per collection)
+- [ ] Tab persistence across app restarts
 
 ### Connection management
-- [ ] Edit an existing connection (rename, change URI)
-- [ ] Delete a connection from the sidebar
-- [ ] Disconnect / reconnect a connection manually
-- [ ] Connection status indicator (connected / disconnected / error)
+- [ ] Duplicate connection, Import/Export, "To URI" — present in Connection Manager toolbar but
+      not all wired yet (verify each individually)
+- [ ] Per-connection status indicator (connected / disconnected / error) in the tree
 
 ### Collection & database management
 - [ ] Create a new database
-- [ ] Drop a database
+- [ ] Drop a database (menu item exists, not wired — shows toast stub)
 - [ ] Create a new collection
-- [ ] Drop a collection
-- [ ] Rename a collection
-
-### Tabs
-- [ ] Multiple tabs in the dashboard — each tab tied to a collection + query
-- [ ] Tab persistence across sessions
-
-### Query tools
-- [ ] Load query from file
-- [ ] Save query to file
-- [ ] Query history (recent queries per collection)
-- [ ] Visual Query Builder — GUI for building MQL filters without typing
+- [ ] Drop a collection (menu item exists, not wired — shows toast stub)
+- [ ] Rename a collection (menu item exists, not wired — shows toast stub)
 
 ### IntelliShell
-- [ ] Embedded MongoDB shell (run raw JS/MQL commands)
+- [ ] Embedded MongoDB shell (toolbar/menu entries exist, not implemented — toast stub)
 
 ### Index management
 - [ ] List indexes on a collection
@@ -76,8 +92,10 @@
 
 ## Nice to Have 💡
 
-- [ ] SQL to MQL translator (like Studio-3T's SQL query feature)
-- [ ] Schema visualization — infer and display the shape of a collection
-- [ ] Aggregation pipeline builder
+- [ ] SQL to MQL translator (like Studio-3T's SQL query feature) — toolbar entry exists as stub
+- [ ] Schema visualization — infer and display the shape of a collection — toolbar entry exists as stub
+- [ ] Aggregation pipeline builder — toolbar entry exists as stub
+- [ ] Data masking — toolbar entry exists as stub
+- [ ] SQL Migration — menu entry exists as stub
 - [ ] Dark / light theme toggle
-- [ ] Keyboard shortcuts for common actions
+- [ ] Keyboard shortcuts reference / customization
