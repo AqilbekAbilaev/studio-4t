@@ -89,15 +89,31 @@ pub async fn disconnect(
     Ok(())
 }
 
+// macOS's system-wide "Smart Quotes" substitutes " and ' for curly equivalents
+// at the OS text-input layer, before the keystroke ever reaches the web page —
+// no HTML attribute on the input can suppress it. Normalize here so a query
+// typed (or pasted from a rich-text source) with curly quotes still parses.
+fn normalize_smart_quotes(value: &str) -> String {
+    value
+        .chars()
+        .map(|c: char| match c {
+            '\u{201C}' | '\u{201D}' => '"',
+            '\u{2018}' | '\u{2019}' => '\'',
+            other => other,
+        })
+        .collect()
+}
+
 fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
     let trimmed = filter.trim();
     if trimmed.is_empty() || trimmed == "{}" {
         return Ok(bson::doc! {});
     }
+    let normalized = normalize_smart_quotes(trimmed);
     // Deserialize via bson::Bson so that extended-JSON types ({"$oid": "..."}, {"$date": "..."})
     // are correctly decoded into their BSON equivalents. serde_json::Value + bson::to_document
     // would treat {"$oid": "..."} as a plain nested document, breaking _id filters.
-    let bson_val: bson::Bson = match serde_json::from_str(trimmed) {
+    let bson_val: bson::Bson = match serde_json::from_str(&normalized) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Bson(format!(
             // serde_json's "key must be a string" fires on unquoted keys like { name: 1 }.
