@@ -42,6 +42,15 @@ const vqbOpen = ref(false)
 const contextMenu = ref(null)
 const tagOverrides = ref({})
 
+const addCollectionTarget = ref(null)   // { connId, dbName, uri } | null
+const newCollectionName   = ref('')
+const addCollectionError  = ref(null)
+const addCollectionSaving = ref(false)
+
+const dropDatabaseTarget   = ref(null)  // { connId, dbName, uri } | null
+const dropDatabaseError    = ref(null)
+const dropDatabaseDeleting = ref(false)
+
 const contextActiveNodeKey = computed(() => {
   if (!contextMenu.value) return null
   const nd = contextMenu.value.nodeData
@@ -178,6 +187,19 @@ async function handleContextAction(action) {
     return
   }
 
+  if (action === 'Add Collection…') {
+    addCollectionTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName, uri: saved.nodeData.uri }
+    newCollectionName.value = ''
+    addCollectionError.value = null
+    return
+  }
+
+  if (action === 'Drop Database…') {
+    dropDatabaseTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName, uri: saved.nodeData.uri }
+    dropDatabaseError.value = null
+    return
+  }
+
   if (action === 'Refresh All') {
     for (const conn of connectionTreeRef.value.getConnections()) {
       await connectionTreeRef.value.refreshConn(conn.id, conn.uri)
@@ -187,6 +209,45 @@ async function handleContextAction(action) {
   }
 
   showToast(action + ' — coming to Studio-4T')
+}
+
+async function confirmAddCollection() {
+  const target = addCollectionTarget.value
+  const name = newCollectionName.value.trim()
+  if (!target || !name) return
+  addCollectionSaving.value = true
+  addCollectionError.value = null
+  try {
+    await invoke('create_collection', { id: target.connId, uri: target.uri, database: target.dbName, name: name })
+    await connectionTreeRef.value.refreshConn(target.connId, target.uri)
+    showToast(`Collection "${name}" created`)
+    addCollectionTarget.value = null
+  } catch (e) {
+    addCollectionError.value = String(e)
+  } finally {
+    addCollectionSaving.value = false
+  }
+}
+
+async function confirmDropDatabase() {
+  const target = dropDatabaseTarget.value
+  if (!target) return
+  dropDatabaseDeleting.value = true
+  dropDatabaseError.value = null
+  try {
+    await invoke('drop_database', { id: target.connId, uri: target.uri, database: target.dbName })
+    await connectionTreeRef.value.refreshConn(target.connId, target.uri)
+    tabs.value = tabs.value.filter(t => !(t.kind === 'collection' && t.connectionId === target.connId && t.dbName === target.dbName))
+    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
+      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
+    }
+    showToast(`Database "${target.dbName}" dropped`)
+    dropDatabaseTarget.value = null
+  } catch (e) {
+    dropDatabaseError.value = String(e)
+  } finally {
+    dropDatabaseDeleting.value = false
+  }
 }
 
 // ── tab management ─────────────────────────────────────────
@@ -318,6 +379,60 @@ async function runQuery(tabId, params) {
       @close="showConnectionManager = false"
       @connect="onManagerConnect"
     />
+
+    <!-- Add Collection modal -->
+    <div v-if="addCollectionTarget" class="del-overlay" @mousedown.self="addCollectionTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Add Collection</div>
+          <button class="close-btn" @click="addCollectionTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <input
+            v-model="newCollectionName"
+            class="prompt-input"
+            placeholder="Collection name"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.enter="confirmAddCollection"
+          />
+          <div v-if="addCollectionError" class="del-error">{{ addCollectionError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="addCollectionTarget = null">Cancel</button>
+          <button class="btn primary" :disabled="!newCollectionName.trim() || addCollectionSaving" @click="confirmAddCollection">
+            {{ addCollectionSaving ? 'Creating…' : 'Create' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drop Database confirm -->
+    <div v-if="dropDatabaseTarget" class="del-overlay" @mousedown.self="dropDatabaseTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Drop Database</div>
+          <button class="close-btn" @click="dropDatabaseTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <p>Are you sure you want to drop "<strong>{{ dropDatabaseTarget.dbName }}</strong>"? This deletes all of its collections and cannot be undone.</p>
+          <div v-if="dropDatabaseError" class="del-error">{{ dropDatabaseError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="dropDatabaseTarget = null">Cancel</button>
+          <button class="btn danger" :disabled="dropDatabaseDeleting" @click="confirmDropDatabase">
+            {{ dropDatabaseDeleting ? 'Dropping…' : 'Drop' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Toast -->
     <div v-if="toast" class="toast">{{ toast }}</div>
@@ -472,4 +587,101 @@ async function runQuery(tabId, params) {
   z-index: 80;
   white-space: nowrap;
 }
+
+/* ── Add Collection / Drop Database dialogs ── */
+.del-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .5);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+}
+.del-dialog {
+  width: 400px;
+  background: var(--bg-window);
+  border-radius: 10px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px #000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.del-title {
+  height: 36px;
+  flex: none;
+  background: linear-gradient(#34363a, #2c2e31);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  position: relative;
+}
+.del-title .t {
+  position: absolute;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 500;
+  pointer-events: none;
+}
+.close-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  z-index: 1;
+}
+.close-btn:hover { background: var(--bg-hover); color: var(--text); }
+.del-body {
+  padding: 20px 20px 12px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.del-body p { margin: 0 0 8px; }
+.del-error { font-size: 12px; color: #e05555; margin-top: 6px; }
+.prompt-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.prompt-input:focus { outline: none; border-color: var(--accent); }
+.del-footer {
+  height: 48px;
+  flex: none;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+}
+.spacer { flex: 1; }
+.btn {
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 5px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--bg-toolbar);
+  color: var(--text);
+}
+.btn:hover { background: var(--bg-hover); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover:not(:disabled) { opacity: .88; }
+.btn.danger { background: #c0392b; color: #fff; }
+.btn.danger:hover:not(:disabled) { background: #a93226; }
 </style>

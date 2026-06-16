@@ -262,6 +262,41 @@ pub async fn list_databases(
 }
 
 #[tauri::command]
+pub async fn create_collection(
+    pool: State<'_, ConnectionPool>,
+    id: String,
+    uri: String,
+    database: String,
+    name: String,
+) -> Result<(), AppError> {
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    match client.database(&database).create_collection(&name).await {
+        Ok(val) => Ok(val),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
+pub async fn drop_database(
+    pool: State<'_, ConnectionPool>,
+    id: String,
+    uri: String,
+    database: String,
+) -> Result<(), AppError> {
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    match client.database(&database).drop().await {
+        Ok(val) => Ok(val),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
 pub async fn insert_document(
     pool: State<'_, ConnectionPool>,
     id: String,
