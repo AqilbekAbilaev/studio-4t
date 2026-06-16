@@ -44,6 +44,8 @@ pub fn run() {
             update_last_accessed,
             open_connect_window,
             list_databases,
+            create_collection,
+            drop_database,
             find_documents,
             insert_document,
             replace_document,
