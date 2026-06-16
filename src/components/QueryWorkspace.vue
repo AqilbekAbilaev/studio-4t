@@ -20,6 +20,15 @@ const viewMenu     = ref(false)
 const pageSizeMenu = ref(false)
 
 // ── query helpers ──────────────────────────────────────────
+// macOS's system-wide "Smart Quotes" substitutes curly quotes at the OS
+// text-input layer before the keystroke reaches the DOM, so the field would
+// otherwise show curly characters forever even though the backend now
+// tolerates them. Straighten on every keystroke so what you see matches
+// what gets sent.
+function sanitizeQuotes(str) {
+  return str.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+}
+
 function toStrictJson(raw) {
   const s = (raw || '').trim()
   if (!s || s === '{}') return '{}'
@@ -29,6 +38,7 @@ function toStrictJson(raw) {
 function runQuery() {
   const tab = activeTab.value
   if (!tab || tab.kind !== 'collection') return
+  drillPath.value = []
   emit('run-query', tab.id, {
     filter:     toStrictJson(tab.filter),
     projection: toStrictJson(tab.projection),
@@ -79,8 +89,54 @@ function columns(results) {
   return seen.has('_id') ? ['_id', ...rest] : rest
 }
 
+// Filler rows pad the grid below real documents so the row stripes/borders
+// reach the bottom of the viewport instead of stopping after a fixed count —
+// recomputed from the actual container height so it still covers tall windows.
+const gridWrapRef  = ref(null)
+const FILLER_ROW_HEIGHT = 25
+const minFillRows  = ref(24)
+let gridResizeObserver = null
+
+function updateMinFillRows() {
+  if (!gridWrapRef.value) return
+  minFillRows.value = Math.max(24, Math.ceil(gridWrapRef.value.clientHeight / FILLER_ROW_HEIGHT))
+}
+
+watch(gridWrapRef, (el, prevEl) => {
+  if (prevEl) gridResizeObserver?.unobserve(prevEl)
+  if (el) {
+    if (!gridResizeObserver) gridResizeObserver = new ResizeObserver(updateMinFillRows)
+    gridResizeObserver.observe(el)
+    updateMinFillRows()
+  }
+}, { flush: 'post' })
+
+onUnmounted(() => { gridResizeObserver?.disconnect() })
+
 function fillerCount(results) {
-  return Math.max(0, 24 - (results?.length || 0))
+  return Math.max(0, minFillRows.value - (results?.length || 0))
+}
+
+// ── Mongo shell-style stringifier (renders {"$oid": "..."} as ObjectId("...")) ────
+function mongoStringify(value, indent = '') {
+  if (value === null) return 'null'
+  if (Array.isArray(value)) {
+    if (!value.length) return '[]'
+    const inner = indent + '  '
+    const items = value.map((v) => inner + mongoStringify(v, inner))
+    return '[\n' + items.join(',\n') + '\n' + indent + ']'
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value)
+    if (keys.length === 1 && keys[0] === '$oid' && typeof value.$oid === 'string') {
+      return `ObjectId("${value.$oid}")`
+    }
+    if (!keys.length) return '{}'
+    const inner = indent + '  '
+    const items = keys.map((k) => `${inner}${JSON.stringify(k)} : ${mongoStringify(value[k], inner)}`)
+    return '{\n' + items.join(',\n') + '\n' + indent + '}'
+  }
+  return JSON.stringify(value)
 }
 
 // ── JSON syntax highlighter ────────────────────────────
@@ -90,8 +146,9 @@ function syntaxHighlight(json) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(
-      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      /(ObjectId\("[0-9a-fA-F]{24}"\)|"(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
       (match) => {
+        if (match.startsWith('ObjectId(')) return `<span class="joid">${match}</span>`
         if (match[0] === '"') {
           if (/:$/.test(match)) {
             return match[1] === '$'
@@ -162,7 +219,7 @@ function startResize(e, col) {
   e.preventDefault()
   e.stopPropagation()
   // Measure only the column being dragged so we never snap all columns at once
-  const cols     = columns(activeTab.value?.results || [])
+  const cols     = columns(gridDocs(activeTab.value))
   const nthChild = cols.indexOf(col) + 2
   const th       = tableRef.value?.querySelector(`thead th:nth-child(${nthChild})`)
   resizeCol        = col
@@ -177,6 +234,11 @@ function startResize(e, col) {
 function onResizeMove(e) {
   if (resizeCol === null) return
   colWidths.value[resizeCol] = Math.max(40, resizeStartWidth + (e.clientX - resizeStartX))
+  // WebKit caches a sticky header cell's geometry and won't recompute its pinned
+  // box just because its width changed — the line lags until something else
+  // forces layout. Nudge a reflow once the new width has been applied to the DOM,
+  // without touching `position`, so the header never jumps from its pinned spot.
+  nextTick(() => { if (tableRef.value) void tableRef.value.offsetHeight })
 }
 
 function stopResize() {
@@ -191,7 +253,7 @@ function autoFitColumn(e, col) {
   e.stopPropagation()
   if (!tableRef.value) return
 
-  const cols = columns(activeTab.value?.results || [])
+  const cols = columns(gridDocs(activeTab.value))
   // +2: child 1 is the rownum column, data columns start at child 2
   const nthChild = cols.indexOf(col) + 2
   if (nthChild < 2) return
@@ -222,7 +284,50 @@ function autoFitColumn(e, col) {
 const selectedCol = ref(null)  // tracked only for right-click context menu copy
 const cellCtx     = ref(null)  // { x, y, row, col } | null — right-click menu
 
-watch(() => activeTab.value?.id, () => { selectedCol.value = null; cellCtx.value = null })
+// ── drill into nested object cells ─────────────────────
+// field-name path navigated into, e.g. ['bank_account', 'account']
+const drillPath = ref([])
+
+function getAtPath(doc, path) {
+  let cur = doc
+  for (const key of path) {
+    if (cur === null || typeof cur !== 'object' || Array.isArray(cur)) return undefined
+    cur = cur[key]
+  }
+  return cur
+}
+
+// the "documents" the grid currently renders: either the real result set, or
+// (once drilled) every document's value at the drilled path — one row per
+// original document is kept, so documents missing that path just render blank
+// instead of collapsing the grid down to a single row
+function gridDocs(tab) {
+  if (!tab) return []
+  if (!drillPath.value.length) return tab.results || []
+  return (tab.results || []).map((doc) => getAtPath(doc, drillPath.value) ?? {})
+}
+
+function isDrillable(col, val) {
+  return !Array.isArray(val) && guessType(col, val) === 'obj'
+}
+
+function openCellDrill(rowIdx, col) {
+  const tab = activeTab.value
+  if (!tab) return
+  const val = gridDocs(tab)[rowIdx]?.[col]
+  if (!isDrillable(col, val)) return
+  drillPath.value = [...drillPath.value, col]
+  selectedCol.value = null
+  tab.selectedRow = -1
+}
+
+function goToDrillLevel(level) {
+  drillPath.value = level < 0 ? [] : drillPath.value.slice(0, level + 1)
+  selectedCol.value = null
+  if (activeTab.value) activeTab.value.selectedRow = -1
+}
+
+watch(() => activeTab.value?.id, () => { selectedCol.value = null; cellCtx.value = null; drillPath.value = [] })
 
 function selectRow(rowIdx) {
   activeTab.value.selectedRow = rowIdx
@@ -256,7 +361,7 @@ function cellCopyValue(col, val) {
 function copySelectedCell() {
   const tab = activeTab.value
   if (!tab || tab.selectedRow < 0 || !selectedCol.value) return
-  const val = tab.results[tab.selectedRow]?.[selectedCol.value]
+  const val = gridDocs(tab)[tab.selectedRow]?.[selectedCol.value]
   navigator.clipboard.writeText(cellCopyValue(selectedCol.value, val))
 }
 
@@ -268,13 +373,14 @@ function openCellCtx(e, rowIdx, col) {
 
 function cellCtxPick(action) {
   const tab = activeTab.value
-  const val = tab?.results[cellCtx.value?.row]?.[cellCtx.value?.col]
+  const docs = gridDocs(tab)
+  const val = docs[cellCtx.value?.row]?.[cellCtx.value?.col]
   if (action === 'copy-value') {
     navigator.clipboard.writeText(cellCopyValue(cellCtx.value.col, val))
   } else if (action === 'copy-json') {
     navigator.clipboard.writeText(JSON.stringify(val, null, 2))
   } else if (action === 'copy-doc') {
-    navigator.clipboard.writeText(JSON.stringify(tab.results[cellCtx.value.row], null, 2))
+    navigator.clipboard.writeText(JSON.stringify(docs[cellCtx.value.row], null, 2))
   }
   cellCtx.value = null
 }
@@ -287,7 +393,8 @@ function handleKeydown(e) {
 
   if (tab.selectedRow < 0) return
 
-  const cols   = columns(tab.results || [])
+  const docs   = gridDocs(tab)
+  const cols   = columns(docs)
   const colIdx = cols.indexOf(selectedCol.value)
   const rowIdx = tab.selectedRow
 
@@ -315,7 +422,7 @@ function handleKeydown(e) {
     e.preventDefault()
     selectedCol.value = cols[colIdx - 1]
     scrollToCell()
-  } else if (e.key === 'ArrowDown' && rowIdx < (tab.results?.length ?? 0) - 1) {
+  } else if (e.key === 'ArrowDown' && rowIdx < docs.length - 1) {
     e.preventDefault()
     tab.selectedRow = rowIdx + 1
     scrollToCell()
@@ -483,7 +590,6 @@ const queryCode = computed(() => {
         <button class="qbtn run" @click="runQuery" :disabled="activeTab.isRunning">
           <BaseIcon name="run" :size="16" class="ic" />
           {{ activeTab.isRunning ? 'Running…' : 'Run' }}
-          <BaseIcon name="caretDown" :size="11" class="drop" />
         </button>
         <button class="qbtn" disabled><BaseIcon name="load"    :size="16" class="ic" /> Load query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
         <button class="qbtn" disabled><BaseIcon name="save"    :size="16" class="ic" /> Save query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
@@ -503,10 +609,13 @@ const queryCode = computed(() => {
         <div class="qinput">
           <input
             class="qval"
-            v-model="activeTab.filter"
+            :value="activeTab.filter"
+            @input="activeTab.filter = sanitizeQuotes($event.target.value)"
             placeholder="{}"
-            @keydown.enter.ctrl="runQuery"
-            @keydown.enter.meta="runQuery"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.enter.prevent="runQuery"
           />
           <span class="qicons">
             <BaseIcon name="brush" :size="15" @click="activeTab.filter = ''" style="cursor:pointer" />
@@ -514,13 +623,13 @@ const queryCode = computed(() => {
         </div>
         <span class="qlabel">Sort</span>
         <div class="qinput">
-          <input class="qval" v-model="activeTab.sort" placeholder="{}" />
+          <input class="qval" :value="activeTab.sort" @input="activeTab.sort = sanitizeQuotes($event.target.value)" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="runQuery" />
         </div>
         <span></span>
 
         <span class="qlabel">Projection</span>
         <div class="qinput">
-          <input class="qval" v-model="activeTab.projection" placeholder="{}" />
+          <input class="qval" :value="activeTab.projection" @input="activeTab.projection = sanitizeQuotes($event.target.value)" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="runQuery" />
         </div>
         <div class="num-cluster">
           <span class="qlabel">Limit</span>
@@ -530,6 +639,7 @@ const queryCode = computed(() => {
               placeholder="50"
               inputmode="numeric"
               @input="activeTab.limit = Math.max(1, parseInt($event.target.value) || 1)"
+              @keydown.enter.prevent="runQuery"
             />
             <div class="num-steppers">
               <button tabindex="-1" @click="activeTab.limit = Math.max(1, (activeTab.limit || 50) + 1)">
@@ -547,6 +657,7 @@ const queryCode = computed(() => {
               placeholder="0"
               inputmode="numeric"
               @input="activeTab.skip = Math.max(0, parseInt($event.target.value) || 0)"
+              @keydown.enter.prevent="runQuery"
             />
             <div class="num-steppers">
               <button tabindex="-1" @click="activeTab.skip = Math.max(0, (activeTab.skip || 0) + 1)">
@@ -646,15 +757,25 @@ const queryCode = computed(() => {
         <div v-if="activeTab.runError" class="run-error">{{ activeTab.runError }}</div>
 
         <!-- Table view -->
-        <div v-else-if="rtab === 'Result' && viewMode === 'table'" class="grid-wrap">
+        <div v-else-if="rtab === 'Result' && viewMode === 'table'" class="grid-wrap" ref="gridWrapRef">
+        <div class="grid-scroll">
           <div class="fieldpath">
-            <span>{{ activeTab.collectionName }}</span>
+            <span class="fp fp-link" @click="goToDrillLevel(-1)">{{ activeTab.collectionName }}</span>
+            <template v-for="(seg, idx) in drillPath" :key="idx">
+              <BaseIcon name="caret" :size="11" class="fp-sep" />
+              <span class="fp fp-link" @click="goToDrillLevel(idx)">{{ seg }}</span>
+            </template>
+            <template v-if="selectedCol">
+              <BaseIcon name="caret" :size="11" class="fp-sep" />
+              <span class="fp">{{ selectedCol }}</span>
+            </template>
           </div>
           <template v-if="!activeTab.hasRun || activeTab.isRunning">
             <table class="grid">
               <thead><tr>
                 <th class="rownum"></th>
-                <th style="min-width:320px">{Document id}</th>
+                <th style="min-width:320px;max-width:320px">{Document id}</th>
+                <th class="col-filler"></th>
               </tr></thead>
             </table>
             <div class="empty-rows"><div class="empty-rows-gutter"></div></div>
@@ -663,7 +784,8 @@ const queryCode = computed(() => {
             <table class="grid">
               <thead><tr>
                 <th class="rownum"></th>
-                <th style="min-width:320px">{Document id}</th>
+                <th style="min-width:320px;max-width:320px">{Document id}</th>
+                <th class="col-filler"></th>
               </tr></thead>
             </table>
             <div class="empty-rows"><div class="empty-rows-gutter"></div></div>
@@ -677,7 +799,7 @@ const queryCode = computed(() => {
                 <tr>
                   <th class="rownum"></th>
                   <th
-                    v-for="col in columns(activeTab.results)"
+                    v-for="col in columns(gridDocs(activeTab))"
                     :key="col"
                     :style="colWidths[col] ? { minWidth: colWidths[col] + 'px', maxWidth: colWidths[col] + 'px' } : {}"
                   >
@@ -689,17 +811,18 @@ const queryCode = computed(() => {
               </thead>
               <tbody>
                 <tr
-                  v-for="(row, i) in activeTab.results"
+                  v-for="(row, i) in gridDocs(activeTab)"
                   :key="i"
                   :class="{ selrow: activeTab.selectedRow === i }"
                   @click="selectRow(i)"
                 >
                   <td class="rownum">{{ i + 1 }}</td>
                   <td
-                    v-for="col in columns(activeTab.results)"
+                    v-for="col in columns(gridDocs(activeTab))"
                     :key="col"
-                    :class="{ selcell: activeTab.selectedRow === i && selectedCol === col }"
+                    :class="{ selcell: activeTab.selectedRow === i && selectedCol === col, drillable: isDrillable(col, row[col]) }"
                     @click.stop="selectCell(i, col)"
+                    @dblclick.stop="openCellDrill(i, col)"
                     @contextmenu="openCellCtx($event, i, col)"
                   >
                     <span class="tcell" :class="'t-' + guessType(col, row[col])">
@@ -714,23 +837,24 @@ const queryCode = computed(() => {
                   <td class="col-filler"></td>
                 </tr>
                 <tr
-                  v-for="f in fillerCount(activeTab.results)"
+                  v-for="f in fillerCount(gridDocs(activeTab))"
                   :key="'f' + f"
                   class="filler"
                 >
                   <td class="rownum"></td>
-                  <td v-for="col in columns(activeTab.results)" :key="col"></td>
+                  <td v-for="col in columns(gridDocs(activeTab))" :key="col"></td>
                   <td class="col-filler"></td>
                 </tr>
               </tbody>
             </table>
           </template>
         </div>
+        </div>
 
         <!-- JSON view -->
         <div v-else-if="rtab === 'Result' && viewMode === 'json'" class="json-view">
           <div v-if="!activeTab.results?.length" style="padding:32px;color:var(--text-faint);font-size:12px">No documents</div>
-          <div v-else class="json-doc" v-for="(doc, i) in activeTab.results" :key="i" v-html="syntaxHighlight(JSON.stringify(doc, null, 2))"></div>
+          <div v-else class="json-doc" v-for="(doc, i) in activeTab.results" :key="i" v-html="syntaxHighlight(mongoStringify(doc))"></div>
         </div>
 
         <!-- Query Code sub-tab -->
@@ -901,7 +1025,7 @@ const queryCode = computed(() => {
   font-size: 12.5px;
 }
 .qbtn:hover:not(:disabled) { background: var(--bg-hover); }
-.qbtn.run { min-width: 92px; }
+.qbtn.run { min-width: 92px; border: 1px solid var(--border); }
 .qbtn.run .ic { color: var(--green); }
 .qbtn .ic  { color: var(--text-dim); }
 .qbtn .drop { color: var(--text-faint); }
@@ -1095,9 +1219,18 @@ const queryCode = computed(() => {
 .view-menu-item:not(.on) span { margin-left: 21px; }
 
 /* Grid */
-.grid-wrap { flex: 1; overflow: auto; min-height: 0; background: var(--bg-window); }
+.grid-wrap { flex: 1; overflow: auto; min-height: 0; background: var(--bg-window); --fieldpath-h: 34px; }
+/* grows to the table's actual rendered width (not just the visible viewport) so the
+   fieldpath bar's background still reaches the right edge when columns overflow and
+   the grid scrolls horizontally */
+.grid-scroll { width: max-content; min-width: 100%; }
 .fieldpath {
-  padding: 7px 12px;
+  height: var(--fieldpath-h);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
   font-size: 13px;
   font-weight: 700;
   color: var(--text);
@@ -1107,6 +1240,9 @@ const queryCode = computed(() => {
   top: 0;
   z-index: 3;
 }
+.fieldpath .fp-sep { color: var(--text-faint); }
+.fieldpath .fp-link { cursor: pointer; }
+.fieldpath .fp-link:hover { color: var(--accent); }
 table.grid {
   border-collapse: collapse;
   width: max-content;
@@ -1116,7 +1252,7 @@ table.grid {
 }
 table.grid th {
   position: sticky;
-  top: 34px;
+  top: var(--fieldpath-h);
   background: var(--bg-toolbar);
   color: var(--text-dim);
   font-weight: 600;
@@ -1141,6 +1277,7 @@ table.grid tr:nth-child(even) td { background: var(--bg-row-alt); }
 table.grid tr:hover td { background: var(--bg-hover); }
 table.grid tr.selrow td { background: #34373c; box-shadow: inset 0 0 0 9999px rgba(255,255,255,.02); }
 table.grid td.selcell { outline: 1px solid var(--accent); outline-offset: -1px; position: relative; z-index: 4; }
+table.grid td.drillable { cursor: pointer; }
 /* rownum — sticky left gutter column */
 table.grid th.rownum,
 table.grid td.rownum {
@@ -1228,7 +1365,7 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
 .json-doc {
   font-family: var(--mono);
   font-size: 12.5px;
-  line-height: 1.65;
+  line-height: 1.2;
   color: var(--text);
   white-space: pre;
   border-left: 2px solid var(--border-soft);
@@ -1238,12 +1375,17 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
   user-select: text;
 }
 /* syntax highlight token classes */
+/* the global `*` reset in theme.css sets user-select:none directly on these
+   spans, which overrides the inherited user-select:text from .json-doc —
+   re-enable it here or selection/copy only picks up the punctuation between tokens */
+.json-doc :deep(span) { -webkit-user-select: text; user-select: text; }
 .json-doc :deep(.jk)  { color: var(--cell-key); }
 .json-doc :deep(.jop) { color: var(--cell-op); }
 .json-doc :deep(.js)  { color: var(--cell-str); }
 .json-doc :deep(.jn)  { color: var(--cell-num); }
 .json-doc :deep(.jb)  { color: var(--cell-num); }
 .json-doc :deep(.jl)  { color: var(--text-faint); }
+.json-doc :deep(.joid) { color: var(--link); }
 
 /* page size dropdown */
 .page-size-wrap { position: relative; }
