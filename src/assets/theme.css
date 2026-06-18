@@ -63,3 +63,4 @@ input  { font-family: inherit; color: inherit; }
   background: #55575c;
   background-clip: padding-box;
 }
+::-webkit-scrollbar-corner { background: var(--bg-window); }

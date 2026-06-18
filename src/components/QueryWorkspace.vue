@@ -85,6 +85,8 @@ function columns(results) {
   if (!results?.length) return []
   const seen = new Set()
   for (const doc of results) for (const k of Object.keys(doc)) seen.add(k)
+  const allNumeric = [...seen].every(k => /^\d+$/.test(k))
+  if (allNumeric) return [...seen].sort((a, b) => Number(a) - Number(b))
   const rest = [...seen].filter(k => k !== '_id').sort()
   return seen.has('_id') ? ['_id', ...rest] : rest
 }
@@ -283,6 +285,9 @@ function autoFitColumn(e, col) {
 // ── row / cell selection ──────────────────────────────
 const selectedCol = ref(null)  // tracked only for right-click context menu copy
 const cellCtx     = ref(null)  // { x, y, row, col } | null — right-click menu
+const inlineEdit  = ref(null)  // { rowIdx, col, raw } | null — in-place primitive edit
+
+const vFocus = { mounted(el) { el.focus(); el.select() } }
 
 // ── drill into nested object cells ─────────────────────
 // field-name path navigated into, e.g. ['bank_account', 'account']
@@ -291,7 +296,7 @@ const drillPath = ref([])
 function getAtPath(doc, path) {
   let cur = doc
   for (const key of path) {
-    if (cur === null || typeof cur !== 'object' || Array.isArray(cur)) return undefined
+    if (cur === null || typeof cur !== 'object') return undefined
     cur = cur[key]
   }
   return cur
@@ -304,11 +309,19 @@ function getAtPath(doc, path) {
 function gridDocs(tab) {
   if (!tab) return []
   if (!drillPath.value.length) return tab.results || []
-  return (tab.results || []).map((doc) => getAtPath(doc, drillPath.value) ?? {})
+  return (tab.results || []).map((doc) => {
+    const val = getAtPath(doc, drillPath.value) ?? {}
+    if (Array.isArray(val)) {
+      const obj = {}
+      val.forEach((el, idx) => { obj[String(idx)] = el })
+      return obj
+    }
+    return val
+  })
 }
 
 function isDrillable(col, val) {
-  return !Array.isArray(val) && guessType(col, val) === 'obj'
+  return guessType(col, val) === 'obj'
 }
 
 function openCellDrill(rowIdx, col) {
@@ -385,7 +398,76 @@ function cellCtxPick(action) {
   cellCtx.value = null
 }
 
+// ── inline cell editing ────────────────────────────────
+function startInlineEdit(rowIdx, col) {
+  const tab = activeTab.value
+  if (!tab) return
+  const val = gridDocs(tab)[rowIdx]?.[col]
+  const type = guessType(col, val)
+  if (type === 'obj' || type === 'id' || type === 'date') return
+  const raw = val === null || val === undefined ? '' : String(val)
+  inlineEdit.value = { rowIdx: rowIdx, col: col, raw: raw }
+}
+
+async function commitInlineEdit() {
+  const edit = inlineEdit.value
+  if (!edit) return
+  inlineEdit.value = null
+  const tab = activeTab.value
+  if (!tab) return
+  const docs = gridDocs(tab)
+  const originalVal = docs[edit.rowIdx]?.[edit.col]
+  let newVal
+  if (typeof originalVal === 'number') {
+    const n = Number(edit.raw)
+    newVal = isNaN(n) ? edit.raw : n
+  } else if (typeof originalVal === 'boolean') {
+    newVal = edit.raw === 'true'
+  } else {
+    newVal = edit.raw
+  }
+  const rootDoc = JSON.parse(JSON.stringify(tab.results[edit.rowIdx]))
+  let cur = rootDoc
+  for (const key of drillPath.value) {
+    cur = cur[key]
+  }
+  cur[edit.col] = newVal
+  try {
+    await invoke('replace_document', {
+      id: tab.connectionId,
+      uri: tab.uri,
+      database: tab.dbName,
+      collection: tab.collectionName,
+      idFilter: buildIdFilter(tab.results[edit.rowIdx]),
+      document: JSON.stringify(rootDoc),
+    })
+    const refreshed = await invoke('find_documents', {
+      id: tab.connectionId,
+      uri: tab.uri,
+      database: tab.dbName,
+      collection: tab.collectionName,
+      filter: buildIdFilter(tab.results[edit.rowIdx]),
+      projection: '{}',
+      sort: '{}',
+      skip: 0,
+      limit: 1,
+    })
+    if (refreshed.length) {
+      tab.results.splice(edit.rowIdx, 1, refreshed[0])
+    } else {
+      tab.results.splice(edit.rowIdx, 1)
+    }
+  } catch (e) {
+    crudError.value = String(e)
+  }
+}
+
+function cancelInlineEdit() {
+  inlineEdit.value = null
+}
+
 function handleKeydown(e) {
+  if (inlineEdit.value) return
   const tab = activeTab.value
   if (!tab) return
 
@@ -757,8 +839,7 @@ const queryCode = computed(() => {
         <div v-if="activeTab.runError" class="run-error">{{ activeTab.runError }}</div>
 
         <!-- Table view -->
-        <div v-else-if="rtab === 'Result' && viewMode === 'table'" class="grid-wrap" ref="gridWrapRef">
-        <div class="grid-scroll">
+        <div v-else-if="rtab === 'Result' && viewMode === 'table'" class="grid-outer">
           <div class="fieldpath">
             <span class="fp fp-link" @click="goToDrillLevel(-1)">{{ activeTab.collectionName }}</span>
             <template v-for="(seg, idx) in drillPath" :key="idx">
@@ -770,6 +851,8 @@ const queryCode = computed(() => {
               <span class="fp">{{ selectedCol }}</span>
             </template>
           </div>
+          <div class="grid-wrap" ref="gridWrapRef">
+          <div class="grid-scroll">
           <template v-if="!activeTab.hasRun || activeTab.isRunning">
             <table class="grid">
               <thead><tr>
@@ -803,7 +886,7 @@ const queryCode = computed(() => {
                     :key="col"
                     :style="colWidths[col] ? { minWidth: colWidths[col] + 'px', maxWidth: colWidths[col] + 'px' } : {}"
                   >
-                    {{ col === '_id' ? '{Document id}' : col }}
+                    {{ col === '_id' ? '{Document id}' : (/^\d+$/.test(col) ? `[${col}]` : col) }}
                     <div class="col-resize-handle" @mousedown="startResize($event, col)" @dblclick.stop="autoFitColumn($event, col)"></div>
                   </th>
                   <th class="col-filler"></th>
@@ -822,10 +905,20 @@ const queryCode = computed(() => {
                     :key="col"
                     :class="{ selcell: activeTab.selectedRow === i && selectedCol === col, drillable: isDrillable(col, row[col]) }"
                     @click.stop="selectCell(i, col)"
-                    @dblclick.stop="openCellDrill(i, col)"
+                    @dblclick.stop="isDrillable(col, row[col]) ? openCellDrill(i, col) : startInlineEdit(i, col)"
                     @contextmenu="openCellCtx($event, i, col)"
                   >
-                    <span class="tcell" :class="'t-' + guessType(col, row[col])">
+                    <template v-if="inlineEdit && inlineEdit.rowIdx === i && inlineEdit.col === col">
+                      <input
+                        class="cell-edit-input"
+                        v-model="inlineEdit.raw"
+                        v-focus
+                        @keydown.enter.stop="commitInlineEdit"
+                        @keydown.escape.stop="cancelInlineEdit"
+                        @blur="commitInlineEdit"
+                      />
+                    </template>
+                    <span v-else class="tcell" :class="'t-' + guessType(col, row[col])">
                       <span class="ticon">
                         <BaseIcon :name="TYPE_ICON[guessType(col, row[col])] || 'typeStr'" :size="14" />
                       </span>
@@ -848,7 +941,8 @@ const queryCode = computed(() => {
               </tbody>
             </table>
           </template>
-        </div>
+          </div>
+          </div>
         </div>
 
         <!-- JSON view -->
@@ -1219,13 +1313,12 @@ const queryCode = computed(() => {
 .view-menu-item:not(.on) span { margin-left: 21px; }
 
 /* Grid */
-.grid-wrap { flex: 1; overflow: auto; min-height: 0; background: var(--bg-window); --fieldpath-h: 34px; }
-/* grows to the table's actual rendered width (not just the visible viewport) so the
-   fieldpath bar's background still reaches the right edge when columns overflow and
-   the grid scrolls horizontally */
+.grid-outer { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-window); }
+.grid-wrap { flex: 1; overflow: auto; min-height: 0; }
 .grid-scroll { width: max-content; min-width: 100%; }
 .fieldpath {
-  height: var(--fieldpath-h);
+  height: 34px;
+  flex: none;
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -1236,9 +1329,6 @@ const queryCode = computed(() => {
   color: var(--text);
   background: var(--bg-panel-2);
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 3;
 }
 .fieldpath .fp-sep { color: var(--text-faint); }
 .fieldpath .fp-link { cursor: pointer; }
@@ -1252,7 +1342,7 @@ table.grid {
 }
 table.grid th {
   position: sticky;
-  top: var(--fieldpath-h);
+  top: 0;
   background: var(--bg-toolbar);
   color: var(--text-dim);
   font-weight: 600;
@@ -1551,5 +1641,18 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
   display: flex;
   align-items: center;
   flex: none;
+}
+
+/* Inline cell editor */
+.cell-edit-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  outline: none;
 }
 </style>
