@@ -59,7 +59,6 @@ function guessType(key, val) {
   return 'str'
 }
 
-const TYPE_ICON = { id: 'typeId', str: 'typeStr', num: 'typeNum', date: 'typeDate', bool: 'typeBool', null: 'typeNull', obj: 'typeObj' }
 const TYPE_CLASS = { id: 'cell-oid', str: 'cell-str', num: 'cell-num', date: '', bool: 'cell-num', null: 'cell-faint', obj: 'cell-faint' }
 
 function formatCell(key, val) {
@@ -221,7 +220,7 @@ function startResize(e, col) {
   e.preventDefault()
   e.stopPropagation()
   // Measure only the column being dragged so we never snap all columns at once
-  const cols     = columns(gridDocs(activeTab.value))
+  const cols     = gridColumns.value
   const nthChild = cols.indexOf(col) + 2
   const th       = tableRef.value?.querySelector(`thead th:nth-child(${nthChild})`)
   resizeCol        = col
@@ -255,7 +254,7 @@ function autoFitColumn(e, col) {
   e.stopPropagation()
   if (!tableRef.value) return
 
-  const cols = columns(gridDocs(activeTab.value))
+  const cols = gridColumns.value
   // +2: child 1 is the rownum column, data columns start at child 2
   const nthChild = cols.indexOf(col) + 2
   if (nthChild < 2) return
@@ -306,7 +305,11 @@ function getAtPath(doc, path) {
 // (once drilled) every document's value at the drilled path — one row per
 // original document is kept, so documents missing that path just render blank
 // instead of collapsing the grid down to a single row
-function gridDocs(tab) {
+// Cached once per render. The template reads these many times (the column list is
+// referenced once per row), so computing them as plain functions made rendering a
+// 200-document result O(rows²); memoizing keeps the draw fast.
+const gridDocs = computed(() => {
+  const tab = activeTab.value
   if (!tab) return []
   if (!drillPath.value.length) return tab.results || []
   return (tab.results || []).map((doc) => {
@@ -318,7 +321,9 @@ function gridDocs(tab) {
     }
     return val
   })
-}
+})
+
+const gridColumns = computed(() => columns(gridDocs.value))
 
 function isDrillable(col, val) {
   return guessType(col, val) === 'obj'
@@ -327,7 +332,7 @@ function isDrillable(col, val) {
 function openCellDrill(rowIdx, col) {
   const tab = activeTab.value
   if (!tab) return
-  const val = gridDocs(tab)[rowIdx]?.[col]
+  const val = gridDocs.value[rowIdx]?.[col]
   if (!isDrillable(col, val)) return
   drillPath.value = [...drillPath.value, col]
   selectedCol.value = null
@@ -374,7 +379,7 @@ function cellCopyValue(col, val) {
 function copySelectedCell() {
   const tab = activeTab.value
   if (!tab || tab.selectedRow < 0 || !selectedCol.value) return
-  const val = gridDocs(tab)[tab.selectedRow]?.[selectedCol.value]
+  const val = gridDocs.value[tab.selectedRow]?.[selectedCol.value]
   navigator.clipboard.writeText(cellCopyValue(selectedCol.value, val))
 }
 
@@ -385,8 +390,7 @@ function openCellCtx(e, rowIdx, col) {
 }
 
 function cellCtxPick(action) {
-  const tab = activeTab.value
-  const docs = gridDocs(tab)
+  const docs = gridDocs.value
   const val = docs[cellCtx.value?.row]?.[cellCtx.value?.col]
   if (action === 'copy-value') {
     navigator.clipboard.writeText(cellCopyValue(cellCtx.value.col, val))
@@ -402,7 +406,7 @@ function cellCtxPick(action) {
 function startInlineEdit(rowIdx, col) {
   const tab = activeTab.value
   if (!tab) return
-  const val = gridDocs(tab)[rowIdx]?.[col]
+  const val = gridDocs.value[rowIdx]?.[col]
   const type = guessType(col, val)
   if (type === 'obj' || type === 'id' || type === 'date') return
   const raw = val === null || val === undefined ? '' : String(val)
@@ -415,7 +419,7 @@ async function commitInlineEdit() {
   inlineEdit.value = null
   const tab = activeTab.value
   if (!tab) return
-  const docs = gridDocs(tab)
+  const docs = gridDocs.value
   const originalVal = docs[edit.rowIdx]?.[edit.col]
   let newVal
   if (typeof originalVal === 'number') {
@@ -475,8 +479,8 @@ function handleKeydown(e) {
 
   if (tab.selectedRow < 0) return
 
-  const docs   = gridDocs(tab)
-  const cols   = columns(docs)
+  const docs   = gridDocs.value
+  const cols   = gridColumns.value
   const colIdx = cols.indexOf(selectedCol.value)
   const rowIdx = tab.selectedRow
 
@@ -517,6 +521,26 @@ function handleKeydown(e) {
 
 onMounted(()  => document.addEventListener('keydown', handleKeydown))
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
+
+// WebKitGTK (the Linux Tauri webview) lets the grid's compositor layer go "cold"
+// while the window is backgrounded, so after switching back it won't repaint on
+// interaction until something forces an invalidation — the first scroll is absorbed
+// (row-number column flashes blank, snaps back) and rows don't highlight on hover
+// until you scroll/click once. Nudge the scroller by a pixel and back on focus
+// (with a forced reflow in between) to warm the layer before the user interacts.
+// The net scroll position is unchanged.
+function repaintGridOnFocus() {
+  const el = gridWrapRef.value
+  if (!el) return
+  requestAnimationFrame(() => {
+    const top = el.scrollTop
+    el.scrollTop = top + 1
+    void el.offsetHeight
+    el.scrollTop = top
+  })
+}
+onMounted(()  => window.addEventListener('focus', repaintGridOnFocus))
+onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
 
 // ── document CRUD ──────────────────────────────────────
 const showDocModal     = ref(false)
@@ -882,7 +906,7 @@ const queryCode = computed(() => {
                 <tr>
                   <th class="rownum"></th>
                   <th
-                    v-for="col in columns(gridDocs(activeTab))"
+                    v-for="col in gridColumns"
                     :key="col"
                     :style="colWidths[col] ? { minWidth: colWidths[col] + 'px', maxWidth: colWidths[col] + 'px' } : {}"
                   >
@@ -894,14 +918,14 @@ const queryCode = computed(() => {
               </thead>
               <tbody>
                 <tr
-                  v-for="(row, i) in gridDocs(activeTab)"
+                  v-for="(row, i) in gridDocs"
                   :key="i"
                   :class="{ selrow: activeTab.selectedRow === i }"
                   @click="selectRow(i)"
                 >
                   <td class="rownum">{{ i + 1 }}</td>
                   <td
-                    v-for="col in columns(gridDocs(activeTab))"
+                    v-for="col in gridColumns"
                     :key="col"
                     :class="{ selcell: activeTab.selectedRow === i && selectedCol === col, drillable: isDrillable(col, row[col]) }"
                     @click.stop="selectCell(i, col)"
@@ -919,9 +943,6 @@ const queryCode = computed(() => {
                       />
                     </template>
                     <span v-else class="tcell" :class="'t-' + guessType(col, row[col])">
-                      <span class="ticon">
-                        <BaseIcon :name="TYPE_ICON[guessType(col, row[col])] || 'typeStr'" :size="14" />
-                      </span>
                       <span class="tval" :class="TYPE_CLASS[guessType(col, row[col])]">
                         {{ formatCell(col, row[col]) }}
                       </span>
@@ -930,12 +951,12 @@ const queryCode = computed(() => {
                   <td class="col-filler"></td>
                 </tr>
                 <tr
-                  v-for="f in fillerCount(gridDocs(activeTab))"
+                  v-for="f in fillerCount(gridDocs)"
                   :key="'f' + f"
                   class="filler"
                 >
                   <td class="rownum"></td>
-                  <td v-for="col in columns(gridDocs(activeTab))" :key="col"></td>
+                  <td v-for="col in gridColumns" :key="col"></td>
                   <td class="col-filler"></td>
                 </tr>
               </tbody>
@@ -1429,7 +1450,6 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
 }
 
 .tcell { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
-.ticon { color: var(--text-faint); display: grid; place-items: center; flex: none; }
 .cell-oid   { color: var(--link); }
 .cell-str   { color: var(--cell-str-green); }
 .cell-num   { color: var(--cell-num); }

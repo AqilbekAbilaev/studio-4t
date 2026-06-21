@@ -8,6 +8,16 @@ import ConnectionManager from './components/ConnectionManager.vue'
 import VisualQueryBuilder from './components/VisualQueryBuilder.vue'
 import ContextMenu from './components/ContextMenu.vue'
 
+import { getCurrentWindow } from '@tauri-apps/api/window';
+
+const appWindow = getCurrentWindow();
+
+appWindow.listen('window-focus', async (event) => {
+  if (event.payload === true) {
+    await appWindow.setFocus();
+  }
+});
+
 // ── toolbar definition ─────────────────────────────────────
 const TOOLS = [
   { name: 'connect',   label: 'Connect',      badge: '#4caf78', drop: true },
