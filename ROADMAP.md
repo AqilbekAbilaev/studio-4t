@@ -29,15 +29,22 @@
 - Ctrl+Enter / Cmd+Enter to run
 - Result paging: first/prev/next/last, page-size picker (20/50/100/...)
 - View modes: **Table View** and **JSON View** (with syntax highlighting + text selection) —
-  **Tree View** is in the menu but not yet implemented (falls through to nothing)
+  **Tree View** is in the menu but not yet implemented (falls through to "coming soon")
 - "Query Code" sub-tab — renders the equivalent `db.collection.find(...)` shell command
 - "Explain" sub-tab is a placeholder ("coming soon")
 - Result table redesign — zebra rows, `_id`/number/string cell coloring, row selection,
   resizable columns (no layout jump, centered handle)
+- **Inline cell editing** — double-click a primitive cell to edit in place; commits via `replace_document`
+- **Nested object & array drill-down** — double-click an object/array cell to drill in,
+  with a breadcrumb path (collection ▸ field ▸ …) to navigate back out
 - Right-click cell/row context menu: Copy Value, Copy as JSON, Copy Document
 - Document CRUD: insert (`insert_document`), edit/replace (`replace_document`),
   delete (`delete_document`) via `DocumentModal.vue`
 - Compact result-toolbar menus (page size, view mode)
+
+### Collection & database management
+- Create a new collection — `create_collection` backend command + dialog, wired through the tree
+- Drop a database — `drop_database` backend command + confirmation modal (no longer a toast stub)
 
 ### Design system
 - `BaseIcon.vue` — inline SVG icon set, no external icon fonts/images
@@ -50,8 +57,8 @@
 ### Query workspace gaps
 - [ ] Tree View result mode (menu entry exists, not implemented)
 - [ ] Explain sub-tab (currently a "coming soon" placeholder)
-- [ ] Visual Query Builder — `VisualQueryBuilder.vue` exists as a shell but isn't wired to
-      generate/sync the actual filter/sort/projection
+- [ ] Visual Query Builder — toggle now opens `VisualQueryBuilder.vue` as a side panel, but it
+      doesn't yet generate/sync the actual filter/sort/projection
 - [ ] Load query from file / Save query to file
 - [ ] Query history (recent queries per collection)
 - [ ] Tab persistence across app restarts
@@ -63,8 +70,6 @@
 
 ### Collection & database management
 - [ ] Create a new database
-- [ ] Drop a database (menu item exists, not wired — shows toast stub)
-- [ ] Create a new collection
 - [ ] Drop a collection (menu item exists, not wired — shows toast stub)
 - [ ] Rename a collection (menu item exists, not wired — shows toast stub)
 

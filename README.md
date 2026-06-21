@@ -1,15 +1,16 @@
 # Studio-4T
 
-This is open-source alternative to [Studio-3T](https://studio3t.com/). The project is being built with [Tauri](https://tauri.app/). And I am using [Vue.js](https://vuejs.org/) for front-end. And it is not ready yet.
+An open-source, free alternative to [Studio-3T](https://studio3t.com/) — a desktop GUI for managing MongoDB. Built with [Tauri](https://tauri.app/) (Rust backend) and [Vue.js](https://vuejs.org/) (front-end). Still a work in progress, but it can already connect, browse, query, and edit documents.
 
 ![Current state of development](img/Screenshot%20from%202025-04-12%2013-11-48.png)
 
 # Contents
 
 - [Why?](#why)
+- [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
-- [Usage](#usage)
+- [Roadmap](#roadmap)
 - [Want to Contribute?](#want-to-contribute)
 
 ### Why?
@@ -22,6 +23,23 @@ I wanted a tool that allows you to (plus what Studio-3T provides):
 - More customizeable.
 
 `Studio-4T` will check all of those boxes in the future for me.
+
+### Features
+
+Today MongoDB is the only supported database, but the long-term goal is to support more.
+
+What works right now:
+
+- **Connections** — a Connection Manager (create, edit, delete connections), Server/URI connection dialogs with a live "Test Connection" check, color-tagging, and persistence to disk so your connections survive restarts.
+- **Connection tree** — a collapsible Connection → Database → Collection sidebar that loads data on expand, with a context menu (open collection, copy name, disconnect, refresh, …).
+- **Query workspace** — multiple tabs, each bound to a collection. A query bar with filter / sort / projection / skip / limit fields (syntax-highlighted JSON), `Ctrl/Cmd+Enter` to run, and result paging (first/prev/next/last + page-size picker).
+- **Viewing results** — Table View and JSON View, a "Query Code" tab that shows the equivalent `db.collection.find(...)` shell command, inline cell editing, and drill-down into nested objects and arrays with a breadcrumb path.
+- **Document editing** — insert, edit/replace, and delete documents; copy a value/row/document to the clipboard.
+- **Collection & database actions** — create a collection and drop a database, wired through the tree.
+
+Under the hood: an async connection pool (one client per connection, reused across operations), a fast TCP probe for instant "connection refused" feedback, and a Rust backend covered by unit tests.
+
+See [ROADMAP.md](ROADMAP.md) for the full, up-to-date status and what's coming next (Tree View, Explain, visual query builder, index management, import/export, GridFS, IntelliShell, and more).
 
 ### Prerequisites
 
@@ -42,7 +60,6 @@ In order to locally build:
 2) `npm run tauri dev` and the window should pop up.
 
 
+### Roadmap
 
----
-What I am currently working on:
-`Database connection`
+The current status, what's done, and what's planned all live in [ROADMAP.md](ROADMAP.md).
