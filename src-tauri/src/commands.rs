@@ -130,8 +130,8 @@ fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
 #[tauri::command]
 pub async fn find_documents(
     pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
     id: String,
-    uri: String,
     database: String,
     collection: String,
     filter: String,
@@ -140,7 +140,11 @@ pub async fn find_documents(
     skip: i64,
     limit: i64,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&config.uri)).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -227,10 +231,14 @@ pub fn open_connect_window(app: tauri::AppHandle) {
 #[tauri::command]
 pub async fn list_databases(
     pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
     id: String,
-    uri: String,
 ) -> Result<Vec<DatabaseInfo>, AppError> {
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&config.uri)).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -264,12 +272,16 @@ pub async fn list_databases(
 #[tauri::command]
 pub async fn create_collection(
     pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
     id: String,
-    uri: String,
     database: String,
     name: String,
 ) -> Result<(), AppError> {
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&config.uri)).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -282,11 +294,15 @@ pub async fn create_collection(
 #[tauri::command]
 pub async fn drop_database(
     pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
     id: String,
-    uri: String,
     database: String,
 ) -> Result<(), AppError> {
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&config.uri)).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -299,13 +315,17 @@ pub async fn drop_database(
 #[tauri::command]
 pub async fn insert_document(
     pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
     id: String,
-    uri: String,
     database: String,
     collection: String,
     document: String,
 ) -> Result<String, AppError> {
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&config.uri)).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -326,14 +346,18 @@ pub async fn insert_document(
 #[tauri::command]
 pub async fn replace_document(
     pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
     id: String,
-    uri: String,
     database: String,
     collection: String,
     id_filter: String,
     document: String,
 ) -> Result<(), AppError> {
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&config.uri)).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -360,13 +384,17 @@ pub async fn replace_document(
 #[tauri::command]
 pub async fn delete_document(
     pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
     id: String,
-    uri: String,
     database: String,
     collection: String,
     id_filter: String,
 ) -> Result<(), AppError> {
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&uri)).await {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&config.uri)).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

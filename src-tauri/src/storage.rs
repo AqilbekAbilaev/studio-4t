@@ -59,6 +59,13 @@ impl Storage {
         connections.retain(|c| c.id != id);
         self.save(&connections)
     }
+
+    /// The persisted config for `id`, if any. This is the authoritative source of
+    /// a connection's URI — commands resolve it here rather than trusting the
+    /// frontend to send the URI on every call.
+    pub fn find(&self, id: &str) -> Option<ConnectionConfig> {
+        self.load().into_iter().find(|c| c.id == id)
+    }
 }
 
 #[cfg(test)]
