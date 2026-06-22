@@ -23,6 +23,8 @@ pub struct ConnectionConfig {
     #[serde(default)]
     pub auth_db: Option<String>,
     #[serde(default)]
+    pub auth_mechanism: Option<String>,
+    #[serde(default)]
     pub tag: Option<String>,
     #[serde(default)]
     pub last_accessed: Option<String>,
@@ -69,6 +71,14 @@ impl Storage {
         self.save(&connections)
     }
 
+    pub fn update(&self, config: ConnectionConfig) -> Result<(), AppError> {
+        let mut connections = self.load();
+        if let Some(c) = connections.iter_mut().find(|c| c.id == config.id) {
+            *c = config;
+        }
+        self.save(&connections)
+    }
+
     pub fn remove(&self, id: &str) -> Result<(), AppError> {
         let mut connections = self.load();
         connections.retain(|c| c.id != id);
@@ -98,6 +108,7 @@ mod tests {
             replica_set_name: None,
             username: None,
             auth_db: None,
+            auth_mechanism: None,
             tag: None,
             last_accessed: None,
         }

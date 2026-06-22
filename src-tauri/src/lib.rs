@@ -38,6 +38,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             test_connection,
             save_connection,
+            update_connection,
             list_connections,
             delete_connection,
             disconnect,

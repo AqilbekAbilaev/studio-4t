@@ -44,6 +44,7 @@ pub async fn save_connection(
     username: Option<String>,
     password: Option<String>,
     auth_db: Option<String>,
+    auth_mechanism: Option<String>,
     tag: Option<String>,
 ) -> Result<String, AppError> {
     let id = Uuid::new_v4().to_string();
@@ -56,6 +57,7 @@ pub async fn save_connection(
         replica_set_name: replica_set_name,
         username: username,
         auth_db: auth_db,
+        auth_mechanism: auth_mechanism,
         tag: tag,
         last_accessed: None,
     };
@@ -88,6 +90,59 @@ pub async fn save_connection(
 #[tauri::command]
 pub fn list_connections(storage: State<'_, Storage>) -> Vec<ConnectionConfig> {
     storage.load()
+}
+
+#[tauri::command]
+pub async fn update_connection(
+    storage: State<'_, Storage>,
+    pool: State<'_, ConnectionPool>,
+    id: String,
+    name: String,
+    host: String,
+    port: u16,
+    connection_type: String,
+    replica_set_name: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    auth_db: Option<String>,
+    auth_mechanism: Option<String>,
+    tag: Option<String>,
+) -> Result<(), AppError> {
+    // Preserve last_accessed from the existing record.
+    let last_accessed = storage.find(&id).and_then(|c| c.last_accessed);
+
+    let config = ConnectionConfig {
+        id: id.clone(),
+        name: name,
+        host: host,
+        port: port,
+        connection_type: connection_type,
+        replica_set_name: replica_set_name,
+        username: username,
+        auth_db: auth_db,
+        auth_mechanism: auth_mechanism,
+        tag: tag,
+        last_accessed: last_accessed,
+    };
+
+    // Update keychain only when a new password is supplied; empty = keep existing.
+    let pw_ref = password.as_deref().filter(|s| !s.is_empty());
+    if let Some(pw) = pw_ref {
+        match crate::keychain::set(&id, pw) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+    }
+
+    match storage.update(config) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    // Evict cached client so the next operation reconnects with updated credentials.
+    pool.remove(&id).await;
+
+    Ok(())
 }
 
 #[tauri::command]
