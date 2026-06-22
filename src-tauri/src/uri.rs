@@ -1,7 +1,70 @@
 use crate::error::AppError;
+use crate::storage::ConnectionConfig;
 
 const TIMEOUT_MS: u64 = 5000;
 const TCP_PROBE_SECS: u64 = 3;
+
+/// Percent-encodes a string per RFC 3986, encoding every byte that is not
+/// an unreserved character. Handles non-ASCII by encoding each UTF-8 byte.
+fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for byte in s.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
+            | b'-' | b'_' | b'.' | b'~' => out.push(byte as char),
+            b => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
+/// Builds a MongoDB connection URI from a stored `ConnectionConfig` plus the
+/// password fetched separately from the OS keychain.
+/// The resulting URI is suitable for passing to `with_timeout()` and then
+/// to `Client::with_uri_str()`.
+pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
+    let scheme = if config.connection_type == "srv" {
+        "mongodb+srv"
+    } else {
+        "mongodb"
+    };
+
+    let has_user = config.username.as_deref().filter(|s| !s.is_empty()).is_some();
+
+    let creds = if has_user {
+        let u = percent_encode(config.username.as_deref().unwrap_or(""));
+        let p = match password.filter(|s| !s.is_empty()) {
+            Some(pw) => format!(":{}", percent_encode(pw)),
+            None => String::new(),
+        };
+        format!("{u}{p}@")
+    } else {
+        String::new()
+    };
+
+    let host_part = if config.connection_type == "srv" {
+        config.host.clone()
+    } else {
+        format!("{}:{}", config.host, config.port)
+    };
+
+    let mut query: Vec<String> = Vec::new();
+
+    if has_user {
+        let auth_db = config.auth_db.as_deref().filter(|s| !s.is_empty()).unwrap_or("admin");
+        query.push(format!("authSource={}", auth_db));
+    }
+
+    if let Some(rs) = config.replica_set_name.as_deref().filter(|s| !s.is_empty()) {
+        query.push(format!("replicaSet={}", rs));
+    }
+
+    if query.is_empty() {
+        format!("{scheme}://{creds}{host_part}/")
+    } else {
+        format!("{scheme}://{creds}{host_part}/?{}", query.join("&"))
+    }
+}
 
 /// Appends MongoDB server-selection and connect timeout query parameters.
 /// Handles URIs with and without an existing database path or query string.
@@ -98,6 +161,86 @@ pub async fn tcp_probe(uri: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::ConnectionConfig;
+
+    fn base_config() -> ConnectionConfig {
+        ConnectionConfig {
+            id: String::from("test"),
+            name: String::from("Test"),
+            host: String::from("localhost"),
+            port: 27017,
+            connection_type: String::from("standalone"),
+            replica_set_name: None,
+            username: None,
+            auth_db: None,
+            tag: None,
+            last_accessed: None,
+        }
+    }
+
+    #[test]
+    fn build_uri_no_auth() {
+        let config = base_config();
+        assert_eq!(build_uri(&config, None), "mongodb://localhost:27017/");
+    }
+
+    #[test]
+    fn build_uri_with_auth() {
+        let config = ConnectionConfig {
+            username: Some(String::from("alice")),
+            auth_db: Some(String::from("admin")),
+            ..base_config()
+        };
+        assert_eq!(
+            build_uri(&config, Some("secret")),
+            "mongodb://alice:secret@localhost:27017/?authSource=admin"
+        );
+    }
+
+    #[test]
+    fn build_uri_encodes_special_chars_in_credentials() {
+        let config = ConnectionConfig {
+            username: Some(String::from("user@example")),
+            auth_db: Some(String::from("admin")),
+            ..base_config()
+        };
+        let uri = build_uri(&config, Some("p@ss:word"));
+        assert!(uri.contains("user%40example"));
+        assert!(uri.contains("p%40ss%3Aword"));
+    }
+
+    #[test]
+    fn build_uri_srv_scheme() {
+        let config = ConnectionConfig {
+            connection_type: String::from("srv"),
+            host: String::from("cluster.example.com"),
+            ..base_config()
+        };
+        assert!(build_uri(&config, None).starts_with("mongodb+srv://"));
+        assert!(!build_uri(&config, None).contains(":27017"));
+    }
+
+    #[test]
+    fn build_uri_replica_set() {
+        let config = ConnectionConfig {
+            connection_type: String::from("replica"),
+            replica_set_name: Some(String::from("rs0")),
+            ..base_config()
+        };
+        assert!(build_uri(&config, None).contains("replicaSet=rs0"));
+    }
+
+    #[test]
+    fn build_uri_username_no_password() {
+        let config = ConnectionConfig {
+            username: Some(String::from("alice")),
+            auth_db: Some(String::from("admin")),
+            ..base_config()
+        };
+        let uri = build_uri(&config, None);
+        assert!(uri.starts_with("mongodb://alice@"));
+        assert!(uri.contains("authSource=admin"));
+    }
 
     // --- with_timeout ---
 

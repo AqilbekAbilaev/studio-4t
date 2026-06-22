@@ -52,12 +52,12 @@ const vqbOpen = ref(false)
 const contextMenu = ref(null)
 const tagOverrides = ref({})
 
-const addCollectionTarget = ref(null)   // { connId, dbName, uri } | null
+const addCollectionTarget = ref(null)   // { connId, dbName } | null
 const newCollectionName   = ref('')
 const addCollectionError  = ref(null)
 const addCollectionSaving = ref(false)
 
-const dropDatabaseTarget   = ref(null)  // { connId, dbName, uri } | null
+const dropDatabaseTarget   = ref(null)  // { connId, dbName } | null
 const dropDatabaseError    = ref(null)
 const dropDatabaseDeleting = ref(false)
 
@@ -129,7 +129,6 @@ async function handleContextAction(action) {
     openCollectionTab({
       connectionId: saved.nodeData.connId,
       connectionName: saved.nodeData.connName,
-      uri: saved.nodeData.uri,
       dbName: saved.nodeData.dbName,
       collectionName: saved.nodeData.collName,
     })
@@ -192,27 +191,27 @@ async function handleContextAction(action) {
   }
 
   if (action === 'Refresh Selected Item' || action === 'Refresh') {
-    await connectionTreeRef.value.refreshConn(saved.nodeData.connId, saved.nodeData.uri)
+    await connectionTreeRef.value.refreshConn(saved.nodeData.connId)
     showToast('Refreshed')
     return
   }
 
   if (action === 'Add Collection…') {
-    addCollectionTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName, uri: saved.nodeData.uri }
+    addCollectionTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
     newCollectionName.value = ''
     addCollectionError.value = null
     return
   }
 
   if (action === 'Drop Database…') {
-    dropDatabaseTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName, uri: saved.nodeData.uri }
+    dropDatabaseTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
     dropDatabaseError.value = null
     return
   }
 
   if (action === 'Refresh All') {
     for (const conn of connectionTreeRef.value.getConnections()) {
-      await connectionTreeRef.value.refreshConn(conn.id, conn.uri)
+      await connectionTreeRef.value.refreshConn(conn.id)
     }
     showToast('All connections refreshed')
     return
@@ -228,8 +227,8 @@ async function confirmAddCollection() {
   addCollectionSaving.value = true
   addCollectionError.value = null
   try {
-    await invoke('create_collection', { id: target.connId, uri: target.uri, database: target.dbName, name: name })
-    await connectionTreeRef.value.refreshConn(target.connId, target.uri)
+    await invoke('create_collection', { id: target.connId, database: target.dbName, name: name })
+    await connectionTreeRef.value.refreshConn(target.connId)
     showToast(`Collection "${name}" created`)
     addCollectionTarget.value = null
   } catch (e) {
@@ -245,8 +244,8 @@ async function confirmDropDatabase() {
   dropDatabaseDeleting.value = true
   dropDatabaseError.value = null
   try {
-    await invoke('drop_database', { id: target.connId, uri: target.uri, database: target.dbName })
-    await connectionTreeRef.value.refreshConn(target.connId, target.uri)
+    await invoke('drop_database', { id: target.connId, database: target.dbName })
+    await connectionTreeRef.value.refreshConn(target.connId)
     tabs.value = tabs.value.filter(t => !(t.kind === 'collection' && t.connectionId === target.connId && t.dbName === target.dbName))
     if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
       activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
@@ -261,7 +260,7 @@ async function confirmDropDatabase() {
 }
 
 // ── tab management ─────────────────────────────────────────
-function openCollectionTab({ connectionId, connectionName, uri, dbName, collectionName }) {
+function openCollectionTab({ connectionId, connectionName, dbName, collectionName }) {
   const existing = tabs.value.find(t =>
     t.kind === 'collection' &&
     t.connectionId === connectionId &&
@@ -272,9 +271,12 @@ function openCollectionTab({ connectionId, connectionName, uri, dbName, collecti
 
   const id = 't' + Date.now()
   tabs.value.push({
-    id, kind: 'collection',
+    id: id, kind: 'collection',
     title: collectionName,
-    connectionId, connectionName, uri, dbName, collectionName,
+    connectionId: connectionId,
+    connectionName: connectionName,
+    dbName: dbName,
+    collectionName: collectionName,
     filter: '', projection: '', sort: '', skip: 0, limit: 50,
     results: [], hasRun: false, isRunning: false, runError: null,
     selectedRow: -1, elapsedMs: null,
@@ -305,7 +307,6 @@ async function runQuery(tabId, params) {
   try {
     tab.results = await invoke('find_documents', {
       id:         tab.connectionId,
-      uri:        tab.uri,
       database:   tab.dbName,
       collection: tab.collectionName,
       ...params,

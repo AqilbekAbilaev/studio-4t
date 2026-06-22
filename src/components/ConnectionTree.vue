@@ -37,7 +37,7 @@ async function toggleConnection(conn) {
     loadingConns.value[id] = true
     connErrors.value[id] = null
     try {
-      connDatabases.value[id] = await invoke('list_databases', { id, uri: conn.uri })
+      connDatabases.value[id] = await invoke('list_databases', { id: id })
     } catch (e) {
       connErrors.value[id] = String(e)
       expandedConns.value[id] = false
@@ -56,7 +56,6 @@ function selectCollection(conn, db, collName) {
   emit('select-collection', {
     connectionId: conn.id,
     connectionName: conn.name,
-    uri: conn.uri,
     dbName: db.name,
     collectionName: collName,
   })
@@ -66,9 +65,13 @@ function collectionKey(connId, dbName, collName) {
   return `${connId}/${dbName}/${collName}`
 }
 
-watch(() => props.expandId, (id) => {
+watch(() => props.expandId, async (id) => {
   if (!id) return
-  const conn = connections.value.find(c => c.id === id)
+  let conn = connections.value.find(c => c.id === id)
+  if (!conn) {
+    connections.value = await invoke('list_connections')
+    conn = connections.value.find(c => c.id === id)
+  }
   if (conn && !expandedConns.value[id]) {
     toggleConnection(conn)
   }
@@ -103,13 +106,13 @@ function disconnectConn(connId) {
   }
 }
 
-async function refreshConn(connId, uri) {
+async function refreshConn(connId) {
   if (!expandedConns.value[connId]) return
   delete connDatabases.value[connId]
   loadingConns.value[connId] = true
   connErrors.value[connId] = null
   try {
-    connDatabases.value[connId] = await invoke('list_databases', { id: connId, uri: uri })
+    connDatabases.value[connId] = await invoke('list_databases', { id: connId })
   } catch (e) {
     connErrors.value[connId] = String(e)
     expandedConns.value[connId] = false
@@ -156,7 +159,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
           }"
           style="padding-left: 6px"
           @click="toggleConnection(conn)"
-          @contextmenu.prevent="onNodeContext($event, 'connection', conn.name, { connId: conn.id, connName: conn.name, uri: conn.uri })"
+          @contextmenu.prevent="onNodeContext($event, 'connection', conn.name, { connId: conn.id, connName: conn.name })"
         >
           <span class="tw">
             <BaseIcon :name="expandedConns[conn.id] ? 'caretDown' : 'caret'" :size="12" />
@@ -188,7 +191,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
               }"
               style="padding-left: 21px"
               @click="db.accessible && toggleDatabase(conn.id, db.name)"
-              @contextmenu.prevent="onNodeContext($event, 'database', db.name, { connId: conn.id, dbName: db.name, uri: conn.uri })"
+              @contextmenu.prevent="onNodeContext($event, 'database', db.name, { connId: conn.id, dbName: db.name })"
             >
               <span class="tw">
                 <BaseIcon v-if="!db.accessible" name="lock" :size="12" />
@@ -212,7 +215,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
                 }"
                 style="padding-left: 51px"
                 @click="selectCollection(conn, db, coll)"
-                @contextmenu.prevent="onNodeContext($event, 'collection', coll, { connId: conn.id, connName: conn.name, uri: conn.uri, dbName: db.name, collName: coll })"
+                @contextmenu.prevent="onNodeContext($event, 'collection', coll, { connId: conn.id, connName: conn.name, dbName: db.name, collName: coll })"
               >
                 <span class="tw empty"><BaseIcon name="caret" :size="12" /></span>
                 <span class="ti"><BaseIcon name="collSmall" :size="15" /></span>
