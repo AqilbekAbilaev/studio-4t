@@ -166,7 +166,7 @@ function syntaxHighlight(json) {
 }
 
 // ── pagination ─────────────────────────────────────────
-const PAGE_SIZES = [10, 25, 50, 100, 200, 500]
+const PAGE_SIZES = [10, 25, 50, 100, 200]
 
 function goFirst() {
   const tab = activeTab.value
@@ -1666,13 +1666,12 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
 /* Inline cell editor */
 .cell-edit-input {
   width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--accent);
-  border-radius: 3px;
+  background: transparent;
+  border: none;
   color: var(--text);
   font-family: var(--mono);
   font-size: 12px;
-  padding: 1px 5px;
+  padding: 0;
   outline: none;
 }
 </style>
