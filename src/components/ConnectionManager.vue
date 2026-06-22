@@ -10,8 +10,9 @@ const emit = defineEmits(['close', 'connect'])
 const connections = ref([])
 const selectedId = ref(null)
 const filterText = ref('')
-const showOnStartup    = ref(false)
+const showOnStartup     = ref(false)
 const showNewConnection = ref(false)
+const showEditConnection = ref(false)
 
 const TAG_COLORS = {
   red: '#e07a6b', blue: '#3b82f6', green: '#4caf78', purple: '#b07ddb',
@@ -37,14 +38,14 @@ function tagColor(tag) { return TAG_COLORS[tag] ?? null }
 
 function parseDbServer(conn) {
   if (conn.host) {
-    return conn.connectionType === 'srv' ? conn.host : `${conn.host}:${conn.port}`
+    return conn.connection_type === 'srv' ? conn.host : `${conn.host}:${conn.port}`
   }
   return '—'
 }
 
 function parseSecurity(conn) {
   if (!conn.username) return null
-  const db = conn.authDb || 'admin'
+  const db = conn.auth_db || 'admin'
   return `${conn.username} @ ${db}`
 }
 
@@ -59,11 +60,22 @@ function newConnection() {
   showNewConnection.value = true
 }
 
+function editSelected() {
+  if (!selectedId.value) return
+  showEditConnection.value = true
+}
+
 function onConnectionSaved(conn) {
   if (!connections.value.find(c => c.id === conn.id)) {
     connections.value.push(conn)
   }
   showNewConnection.value = false
+}
+
+function onConnectionUpdated(conn) {
+  const idx = connections.value.findIndex(c => c.id === conn.id)
+  if (idx !== -1) connections.value.splice(idx, 1, conn)
+  showEditConnection.value = false
 }
 
 async function deleteSelected() {
@@ -85,16 +97,16 @@ async function connectSelected() {
 }
 
 const CM_TOOLS = [
-  { name: 'newConn', label: 'New Connection', action: newConnection },
-  { name: 'folder',  label: 'New Folder' },
+  { name: 'newConn',   label: 'New Connection', action: newConnection },
+  { name: 'folder',    label: 'New Folder' },
   { sep: true },
-  { name: 'edit',    label: 'Edit' },
-  { name: 'trash',   label: 'Delete', action: deleteSelected },
+  { name: 'edit',      label: 'Edit',   action: editSelected,   needsSel: true },
+  { name: 'trash',     label: 'Delete', action: deleteSelected, needsSel: true },
   { name: 'duplicate', label: 'Duplicate' },
   { sep: true },
-  { name: 'import',  label: 'Import' },
-  { name: 'export',  label: 'Export' },
-  { name: 'uri',     label: 'To URI' },
+  { name: 'import',    label: 'Import' },
+  { name: 'export',    label: 'Export' },
+  { name: 'uri',       label: 'To URI' },
 ]
 </script>
 
@@ -119,9 +131,9 @@ const CM_TOOLS = [
           <button
             v-else
             class="tbtn"
-            :class="{ 'tbtn-off': !t.action && t.name !== 'trash' }"
+            :class="{ 'tbtn-off': !t.action || (t.needsSel && !selectedId) }"
             :title="t.label"
-            @click="t.action && t.action()"
+            @click="t.action && (!t.needsSel || selectedId) && t.action()"
           >
             <span class="ic"><BaseIcon :name="t.name" :size="22" /></span>
             <span class="lbl">{{ t.label }}</span>
@@ -157,7 +169,7 @@ const CM_TOOLS = [
               :key="c.id"
               :class="{ sel: c.id === selectedId }"
               @click="selectedId = c.id"
-              @dblclick="connectSelected"
+              @dblclick="editSelected"
             >
               <td>
                 <span class="cm-name">
@@ -212,11 +224,19 @@ const CM_TOOLS = [
     </div>
   </div>
 
-  <!-- New Connection modal (rendered on top of the Connection Manager) -->
+  <!-- New Connection modal -->
   <NewConnection
     v-if="showNewConnection"
     @close="showNewConnection = false"
     @saved="onConnectionSaved"
+  />
+
+  <!-- Edit Connection modal -->
+  <NewConnection
+    v-if="showEditConnection"
+    :edit-conn="connections.find(c => c.id === selectedId)"
+    @close="showEditConnection = false"
+    @updated="onConnectionUpdated"
   />
 </template>
 

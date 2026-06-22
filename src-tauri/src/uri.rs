@@ -29,7 +29,10 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
         "mongodb"
     };
 
-    let has_user = config.username.as_deref().filter(|s| !s.is_empty()).is_some();
+    // "none" auth mechanism means no credentials in the URI at all.
+    let is_no_auth = config.auth_mechanism.as_deref() == Some("none");
+    let has_user = !is_no_auth
+        && config.username.as_deref().filter(|s| !s.is_empty()).is_some();
 
     let creds = if has_user {
         let u = percent_encode(config.username.as_deref().unwrap_or(""));
@@ -53,6 +56,12 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
     if has_user {
         let auth_db = config.auth_db.as_deref().filter(|s| !s.is_empty()).unwrap_or("admin");
         query.push(format!("authSource={}", auth_db));
+    }
+
+    // Append explicit auth mechanism for any mode other than "none" and the
+    // implicit default (None / empty = let the driver negotiate).
+    if let Some(mech) = config.auth_mechanism.as_deref().filter(|s| !s.is_empty() && *s != "none") {
+        query.push(format!("authMechanism={}", mech));
     }
 
     if let Some(rs) = config.replica_set_name.as_deref().filter(|s| !s.is_empty()) {
@@ -173,6 +182,7 @@ mod tests {
             replica_set_name: None,
             username: None,
             auth_db: None,
+            auth_mechanism: None,
             tag: None,
             last_accessed: None,
         }
@@ -240,6 +250,55 @@ mod tests {
         let uri = build_uri(&config, None);
         assert!(uri.starts_with("mongodb://alice@"));
         assert!(uri.contains("authSource=admin"));
+    }
+
+    #[test]
+    fn build_uri_auth_mechanism_scram_sha_256() {
+        let config = ConnectionConfig {
+            username: Some(String::from("alice")),
+            auth_db: Some(String::from("admin")),
+            auth_mechanism: Some(String::from("SCRAM-SHA-256")),
+            ..base_config()
+        };
+        let uri = build_uri(&config, Some("secret"));
+        assert!(uri.contains("authMechanism=SCRAM-SHA-256"));
+    }
+
+    #[test]
+    fn build_uri_auth_mechanism_scram_sha_1() {
+        let config = ConnectionConfig {
+            username: Some(String::from("alice")),
+            auth_db: Some(String::from("admin")),
+            auth_mechanism: Some(String::from("SCRAM-SHA-1")),
+            ..base_config()
+        };
+        let uri = build_uri(&config, Some("secret"));
+        assert!(uri.contains("authMechanism=SCRAM-SHA-1"));
+    }
+
+    #[test]
+    fn build_uri_auth_mechanism_plain() {
+        let config = ConnectionConfig {
+            username: Some(String::from("alice")),
+            auth_db: Some(String::from("$external")),
+            auth_mechanism: Some(String::from("PLAIN")),
+            ..base_config()
+        };
+        let uri = build_uri(&config, Some("secret"));
+        assert!(uri.contains("authMechanism=PLAIN"));
+    }
+
+    #[test]
+    fn build_uri_auth_mechanism_none_omits_credentials() {
+        let config = ConnectionConfig {
+            username: Some(String::from("alice")),
+            auth_mechanism: Some(String::from("none")),
+            ..base_config()
+        };
+        let uri = build_uri(&config, Some("secret"));
+        assert!(!uri.contains("alice"));
+        assert!(!uri.contains("secret"));
+        assert!(!uri.contains("authMechanism"));
     }
 
     // --- with_timeout ---

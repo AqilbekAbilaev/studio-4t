@@ -1,33 +1,55 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { emit as tauriEmit } from '@tauri-apps/api/event'
 import BaseIcon from './BaseIcon.vue'
 
-const emit = defineEmits(['close', 'saved'])
+const props = defineProps({
+  editConn: { type: Object, default: null },
+})
+const emit = defineEmits(['close', 'saved', 'updated'])
 
-// ── step: 'intro' | 'form'
-const step     = ref('intro')
-const mode     = ref('uri')   // 'uri' | 'manual'
+const isEditMode = !!props.editConn
+
+// ── step: 'intro' | 'form'  (edit mode always starts on form)
+const step     = ref(isEditMode ? 'form' : 'intro')
+const mode     = ref('uri')
 const pastedUri = ref('')
 
-// ── form state
-const connName  = ref('New Connection')
+// ── form state — pre-filled from editConn in edit mode
+const connName  = ref(isEditMode ? props.editConn.name : 'New Connection')
 const activeTab = ref('server')
 
 // server tab
-const host           = ref('localhost')
-const port           = ref(27017)
-const connType       = ref('standalone')
-const replicaSetName = ref('')
+const host           = ref(isEditMode ? props.editConn.host           : 'localhost')
+const port           = ref(isEditMode ? props.editConn.port           : 27017)
+const connType       = ref(isEditMode ? props.editConn.connection_type : 'standalone')
+const replicaSetName = ref(isEditMode ? (props.editConn.replica_set_name ?? '') : '')
 
 // auth tab
-const username  = ref('')
-const password  = ref('')
-const authDb    = ref('admin')
+const authMode  = ref(isEditMode ? (props.editConn.auth_mechanism ?? 'SCRAM-SHA-256') : 'SCRAM-SHA-256')
+const username  = ref(isEditMode ? (props.editConn.username ?? '') : '')
+const password  = ref('')   // never pre-filled — empty means "keep existing"
+const authDb    = ref(isEditMode ? (props.editConn.auth_db ?? 'admin') : 'admin')
+
+const AUTH_MODES = [
+  { value: 'none',          label: 'None',                            available: true  },
+  { value: 'SCRAM-SHA-256', label: 'Basic (SCRAM-SHA-256)',           available: true  },
+  { value: 'SCRAM-SHA-1',   label: 'Legacy (SCRAM-SHA-1)',            available: true  },
+  { value: 'PLAIN',         label: 'LDAP (PLAIN)',                    available: true  },
+  { value: 'X509',          label: 'X.509',                           available: false },
+  { value: 'GSSAPI',        label: 'Kerberos (GSSAPI)',               available: false },
+  { value: 'AWS',           label: 'AWS Identity and Access Management (IAM)', available: false },
+]
+
+const authModeOpen = ref(false)
+
+const authModeLabel = computed(() =>
+  AUTH_MODES.find(m => m.value === authMode.value)?.label ?? authMode.value
+)
 
 // advanced tab
-const selectedTag = ref('none')
+const selectedTag = ref(isEditMode ? (props.editConn.tag ?? 'none') : 'none')
 
 // status
 const status    = ref(null)
@@ -116,28 +138,48 @@ async function save() {
   status.value = null
   isSaving.value = true
   try {
-    const id = await invoke('save_connection', {
+    const fields = {
       name:            connName.value.trim(),
       host:            host.value,
       port:            port.value,
       connectionType:  connType.value,
       replicaSetName:  replicaSetName.value || null,
-      username:        username.value || null,
-      password:        password.value || null,
-      authDb:          authDb.value || null,
+      username:        authMode.value !== 'none' ? (username.value || null) : null,
+      password:        authMode.value !== 'none' ? (password.value || null) : null,
+      authDb:          authMode.value !== 'none' ? (authDb.value || null) : null,
+      authMechanism:   authMode.value,
       tag:             selectedTag.value !== 'none' ? selectedTag.value : null,
-    })
-    const conn = {
-      id:              id,
-      name:            connName.value.trim(),
-      host:            host.value,
-      port:            port.value,
-      connection_type: connType.value,
-      tag:             selectedTag.value !== 'none' ? selectedTag.value : null,
-      last_accessed:   null,
     }
-    emit('saved', conn)
-    await tauriEmit('connection-saved', conn)
+
+    if (isEditMode) {
+      await invoke('update_connection', { id: props.editConn.id, ...fields })
+      const updated = {
+        ...props.editConn,
+        name:            fields.name,
+        host:            fields.host,
+        port:            fields.port,
+        connection_type: fields.connectionType,
+        replica_set_name: fields.replicaSetName,
+        username:        fields.username,
+        auth_db:         fields.authDb,
+        auth_mechanism:  fields.authMechanism,
+        tag:             fields.tag,
+      }
+      emit('updated', updated)
+    } else {
+      const id = await invoke('save_connection', fields)
+      const conn = {
+        id:              id,
+        name:            fields.name,
+        host:            fields.host,
+        port:            fields.port,
+        connection_type: fields.connectionType,
+        tag:             fields.tag,
+        last_accessed:   null,
+      }
+      emit('saved', conn)
+      await tauriEmit('connection-saved', conn)
+    }
   } catch (e) {
     status.value = { type: 'error', message: String(e) }
     isSaving.value = false
@@ -201,7 +243,7 @@ async function save() {
           <span class="light y"></span>
           <span class="light g"></span>
         </div>
-        <div class="t">New Connection</div>
+        <div class="t">{{ isEditMode ? 'Edit Connection' : 'New Connection' }}</div>
       </div>
 
       <!-- Name row -->
@@ -262,24 +304,52 @@ async function save() {
         <div v-else-if="activeTab === 'auth'" class="nc-form">
           <div class="nc-field">
             <label>Authentication mode</label>
-            <div class="nc-select"><span>SCRAM-SHA-256</span><BaseIcon name="caretDown" :size="13" /></div>
+            <div
+              class="nc-dropdown-wrap"
+              tabindex="0"
+              @blur.capture="authModeOpen = false"
+            >
+              <div class="nc-select" @mousedown.prevent="authModeOpen = !authModeOpen">
+                <span>{{ authModeLabel }}</span>
+                <BaseIcon name="caretDown" :size="13" />
+              </div>
+              <div v-if="authModeOpen" class="nc-dropdown-list">
+                <div
+                  v-for="m in AUTH_MODES"
+                  :key="m.value"
+                  class="nc-dropdown-item"
+                  :class="{ active: m.value === authMode, dimmed: !m.available }"
+                  @mousedown.prevent="m.available && (authMode = m.value, authModeOpen = false)"
+                >
+                  <span>{{ m.label }}</span>
+                  <span v-if="!m.available" class="nc-soon">soon</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="nc-field">
-            <label>User name</label>
-            <input class="nc-input" v-model="username" />
-          </div>
-          <div class="nc-field">
-            <label>Password</label>
-            <input class="nc-input" type="password" v-model="password" />
-          </div>
-          <div class="nc-field">
-            <label>Authentication DB</label>
-            <input class="nc-input" v-model="authDb" />
-          </div>
-          <label class="chk-line big">
-            <span class="cb"></span>
-            Store password (encrypted in OS keychain)
-          </label>
+
+          <template v-if="authMode !== 'none'">
+            <div class="nc-field">
+              <label>User name</label>
+              <input class="nc-input" v-model="username" />
+            </div>
+            <div class="nc-field">
+              <label>Password</label>
+              <input
+                class="nc-input"
+                type="password"
+                v-model="password"
+                :placeholder="isEditMode ? 'Leave blank to keep existing password' : ''"
+              />
+            </div>
+            <div class="nc-field">
+              <label>Authentication DB</label>
+              <input class="nc-input" v-model="authDb" :placeholder="authMode === 'PLAIN' ? '$external' : 'admin'" />
+            </div>
+            <div v-if="authMode === 'PLAIN'" class="nc-hint">
+              LDAP (PLAIN) requires SSL/TLS. Enable SSL in the SSL tab.
+            </div>
+          </template>
         </div>
 
         <!-- SSH Tunnel -->
@@ -341,7 +411,7 @@ async function save() {
         <span class="spacer"></span>
         <button class="btn" @click="$emit('close')">Cancel</button>
         <button class="btn primary" :disabled="isSaving" @click="save">
-          {{ isSaving ? 'Saving…' : 'Save' }}
+          {{ isSaving ? 'Saving…' : (isEditMode ? 'Save Changes' : 'Save') }}
         </button>
       </div>
 
@@ -536,4 +606,45 @@ async function save() {
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
 .btn:disabled { opacity: .4; cursor: default; }
+
+/* custom dropdown */
+.nc-dropdown-wrap {
+  position: relative;
+  outline: none;
+}
+.nc-dropdown-wrap:focus-within .nc-select {
+  border-color: var(--accent);
+}
+.nc-dropdown-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  z-index: 100;
+  overflow: hidden;
+}
+.nc-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.nc-dropdown-item:hover:not(.dimmed) { background: var(--bg-hover); }
+.nc-dropdown-item.active { color: var(--accent); }
+.nc-dropdown-item.dimmed { color: var(--text-faint); cursor: default; }
+.nc-soon {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
 </style>
