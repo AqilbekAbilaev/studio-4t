@@ -1,5 +1,6 @@
 mod commands;
 mod error;
+mod keychain;
 mod menu;
 mod pool;
 mod storage;

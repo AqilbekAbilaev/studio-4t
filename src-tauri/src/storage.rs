@@ -2,15 +2,30 @@ use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+fn default_host() -> String { String::from("localhost") }
+fn default_port() -> u16 { 27017 }
+fn default_connection_type() -> String { String::from("standalone") }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ConnectionConfig {
     pub id: String,
     pub name: String,
-    pub uri: String,
+    #[serde(default = "default_host")]
+    pub host: String,
+    #[serde(default = "default_port")]
+    pub port: u16,
+    #[serde(default = "default_connection_type")]
+    pub connection_type: String,
     #[serde(default)]
-    pub last_accessed: Option<String>,
+    pub replica_set_name: Option<String>,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub auth_db: Option<String>,
     #[serde(default)]
     pub tag: Option<String>,
+    #[serde(default)]
+    pub last_accessed: Option<String>,
 }
 
 pub struct Storage {
@@ -73,13 +88,18 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    fn conn(id: &str, name: &str, uri: &str) -> ConnectionConfig {
+    fn conn(id: &str, name: &str) -> ConnectionConfig {
         ConnectionConfig {
             id: id.into(),
             name: name.into(),
-            uri: uri.into(),
-            last_accessed: None,
+            host: String::from("localhost"),
+            port: 27017,
+            connection_type: String::from("standalone"),
+            replica_set_name: None,
+            username: None,
+            auth_db: None,
             tag: None,
+            last_accessed: None,
         }
     }
 
@@ -99,8 +119,8 @@ mod tests {
     fn save_and_load_roundtrip() {
         let (storage, _dir) = storage_in_tempdir();
         let conns = vec![
-            conn("1", "Local", "mongodb://localhost:27017"),
-            conn("2", "Prod", "mongodb://prod.example.com:27017"),
+            conn("1", "Local"),
+            conn("2", "Prod"),
         ];
         storage.save(&conns).unwrap();
         assert_eq!(storage.load(), conns);
@@ -109,8 +129,8 @@ mod tests {
     #[test]
     fn save_overwrites_existing_file() {
         let (storage, _dir) = storage_in_tempdir();
-        storage.save(&[conn("1", "Old", "mongodb://old:27017")]).unwrap();
-        storage.save(&[conn("1", "New", "mongodb://new:27017")]).unwrap();
+        storage.save(&[conn("1", "Old")]).unwrap();
+        storage.save(&[conn("1", "New")]).unwrap();
         let loaded = storage.load();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].name, "New");
@@ -128,8 +148,8 @@ mod tests {
     #[test]
     fn add_appends_to_existing() {
         let (storage, _dir) = storage_in_tempdir();
-        storage.add(conn("1", "Local", "mongodb://localhost:27017")).unwrap();
-        storage.add(conn("2", "Prod", "mongodb://prod:27017")).unwrap();
+        storage.add(conn("1", "Local")).unwrap();
+        storage.add(conn("2", "Prod")).unwrap();
         let loaded = storage.load();
         assert_eq!(loaded.len(), 2);
         assert_eq!(loaded[1].id, "2");
@@ -139,8 +159,8 @@ mod tests {
     fn remove_deletes_by_id() {
         let (storage, _dir) = storage_in_tempdir();
         storage.save(&[
-            conn("1", "Keep", "mongodb://keep:27017"),
-            conn("2", "Delete", "mongodb://delete:27017"),
+            conn("1", "Keep"),
+            conn("2", "Delete"),
         ]).unwrap();
         storage.remove("2").unwrap();
         let loaded = storage.load();
@@ -151,7 +171,7 @@ mod tests {
     #[test]
     fn remove_nonexistent_id_is_noop() {
         let (storage, _dir) = storage_in_tempdir();
-        storage.save(&[conn("1", "Local", "mongodb://localhost:27017")]).unwrap();
+        storage.save(&[conn("1", "Local")]).unwrap();
         storage.remove("999").unwrap();
         assert_eq!(storage.load().len(), 1);
     }
@@ -161,7 +181,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let nested_path = dir.path().join("a").join("b").join("connections.json");
         let storage = Storage::new(nested_path);
-        storage.save(&[conn("1", "Local", "mongodb://localhost:27017")]).unwrap();
+        storage.save(&[conn("1", "Local")]).unwrap();
         assert_eq!(storage.load().len(), 1);
     }
 }

@@ -38,7 +38,6 @@ async function runQuery() {
     try {
         results.value = await invoke('find_documents', {
             id: activeCollection.value.connectionId,
-            uri: activeCollection.value.uri,
             database: activeCollection.value.dbName,
             collection: activeCollection.value.collectionName,
             filter: toStrictJson(filter.value),

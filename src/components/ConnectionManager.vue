@@ -29,32 +29,23 @@ const filtered = computed(() => {
   const q = filterText.value.toLowerCase()
   if (!q) return connections.value
   return connections.value.filter(c =>
-    c.name.toLowerCase().includes(q) || parseDbServer(c.uri).toLowerCase().includes(q)
+    c.name.toLowerCase().includes(q) || parseDbServer(c).toLowerCase().includes(q)
   )
 })
 
 function tagColor(tag) { return TAG_COLORS[tag] ?? null }
 
-function parseDbServer(uri) {
-  try {
-    const noScheme = uri.replace(/^mongodb(\+srv)?:\/\//, '')
-    const withoutCreds = noScheme.includes('@') ? noScheme.split('@').slice(1).join('@') : noScheme
-    const hostPart = withoutCreds.split('/')[0].split('?')[0]
-    const hosts = hostPart.split(',')
-    return hosts.length > 1 ? `${hosts.length} servers` : hostPart
-  } catch { return uri }
+function parseDbServer(conn) {
+  if (conn.host) {
+    return conn.connectionType === 'srv' ? conn.host : `${conn.host}:${conn.port}`
+  }
+  return '—'
 }
 
-function parseSecurity(uri) {
-  try {
-    const noScheme = uri.replace(/^mongodb(\+srv)?:\/\//, '')
-    if (!noScheme.includes('@')) return null
-    const credsPart = noScheme.split('@')[0]
-    const user = decodeURIComponent(credsPart.split(':')[0])
-    const rest = noScheme.split('@').slice(1).join('@')
-    const authDb = rest.split('/')[1]?.split('?')[0] || 'admin'
-    return `${user} @ ${authDb}`
-  } catch { return null }
+function parseSecurity(conn) {
+  if (!conn.username) return null
+  const db = conn.authDb || 'admin'
+  return `${conn.username} @ ${db}`
 }
 
 function formatNow() {
@@ -185,11 +176,11 @@ const CM_TOOLS = [
                   {{ c.name }}
                 </span>
               </td>
-              <td>{{ parseDbServer(c.uri) }}</td>
+              <td>{{ parseDbServer(c) }}</td>
               <td>
-                <span v-if="parseSecurity(c.uri)" class="cm-key">
+                <span v-if="parseSecurity(c)" class="cm-key">
                   <BaseIcon name="lock" :size="13" />
-                  {{ parseSecurity(c.uri) }}
+                  {{ parseSecurity(c) }}
                 </span>
                 <span v-else class="muted">—</span>
               </td>

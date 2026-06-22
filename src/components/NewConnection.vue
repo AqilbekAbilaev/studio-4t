@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { emit as tauriEmit } from '@tauri-apps/api/event'
 import BaseIcon from './BaseIcon.vue'
 
 const emit = defineEmits(['close', 'saved'])
@@ -15,9 +16,10 @@ const connName  = ref('New Connection')
 const activeTab = ref('server')
 
 // server tab
-const host      = ref('localhost')
-const port      = ref(27017)
-const connType  = ref('standalone')
+const host           = ref('localhost')
+const port           = ref(27017)
+const connType       = ref('standalone')
+const replicaSetName = ref('')
 
 // auth tab
 const username  = ref('')
@@ -48,19 +50,45 @@ const TABS = [
   ['advanced', 'Advanced'],
 ]
 
-function buildUri() {
-  if (mode.value === 'uri' && step.value === 'intro') return pastedUri.value.trim()
-  let uri = 'mongodb://'
+// Builds a temporary URI from form fields — used only for Test Connection.
+function buildUriForTest() {
+  const isSrv = connType.value === 'srv'
+  const scheme = isSrv ? 'mongodb+srv' : 'mongodb'
+  let uri = `${scheme}://`
   if (username.value && password.value) {
     uri += `${encodeURIComponent(username.value)}:${encodeURIComponent(password.value)}@`
+  } else if (username.value) {
+    uri += `${encodeURIComponent(username.value)}@`
   }
-  uri += `${host.value}:${port.value}`
-  if (authDb.value) uri += `/${authDb.value}`
+  uri += isSrv ? host.value : `${host.value}:${port.value}`
+  uri += `/${authDb.value || 'admin'}`
   return uri
+}
+
+// Parses a pasted MongoDB URI into the form fields so the user can review
+// and adjust before saving. Falls back gracefully on unrecognised formats.
+function parseUri(raw) {
+  try {
+    const isSrv = raw.startsWith('mongodb+srv://')
+    const normalised = raw.replace(/^mongodb(\+srv)?:\/\//, 'http://')
+    const url = new URL(normalised)
+    connType.value = isSrv ? 'srv' : 'standalone'
+    host.value = url.hostname || 'localhost'
+    port.value = url.port ? parseInt(url.port) : 27017
+    username.value = url.username ? decodeURIComponent(url.username) : ''
+    password.value = url.password ? decodeURIComponent(url.password) : ''
+    authDb.value = url.pathname.replace(/^\//, '') || 'admin'
+    const rsParam = url.searchParams.get('replicaSet')
+    if (rsParam) {
+      connType.value = 'replica'
+      replicaSetName.value = rsParam
+    }
+  } catch (_) {}
 }
 
 function goNext() {
   if (mode.value === 'uri' && pastedUri.value.trim()) {
+    parseUri(pastedUri.value.trim())
     connName.value = 'Imported from URI'
   }
   step.value = 'form'
@@ -71,7 +99,7 @@ async function testConnection() {
   status.value = null
   isTesting.value = true
   try {
-    await invoke('test_connection', { uri: buildUri() })
+    await invoke('test_connection', { uri: buildUriForTest() })
     status.value = { type: 'success', message: 'Connected successfully.' }
   } catch (e) {
     status.value = { type: 'error', message: String(e) }
@@ -88,12 +116,28 @@ async function save() {
   status.value = null
   isSaving.value = true
   try {
-    const uri = buildUri()
-    const id  = await invoke('save_connection', { name: connName.value.trim(), uri })
-    if (selectedTag.value !== 'none') {
-      await invoke('set_connection_tag', { id, tag: selectedTag.value })
+    const id = await invoke('save_connection', {
+      name:            connName.value.trim(),
+      host:            host.value,
+      port:            port.value,
+      connectionType:  connType.value,
+      replicaSetName:  replicaSetName.value || null,
+      username:        username.value || null,
+      password:        password.value || null,
+      authDb:          authDb.value || null,
+      tag:             selectedTag.value !== 'none' ? selectedTag.value : null,
+    })
+    const conn = {
+      id:              id,
+      name:            connName.value.trim(),
+      host:            host.value,
+      port:            port.value,
+      connection_type: connType.value,
+      tag:             selectedTag.value !== 'none' ? selectedTag.value : null,
+      last_accessed:   null,
     }
-    emit('saved', { id, name: connName.value.trim(), uri, tag: selectedTag.value !== 'none' ? selectedTag.value : null, last_accessed: null })
+    emit('saved', conn)
+    await tauriEmit('connection-saved', conn)
   } catch (e) {
     status.value = { type: 'error', message: String(e) }
     isSaving.value = false
@@ -202,7 +246,7 @@ async function save() {
           </div>
           <div v-if="connType === 'replica'" class="nc-field">
             <label>Replica set name</label>
-            <input class="nc-input" placeholder="myReplicaSet" />
+            <input class="nc-input" v-model="replicaSetName" placeholder="myReplicaSet" />
           </div>
           <div class="nc-field">
             <label>Read preference</label>

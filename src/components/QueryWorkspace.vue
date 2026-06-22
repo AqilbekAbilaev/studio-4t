@@ -439,7 +439,6 @@ async function commitInlineEdit() {
   try {
     await invoke('replace_document', {
       id: tab.connectionId,
-      uri: tab.uri,
       database: tab.dbName,
       collection: tab.collectionName,
       idFilter: buildIdFilter(tab.results[edit.rowIdx]),
@@ -447,7 +446,6 @@ async function commitInlineEdit() {
     })
     const refreshed = await invoke('find_documents', {
       id: tab.connectionId,
-      uri: tab.uri,
       database: tab.dbName,
       collection: tab.collectionName,
       filter: buildIdFilter(tab.results[edit.rowIdx]),
@@ -573,7 +571,6 @@ async function onDocSave(jsonStr) {
     if (docModalMode.value === 'insert') {
       await invoke('insert_document', {
         id: tab.connectionId,
-        uri: tab.uri,
         database: tab.dbName,
         collection: tab.collectionName,
         document: jsonStr,
@@ -582,7 +579,6 @@ async function onDocSave(jsonStr) {
       const original = tab.results[tab.selectedRow]
       await invoke('replace_document', {
         id: tab.connectionId,
-        uri: tab.uri,
         database: tab.dbName,
         collection: tab.collectionName,
         idFilter: buildIdFilter(original),
@@ -605,7 +601,6 @@ async function onDeleteConfirm() {
   try {
     await invoke('delete_document', {
       id: tab.connectionId,
-      uri: tab.uri,
       database: tab.dbName,
       collection: tab.collectionName,
       idFilter: buildIdFilter(original),

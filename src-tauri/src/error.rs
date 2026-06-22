@@ -19,6 +19,9 @@ pub enum AppError {
 
     #[error("BSON error: {0}")]
     Bson(String),
+
+    #[error("Keychain error: {0}")]
+    Keychain(String),
 }
 
 // Tauri commands return Result<T, E> where E must implement serde::Serialize.

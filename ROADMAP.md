@@ -20,6 +20,12 @@
 - Tree context menu: Open Collection, Copy Name, Disconnect / Disconnect Others / Disconnect All,
   Refresh / Refresh All — all wired to real behavior
 - `update_last_accessed`, `set_connection_tag`, `delete_connection` backend commands
+- **Structured connection storage** — `ConnectionConfig` stores individual fields (host, port,
+  connection type, replica set name, username, auth DB) instead of a raw URI string; URI is
+  assembled in Rust at connect time via `uri::build_uri()`
+- **Password in OS keychain** — passwords never touch `connections.json`; stored in macOS Keychain /
+  Linux Secret Service / Windows Credential Manager via the `keyring` crate; fetched at connect time
+- New connection auto-expands in sidebar after save + connect
 
 ### Query workspace
 - Multiple tabs, each bound to a collection + its own query state
