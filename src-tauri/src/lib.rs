@@ -60,6 +60,7 @@ pub fn run() {
             list_indexes,
             create_index,
             drop_index,
+            run_aggregate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
