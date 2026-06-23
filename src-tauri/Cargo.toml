@@ -36,7 +36,18 @@ tokio = { version = "1.32.0", features = ["full"] }
 serde = { version = "1.0.188", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 thiserror = "1"
-keyring = "3"
+
+# keyring needs a per-platform backend feature; without one it silently uses an
+# in-memory mock store that loses every password when the app exits (which made
+# saved connections fail with "no password supplied" after a restart).
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
 
 [dependencies.mongodb]
 version = "3.2.1"
