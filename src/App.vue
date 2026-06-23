@@ -263,6 +263,16 @@ async function handleContextAction(action) {
     return
   }
 
+  if (action === 'Open Aggregation Editor') {
+    openCollectionTab({
+      connectionId: saved.nodeData.connId,
+      connectionName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+      collectionName: saved.nodeData.collName,
+    }, 'aggregate')
+    return
+  }
+
   if (action === 'Indexes…') {
     indexesTarget.value = {
       connId: saved.nodeData.connId,
@@ -468,14 +478,18 @@ function indexKeyLabel(index) {
 }
 
 // ── tab management ─────────────────────────────────────────
-function openCollectionTab({ connectionId, connectionName, dbName, collectionName }) {
+function openCollectionTab({ connectionId, connectionName, dbName, collectionName }, startMode = 'find') {
   const existing = tabs.value.find(t =>
     t.kind === 'collection' &&
     t.connectionId === connectionId &&
     t.dbName === dbName &&
     t.collectionName === collectionName
   )
-  if (existing) { activeTabId.value = existing.id; return }
+  if (existing) {
+    activeTabId.value = existing.id
+    if (startMode === 'aggregate') existing.mode = 'aggregate'
+    return
+  }
 
   const id = 't' + Date.now()
   tabs.value.push({
@@ -486,11 +500,15 @@ function openCollectionTab({ connectionId, connectionName, dbName, collectionNam
     dbName: dbName,
     collectionName: collectionName,
     filter: '', projection: '', sort: '', skip: 0, limit: 50,
+    mode: startMode, pipeline: '',
     results: [], hasRun: false, isRunning: false, runError: null,
     selectedRow: -1, elapsedMs: null,
   })
   activeTabId.value = id
-  runQuery(id, { filter: '{}', projection: '{}', sort: '{}', skip: 0, limit: 50 })
+  // Aggregation tabs open with an empty pipeline; nothing to run until the user writes one.
+  if (startMode === 'find') {
+    runQuery(id, { filter: '{}', projection: '{}', sort: '{}', skip: 0, limit: 50 })
+  }
 }
 
 function activateTab(id) { activeTabId.value = id }
@@ -522,6 +540,29 @@ async function runQuery(tabId, params) {
     tab.hasRun = true
     tab.elapsedMs = Date.now() - t0
     showToast(`Query returned ${tab.results.length} document${tab.results.length !== 1 ? 's' : ''} in ${(tab.elapsedMs / 1000).toFixed(3)}s`)
+  } catch (e) {
+    tab.runError = String(e)
+  } finally {
+    tab.isRunning = false
+  }
+}
+
+async function runAggregate(tabId, params) {
+  const tab = tabs.value.find(t => t.id === tabId)
+  if (!tab) return
+  tab.isRunning = true
+  tab.runError = null
+  const t0 = Date.now()
+  try {
+    tab.results = await invoke('run_aggregate', {
+      id:         tab.connectionId,
+      database:   tab.dbName,
+      collection: tab.collectionName,
+      ...params,
+    })
+    tab.hasRun = true
+    tab.elapsedMs = Date.now() - t0
+    showToast(`Aggregation returned ${tab.results.length} document${tab.results.length !== 1 ? 's' : ''} in ${(tab.elapsedMs / 1000).toFixed(3)}s`)
   } catch (e) {
     tab.runError = String(e)
   } finally {
@@ -579,6 +620,7 @@ async function runQuery(tabId, params) {
         @activate-tab="activateTab"
         @close-tab="closeTab"
         @run-query="runQuery"
+        @run-aggregate="runAggregate"
         @toggle-vqb="vqbOpen = !vqbOpen"
       />
       <VisualQueryBuilder v-if="vqbOpen" />

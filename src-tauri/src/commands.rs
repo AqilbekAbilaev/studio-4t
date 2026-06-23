@@ -214,6 +214,34 @@ fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
     }
 }
 
+// Parse an aggregation pipeline: a JSON array of stage objects. Mirrors parse_filter's
+// smart-quote and extended-JSON handling so pasted shell pipelines behave the same way.
+fn parse_pipeline(pipeline: &str) -> Result<Vec<bson::Document>, AppError> {
+    let trimmed = pipeline.trim();
+    if trimmed.is_empty() || trimmed == "[]" {
+        return Ok(Vec::new());
+    }
+    let normalized = normalize_smart_quotes(trimmed);
+    let bson_val: bson::Bson = match serde_json::from_str(&normalized) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Bson(format!(
+            "Invalid pipeline JSON ({e}). Keys must be quoted, e.g. [{{\"$match\": {{\"name\": 1}}}}]"
+        ))),
+    };
+    let array = match bson_val {
+        bson::Bson::Array(val) => val,
+        _ => return Err(AppError::Bson("Pipeline must be a JSON array of stages".to_string())),
+    };
+    let mut stages = Vec::new();
+    for entry in array {
+        match entry {
+            bson::Bson::Document(doc) => stages.push(doc),
+            _ => return Err(AppError::Bson("Each pipeline stage must be a JSON object".to_string())),
+        }
+    }
+    Ok(stages)
+}
+
 #[tauri::command]
 pub async fn find_documents(
     pool: State<'_, ConnectionPool>,
@@ -795,4 +823,52 @@ pub async fn drop_index(
         Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),
     }
+}
+
+#[tauri::command]
+pub async fn run_aggregate(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    pipeline: String,
+) -> Result<Vec<serde_json::Value>, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let stages = match parse_pipeline(&pipeline) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let mut cursor = match col.aggregate(stages).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    let mut docs = Vec::new();
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
+    }
+    Ok(docs)
 }

@@ -9,9 +9,10 @@ const props = defineProps({
   activeTabId: { type: String,  required: true },
   vqbOpen:     { type: Boolean, default: false },
 })
-const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'toggle-vqb'])
+const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggregate', 'toggle-vqb'])
 
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
+const isAggregate = computed(() => activeTab.value && activeTab.value.mode === 'aggregate')
 
 // per-tab local state for result sub-tab and view mode
 const rtab         = ref('Result')
@@ -45,6 +46,36 @@ function toStrictJson(raw) {
   // Expand shell types before quoting bare keys: the result ({"$oid": …}) already
   // has quoted keys, so the key-quoting pass leaves it untouched.
   return expandShellTypes(s).replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$.]*)\s*:/g, '$1"$2":')
+}
+
+// Same key-quoting / shell-type pass as toStrictJson, but for a pipeline array so
+// pasted shell pipelines like [{ $match: { … } }] become valid JSON.
+function toStrictPipeline(raw) {
+  const s = (raw || '').trim()
+  if (!s || s === '[]') return '[]'
+  return expandShellTypes(s).replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$.]*)\s*:/g, '$1"$2":')
+}
+
+function setMode(mode) {
+  const tab = activeTab.value
+  if (!tab) return
+  tab.mode = mode
+}
+
+// The Run button (and the result toolbar's refresh) dispatch on the tab's mode.
+function run() {
+  if (isAggregate.value) {
+    runAggregate()
+  } else {
+    runQuery()
+  }
+}
+
+function runAggregate() {
+  const tab = activeTab.value
+  if (!tab || tab.kind !== 'collection') return
+  drillPath.value = []
+  emit('run-aggregate', tab.id, { pipeline: toStrictPipeline(tab.pipeline) })
 }
 
 function runQuery() {
@@ -699,6 +730,9 @@ async function onDeleteConfirm() {
 const queryCode = computed(() => {
   const tab = activeTab.value
   if (!tab || tab.kind !== 'collection') return ''
+  if (tab.mode === 'aggregate') {
+    return `db.${tab.collectionName}.aggregate(${tab.pipeline?.trim() || '[]'})`
+  }
   const filter = tab.filter?.trim() || '{}'
   const projection = tab.projection?.trim() || ''
   const sort = tab.sort?.trim() || ''
@@ -770,24 +804,45 @@ const queryCode = computed(() => {
 
       <!-- Query bar -->
       <div class="qbar">
-        <button class="qbtn run" @click="runQuery" :disabled="activeTab.isRunning">
+        <div class="mode-toggle">
+          <button :class="{ on: !isAggregate }" @click="setMode('find')">Find</button>
+          <button :class="{ on: isAggregate }" @click="setMode('aggregate')">Aggregate</button>
+        </div>
+        <button class="qbtn run" @click="run" :disabled="activeTab.isRunning">
           <BaseIcon name="run" :size="16" class="ic" />
           {{ activeTab.isRunning ? 'Running…' : 'Run' }}
         </button>
-        <button class="qbtn" disabled><BaseIcon name="load"    :size="16" class="ic" /> Load query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
-        <button class="qbtn" disabled><BaseIcon name="save"    :size="16" class="ic" /> Save query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
-        <button class="qbtn" disabled><BaseIcon name="history" :size="16" class="ic" /> Query history</button>
-        <button class="qbtn" disabled><BaseIcon name="anchor"  :size="16" class="ic" /> Set default query <BaseIcon name="caretDown" :size="11" class="drop" /></button>
-        <button class="qbtn" disabled><BaseIcon name="copy"    :size="16" class="ic" /> Copy</button>
-        <button class="qbtn" disabled><BaseIcon name="paste"   :size="16" class="ic" /> Paste</button>
+        <template v-if="!isAggregate">
+          <button class="qbtn" disabled><BaseIcon name="load"    :size="16" class="ic" /> Load query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
+          <button class="qbtn" disabled><BaseIcon name="save"    :size="16" class="ic" /> Save query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
+          <button class="qbtn" disabled><BaseIcon name="history" :size="16" class="ic" /> Query history</button>
+          <button class="qbtn" disabled><BaseIcon name="anchor"  :size="16" class="ic" /> Set default query <BaseIcon name="caretDown" :size="11" class="drop" /></button>
+          <button class="qbtn" disabled><BaseIcon name="copy"    :size="16" class="ic" /> Copy</button>
+          <button class="qbtn" disabled><BaseIcon name="paste"   :size="16" class="ic" /> Paste</button>
+        </template>
         <span class="qbar-spacer"></span>
-        <button class="vqb-toggle" :class="{ on: vqbOpen }" @click="emit('toggle-vqb')">
+        <button v-if="!isAggregate" class="vqb-toggle" :class="{ on: vqbOpen }" @click="emit('toggle-vqb')">
           <BaseIcon name="aggregate" :size="15" /> Visual Query Builder
         </button>
       </div>
 
+      <!-- Aggregation pipeline editor -->
+      <div v-if="isAggregate" class="agg-editor">
+        <textarea
+          class="agg-input"
+          :value="activeTab.pipeline"
+          @input="activeTab.pipeline = sanitizeQuotes($event.target.value)"
+          @keydown.ctrl.enter.prevent="runAggregate"
+          @keydown.meta.enter.prevent="runAggregate"
+          placeholder='[ { "$match": {} }, { "$limit": 20 } ]'
+          spellcheck="false"
+          autocorrect="off"
+          autocapitalize="off"
+        ></textarea>
+      </div>
+
       <!-- Query fields grid -->
-      <div class="qfields">
+      <div v-else class="qfields">
         <span class="qlabel">Query</span>
         <div class="qinput">
           <input
@@ -869,17 +924,17 @@ const queryCode = computed(() => {
 
         <!-- Result toolbar -->
         <div class="rtoolbar" v-if="rtab === 'Result'">
-          <button class="icon-btn" @click="runQuery" :disabled="activeTab.isRunning">
+          <button class="icon-btn" @click="run" :disabled="activeTab.isRunning">
             <BaseIcon name="refresh" :size="16" />
           </button>
           <button class="icon-btn"
-            :disabled="!activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
+            :disabled="isAggregate || !activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
             @click="goFirst"><BaseIcon name="first" :size="16" /></button>
           <button class="icon-btn"
-            :disabled="!activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
+            :disabled="isAggregate || !activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
             @click="goPrev"><BaseIcon name="prev" :size="16" /></button>
           <button class="icon-btn"
-            :disabled="!activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
+            :disabled="isAggregate || !activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
             @click="goNext"><BaseIcon name="next" :size="16" /></button>
           <button class="icon-btn" disabled><BaseIcon name="last" :size="16" /></button>
           <div class="page-size-wrap">
@@ -1253,6 +1308,27 @@ const queryCode = computed(() => {
 }
 .vqb-toggle.on { color: var(--accent); border-color: var(--accent-soft); }
 .vqb-toggle:disabled { opacity: .4; }
+
+.mode-toggle { display: flex; border: 1px solid var(--border-soft); border-radius: 6px; overflow: hidden; margin-right: 6px; }
+.mode-toggle button { padding: 4px 11px; background: none; border: none; color: var(--text-dim); font-size: 12px; cursor: pointer; }
+.mode-toggle button.on { background: var(--accent); color: #fff; }
+
+.agg-editor { padding: 8px 10px; border-bottom: 1px solid var(--border); flex: none; }
+.agg-input {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-input);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.agg-input:focus { outline: none; border-color: var(--accent); }
 
 /* Query fields */
 .qfields {
