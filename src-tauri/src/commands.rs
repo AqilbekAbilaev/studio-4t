@@ -60,6 +60,8 @@ pub async fn save_connection(
         auth_mechanism: auth_mechanism,
         tag: tag,
         last_accessed: None,
+        // A newly saved connection is opened in the sidebar.
+        open: true,
     };
 
     // Store password in OS keychain before persisting the rest to disk.
@@ -108,8 +110,10 @@ pub async fn update_connection(
     auth_mechanism: Option<String>,
     tag: Option<String>,
 ) -> Result<(), AppError> {
-    // Preserve last_accessed from the existing record.
-    let last_accessed = storage.find(&id).and_then(|c| c.last_accessed);
+    // Preserve last_accessed and the open state from the existing record.
+    let existing = storage.find(&id);
+    let last_accessed = existing.as_ref().and_then(|c| c.last_accessed.clone());
+    let open = existing.as_ref().map(|c| c.open).unwrap_or(true);
 
     let config = ConnectionConfig {
         id: id.clone(),
@@ -123,6 +127,7 @@ pub async fn update_connection(
         auth_mechanism: auth_mechanism,
         tag: tag,
         last_accessed: last_accessed,
+        open: open,
     };
 
     // Update keychain only when a new password is supplied; empty = keep existing.
@@ -288,6 +293,19 @@ pub fn set_connection_tag(
     let mut connections = storage.load();
     if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
         c.tag = if tag.is_empty() { None } else { Some(tag) };
+    }
+    storage.save(&connections)
+}
+
+#[tauri::command]
+pub fn set_connection_open(
+    storage: State<'_, Storage>,
+    id: String,
+    open: bool,
+) -> Result<(), AppError> {
+    let mut connections = storage.load();
+    if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+        c.open = open;
     }
     storage.save(&connections)
 }
