@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import BaseIcon from './BaseIcon.vue'
 import NewConnection from './NewConnection.vue'
 
@@ -80,9 +80,12 @@ function onConnectionUpdated(conn) {
 
 async function deleteSelected() {
   if (!selectedId.value) return
-  await invoke('delete_connection', { id: selectedId.value })
-  connections.value = connections.value.filter(c => c.id !== selectedId.value)
+  const deletedId = selectedId.value
+  await invoke('delete_connection', { id: deletedId })
+  connections.value = connections.value.filter(c => c.id !== deletedId)
   selectedId.value = null
+  // Tell the sidebar to drop it too if it was open (mirrors connection-saved).
+  await tauriEmit('connection-deleted', { id: deletedId })
 }
 
 async function connectSelected() {

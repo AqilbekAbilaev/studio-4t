@@ -28,6 +28,10 @@ pub struct ConnectionConfig {
     pub tag: Option<String>,
     #[serde(default)]
     pub last_accessed: Option<String>,
+    // Whether the connection is currently open in the sidebar tree. Persisted so
+    // only the connections that were open are re-opened after a restart.
+    #[serde(default)]
+    pub open: bool,
 }
 
 pub struct Storage {
@@ -111,6 +115,7 @@ mod tests {
             auth_mechanism: None,
             tag: None,
             last_accessed: None,
+            open: false,
         }
     }
 

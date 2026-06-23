@@ -43,6 +43,7 @@ pub fn run() {
             delete_connection,
             disconnect,
             set_connection_tag,
+            set_connection_open,
             update_last_accessed,
             open_connect_window,
             list_databases,

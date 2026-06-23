@@ -185,6 +185,7 @@ mod tests {
             auth_mechanism: None,
             tag: None,
             last_accessed: None,
+            open: false,
         }
     }
 

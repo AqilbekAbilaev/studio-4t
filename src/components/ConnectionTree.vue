@@ -22,9 +22,18 @@ const expandedDbs = ref({})        // "connId/dbName" → boolean
 const searchText = ref('')
 
 onMounted(async () => {
-  connections.value = await invoke('list_connections')
+  // The sidebar shows only the connections that are open; the full saved list
+  // lives in the Connection Manager. A connection's `open` flag is persisted, so
+  // only the ones that were open before a restart come back.
+  const all = await invoke('list_connections')
+  connections.value = all.filter(c => c.open)
   await listen('connection-saved', (e) => {
-    connections.value.push(e.payload)
+    if (!connections.value.some(c => c.id === e.payload.id)) {
+      connections.value.push(e.payload)
+    }
+  })
+  await listen('connection-deleted', (e) => {
+    disconnectConn(e.payload.id, { persist: false })
   })
 })
 
@@ -69,8 +78,14 @@ watch(() => props.expandId, async (id) => {
   if (!id) return
   let conn = connections.value.find(c => c.id === id)
   if (!conn) {
-    connections.value = await invoke('list_connections')
-    conn = connections.value.find(c => c.id === id)
+    // Opening a connection that isn't in the sidebar yet: fetch just its config,
+    // mark it open (persisted), and add only it — don't reload the whole list.
+    const all = await invoke('list_connections')
+    conn = all.find(c => c.id === id)
+    if (conn) {
+      await invoke('set_connection_open', { id: id, open: true })
+      connections.value.push(conn)
+    }
   }
   if (conn && !expandedConns.value[id]) {
     toggleConnection(conn)
@@ -93,7 +108,7 @@ function onNodeContext(e, type, label, nodeData) {
   emit('context-menu', { type: type, x: e.clientX, y: e.clientY, label: label, nodeData: nodeData })
 }
 
-function disconnectConn(connId) {
+function disconnectConn(connId, { persist = true } = {}) {
   connections.value = connections.value.filter(c => c.id !== connId)
   delete expandedConns.value[connId]
   delete loadingConns.value[connId]
@@ -103,6 +118,11 @@ function disconnectConn(connId) {
     if (key.startsWith(connId + '/')) {
       delete expandedDbs.value[key]
     }
+  }
+  // Persist the closed state so it doesn't re-open after restart. Skipped when the
+  // connection was deleted (the record is already gone from storage).
+  if (persist) {
+    invoke('set_connection_open', { id: connId, open: false })
   }
 }
 
