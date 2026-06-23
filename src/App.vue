@@ -61,6 +61,21 @@ const dropDatabaseTarget   = ref(null)  // { connId, dbName } | null
 const dropDatabaseError    = ref(null)
 const dropDatabaseDeleting = ref(false)
 
+const dropCollectionTarget   = ref(null)  // { connId, dbName, collName } | null
+const dropCollectionError    = ref(null)
+const dropCollectionDeleting  = ref(false)
+
+const renameCollectionTarget = ref(null)  // { connId, dbName, collName } | null
+const renameCollectionName   = ref('')
+const renameCollectionError  = ref(null)
+const renameCollectionSaving = ref(false)
+
+const addDatabaseTarget   = ref(null)  // { connId } | null
+const newDatabaseName     = ref('')
+const newDatabaseCollName = ref('')
+const addDatabaseError    = ref(null)
+const addDatabaseSaving   = ref(false)
+
 const contextActiveNodeKey = computed(() => {
   if (!contextMenu.value) return null
   const nd = contextMenu.value.nodeData
@@ -209,6 +224,35 @@ async function handleContextAction(action) {
     return
   }
 
+  if (action === 'Drop Collection…') {
+    dropCollectionTarget.value = {
+      connId: saved.nodeData.connId,
+      dbName: saved.nodeData.dbName,
+      collName: saved.nodeData.collName,
+    }
+    dropCollectionError.value = null
+    return
+  }
+
+  if (action === 'Rename Collection…') {
+    renameCollectionTarget.value = {
+      connId: saved.nodeData.connId,
+      dbName: saved.nodeData.dbName,
+      collName: saved.nodeData.collName,
+    }
+    renameCollectionName.value = saved.nodeData.collName
+    renameCollectionError.value = null
+    return
+  }
+
+  if (action === 'Add Database…') {
+    addDatabaseTarget.value = { connId: saved.nodeData.connId }
+    newDatabaseName.value = ''
+    newDatabaseCollName.value = ''
+    addDatabaseError.value = null
+    return
+  }
+
   if (action === 'Refresh All') {
     for (const conn of connectionTreeRef.value.getConnections()) {
       await connectionTreeRef.value.refreshConn(conn.id)
@@ -256,6 +300,69 @@ async function confirmDropDatabase() {
     dropDatabaseError.value = String(e)
   } finally {
     dropDatabaseDeleting.value = false
+  }
+}
+
+async function confirmDropCollection() {
+  const target = dropCollectionTarget.value
+  if (!target) return
+  dropCollectionDeleting.value = true
+  dropCollectionError.value = null
+  try {
+    await invoke('drop_collection', { id: target.connId, database: target.dbName, collection: target.collName })
+    await connectionTreeRef.value.refreshConn(target.connId)
+    tabs.value = tabs.value.filter(t => !(t.kind === 'collection' && t.connectionId === target.connId && t.dbName === target.dbName && t.collectionName === target.collName))
+    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
+      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
+    }
+    showToast(`Collection "${target.collName}" dropped`)
+    dropCollectionTarget.value = null
+  } catch (e) {
+    dropCollectionError.value = String(e)
+  } finally {
+    dropCollectionDeleting.value = false
+  }
+}
+
+async function confirmRenameCollection() {
+  const target = renameCollectionTarget.value
+  const newName = renameCollectionName.value.trim()
+  if (!target || !newName || newName === target.collName) return
+  renameCollectionSaving.value = true
+  renameCollectionError.value = null
+  try {
+    await invoke('rename_collection', { id: target.connId, database: target.dbName, collection: target.collName, newName: newName })
+    await connectionTreeRef.value.refreshConn(target.connId)
+    const open = tabs.value.find(t => t.kind === 'collection' && t.connectionId === target.connId && t.dbName === target.dbName && t.collectionName === target.collName)
+    if (open) {
+      open.collectionName = newName
+      open.title = newName
+    }
+    showToast(`Collection renamed to "${newName}"`)
+    renameCollectionTarget.value = null
+  } catch (e) {
+    renameCollectionError.value = String(e)
+  } finally {
+    renameCollectionSaving.value = false
+  }
+}
+
+async function confirmAddDatabase() {
+  const target = addDatabaseTarget.value
+  const dbName = newDatabaseName.value.trim()
+  const collName = newDatabaseCollName.value.trim()
+  if (!target || !dbName || !collName) return
+  addDatabaseSaving.value = true
+  addDatabaseError.value = null
+  try {
+    await invoke('create_database', { id: target.connId, database: dbName, firstCollection: collName })
+    await connectionTreeRef.value.refreshConn(target.connId)
+    showToast(`Database "${dbName}" created`)
+    addDatabaseTarget.value = null
+  } catch (e) {
+    addDatabaseError.value = String(e)
+  } finally {
+    addDatabaseSaving.value = false
   }
 }
 
@@ -440,6 +547,101 @@ async function runQuery(tabId, params) {
           <button class="btn" @click="dropDatabaseTarget = null">Cancel</button>
           <button class="btn danger" :disabled="dropDatabaseDeleting" @click="confirmDropDatabase">
             {{ dropDatabaseDeleting ? 'Dropping…' : 'Drop' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drop Collection confirm -->
+    <div v-if="dropCollectionTarget" class="del-overlay" @mousedown.self="dropCollectionTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Drop Collection</div>
+          <button class="close-btn" @click="dropCollectionTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <p>Are you sure you want to drop "<strong>{{ dropCollectionTarget.collName }}</strong>"? This deletes all of its documents and cannot be undone.</p>
+          <div v-if="dropCollectionError" class="del-error">{{ dropCollectionError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="dropCollectionTarget = null">Cancel</button>
+          <button class="btn danger" :disabled="dropCollectionDeleting" @click="confirmDropCollection">
+            {{ dropCollectionDeleting ? 'Dropping…' : 'Drop' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rename Collection modal -->
+    <div v-if="renameCollectionTarget" class="del-overlay" @mousedown.self="renameCollectionTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Rename Collection</div>
+          <button class="close-btn" @click="renameCollectionTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <input
+            v-model="renameCollectionName"
+            class="prompt-input"
+            placeholder="New collection name"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.enter="confirmRenameCollection"
+          />
+          <div v-if="renameCollectionError" class="del-error">{{ renameCollectionError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="renameCollectionTarget = null">Cancel</button>
+          <button class="btn primary" :disabled="!renameCollectionName.trim() || renameCollectionName.trim() === renameCollectionTarget.collName || renameCollectionSaving" @click="confirmRenameCollection">
+            {{ renameCollectionSaving ? 'Renaming…' : 'Rename' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Database modal -->
+    <div v-if="addDatabaseTarget" class="del-overlay" @mousedown.self="addDatabaseTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Add Database</div>
+          <button class="close-btn" @click="addDatabaseTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <input
+            v-model="newDatabaseName"
+            class="prompt-input"
+            placeholder="Database name"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+          />
+          <input
+            v-model="newDatabaseCollName"
+            class="prompt-input"
+            style="margin-top:8px"
+            placeholder="First collection name"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.enter="confirmAddDatabase"
+          />
+          <p style="margin-top:8px;color:var(--text-faint);font-size:12px">MongoDB only creates a database once it holds a collection, so a first collection is required.</p>
+          <div v-if="addDatabaseError" class="del-error">{{ addDatabaseError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="addDatabaseTarget = null">Cancel</button>
+          <button class="btn primary" :disabled="!newDatabaseName.trim() || !newDatabaseCollName.trim() || addDatabaseSaving" @click="confirmAddDatabase">
+            {{ addDatabaseSaving ? 'Creating…' : 'Create' }}
           </button>
         </div>
       </div>

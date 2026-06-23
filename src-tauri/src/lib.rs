@@ -49,10 +49,14 @@ pub fn run() {
             list_databases,
             create_collection,
             drop_database,
+            drop_collection,
+            rename_collection,
+            create_database,
             find_documents,
             insert_document,
             replace_document,
             delete_document,
+            explain_query,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
