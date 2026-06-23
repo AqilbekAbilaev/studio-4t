@@ -35,6 +35,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             test_connection,
             save_connection,
@@ -61,6 +62,8 @@ pub fn run() {
             create_index,
             drop_index,
             run_aggregate,
+            export_collection,
+            import_collection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

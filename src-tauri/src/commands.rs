@@ -242,6 +242,180 @@ fn parse_pipeline(pipeline: &str) -> Result<Vec<bson::Document>, AppError> {
     Ok(stages)
 }
 
+// Parse an import file's JSON into documents: either a top-level array of objects
+// or a single object. Reuses the same smart-quote / extended-JSON handling as queries.
+fn parse_json_documents(text: &str) -> Result<Vec<bson::Document>, AppError> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+    let normalized = normalize_smart_quotes(trimmed);
+    let bson_val: bson::Bson = match serde_json::from_str(&normalized) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Bson(format!(
+            "Invalid JSON ({e}). Expected an array of documents."
+        ))),
+    };
+    let array = match bson_val {
+        bson::Bson::Array(val) => val,
+        bson::Bson::Document(doc) => vec![bson::Bson::Document(doc)],
+        _ => return Err(AppError::Bson("Import file must be a JSON array of documents".to_string())),
+    };
+    let mut docs = Vec::new();
+    for entry in array {
+        match entry {
+            bson::Bson::Document(doc) => docs.push(doc),
+            _ => return Err(AppError::Bson("Each item must be a JSON object".to_string())),
+        }
+    }
+    Ok(docs)
+}
+
+// Quote a CSV field only when it contains a delimiter, quote, or newline, doubling
+// any embedded quotes — standard RFC-4180 escaping.
+fn csv_escape(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
+// Render a single BSON value as a flat CSV cell. Scalars become their plain text;
+// anything nested (documents, arrays, dates) falls back to its JSON form.
+fn bson_to_csv_cell(value: &bson::Bson) -> String {
+    match value {
+        bson::Bson::String(val) => val.clone(),
+        bson::Bson::Boolean(val) => val.to_string(),
+        bson::Bson::Int32(val) => val.to_string(),
+        bson::Bson::Int64(val) => val.to_string(),
+        bson::Bson::Double(val) => val.to_string(),
+        bson::Bson::Null => String::new(),
+        bson::Bson::ObjectId(val) => val.to_hex(),
+        other => serde_json::Value::from(other.clone()).to_string(),
+    }
+}
+
+fn docs_to_csv(docs: &[bson::Document]) -> String {
+    // Collect the column set as the union of all keys, in first-seen order.
+    let mut headers: Vec<String> = Vec::new();
+    for doc in docs {
+        for (key, _) in doc {
+            if !headers.iter().any(|existing| existing == key) {
+                headers.push(key.clone());
+            }
+        }
+    }
+    let mut out = String::new();
+    let header_line: Vec<String> = headers.iter().map(|h| csv_escape(h)).collect();
+    out.push_str(&header_line.join(","));
+    out.push('\n');
+    for doc in docs {
+        let row: Vec<String> = headers
+            .iter()
+            .map(|header| match doc.get(header) {
+                Some(value) => csv_escape(&bson_to_csv_cell(value)),
+                None => String::new(),
+            })
+            .collect();
+        out.push_str(&row.join(","));
+        out.push('\n');
+    }
+    out
+}
+
+// Minimal RFC-4180 CSV reader: handles quoted fields, doubled quotes, and embedded
+// newlines. Returns rows of string fields.
+fn parse_csv_rows(text: &str) -> Vec<Vec<String>> {
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut record: Vec<String> = Vec::new();
+    let mut field = String::new();
+    let mut in_quotes = false;
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if in_quotes {
+            if c == '"' {
+                if i + 1 < chars.len() && chars[i + 1] == '"' {
+                    field.push('"');
+                    i += 1;
+                } else {
+                    in_quotes = false;
+                }
+            } else {
+                field.push(c);
+            }
+        } else {
+            match c {
+                '"' => in_quotes = true,
+                ',' => record.push(std::mem::take(&mut field)),
+                '\n' => {
+                    record.push(std::mem::take(&mut field));
+                    rows.push(std::mem::take(&mut record));
+                }
+                '\r' => {}
+                _ => field.push(c),
+            }
+        }
+        i += 1;
+    }
+    if !field.is_empty() || !record.is_empty() {
+        record.push(field);
+        rows.push(record);
+    }
+    rows
+}
+
+// Best-effort type coercion for a CSV cell: empty → null, true/false → bool,
+// integer/float → number, everything else → string.
+fn coerce_csv_value(cell: &str) -> bson::Bson {
+    let trimmed = cell.trim();
+    if trimmed.is_empty() {
+        return bson::Bson::Null;
+    }
+    if trimmed == "true" {
+        return bson::Bson::Boolean(true);
+    }
+    if trimmed == "false" {
+        return bson::Bson::Boolean(false);
+    }
+    match trimmed.parse::<i64>() {
+        Ok(val) => return bson::Bson::Int64(val),
+        Err(_) => {}
+    }
+    match trimmed.parse::<f64>() {
+        Ok(val) => return bson::Bson::Double(val),
+        Err(_) => {}
+    }
+    bson::Bson::String(cell.to_string())
+}
+
+fn csv_to_docs(text: &str) -> Vec<bson::Document> {
+    let rows = parse_csv_rows(text);
+    if rows.is_empty() {
+        return Vec::new();
+    }
+    let headers = &rows[0];
+    let mut docs = Vec::new();
+    for row in rows.iter().skip(1) {
+        // Skip blank trailing lines produced by a final newline.
+        if row.iter().all(|cell| cell.is_empty()) {
+            continue;
+        }
+        let mut doc = bson::Document::new();
+        for (idx, header) in headers.iter().enumerate() {
+            let cell = match row.get(idx) {
+                Some(val) => val.as_str(),
+                None => "",
+            };
+            doc.insert(header.clone(), coerce_csv_value(cell));
+        }
+        docs.push(doc);
+    }
+    docs
+}
+
 #[tauri::command]
 pub async fn find_documents(
     pool: State<'_, ConnectionPool>,
@@ -871,4 +1045,111 @@ pub async fn run_aggregate(
         docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
     }
     Ok(docs)
+}
+
+#[tauri::command]
+pub async fn export_collection(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    path: String,
+    format: String,
+) -> Result<usize, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let mut cursor = match col.find(bson::doc! {}).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    let mut docs = Vec::new();
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        docs.push(doc);
+    }
+    let count = docs.len();
+
+    let contents = if format == "csv" {
+        docs_to_csv(&docs)
+    } else {
+        let values: Vec<serde_json::Value> = docs
+            .into_iter()
+            .map(|doc| serde_json::Value::from(bson::Bson::Document(doc)))
+            .collect();
+        match serde_json::to_string_pretty(&values) {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Serde(e)),
+        }
+    };
+    match std::fs::write(&path, contents) {
+        Ok(_) => Ok(count),
+        Err(e) => Err(AppError::Io(e)),
+    }
+}
+
+#[tauri::command]
+pub async fn import_collection(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    path: String,
+    format: String,
+) -> Result<usize, AppError> {
+    let contents = match std::fs::read_to_string(&path) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Io(e)),
+    };
+    let docs = if format == "csv" {
+        csv_to_docs(&contents)
+    } else {
+        match parse_json_documents(&contents) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        }
+    };
+    if docs.is_empty() {
+        return Ok(0);
+    }
+
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    match col.insert_many(docs).await {
+        Ok(result) => Ok(result.inserted_ids.len()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
 }
