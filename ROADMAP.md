@@ -3,110 +3,93 @@
 ## Done ✅
 
 ### Foundation
-- Native macOS menu bar (File, Edit, Database, Collection, Index, GridFS, View, Help)
-- Connection pool — one `Client` per connection, reused across operations
-- Async MongoDB commands — concurrent connections don't block each other
+- Native system menu bar (File, Edit, Database, Collection, Index, GridFS, View, Help)
+- Async connection pool — one `Client` per connection, reused across operations; concurrent
+  connections don't block each other
 - Fast TCP probe — instant "connection refused" feedback before the MongoDB handshake
-- Rust backend module structure: `error`, `storage`, `pool`, `uri`, `commands`
-- Unit tests — 22 tests covering storage, URI utilities, and pool state
+- Connection URI assembled in Rust from stored config (`uri::build_uri`) — the backend is the
+  source of truth; the frontend never passes credentials
+- Rust backend modules: `error`, `storage`, `pool`, `uri`, `keychain`, `commands`, `menu`
+- Unit tests — 32 covering storage, URI building, and pool state
+- Stable rendering on Linux/WebKitGTK — DMABUF renderer disabled + repaint-on-refocus so the
+  result grid doesn't go blank / freeze scroll after switching windows
 
 ### Connections
-- Connection Manager redesign — modal with grid (Name / DB Server / Security / Last Accessed),
-  filter row, toolbar (New/Edit/Delete/Duplicate/Import/Export/To URI stubs wired for New/Edit/Delete)
-- New Connection dialog — Server tab (host/port/auth) + URI tab, Test Connection, Save & Connect
-- Persist connections to disk (`app_data_dir/connections.json`)
-- Connection color-tagging (red/blue/green/purple/none), honored through the tree subtree
-- Connection tree — collapsible Connection → Database → Collection nodes, live data on expand
-- Tree context menu: Open Collection, Copy Name, Disconnect / Disconnect Others / Disconnect All,
-  Refresh / Refresh All — all wired to real behavior
-- `update_last_accessed`, `set_connection_tag`, `delete_connection` backend commands
-- **Structured connection storage** — `ConnectionConfig` stores individual fields (host, port,
-  connection type, replica set name, username, auth DB) instead of a raw URI string; URI is
-  assembled in Rust at connect time via `uri::build_uri()`
-- **Password in OS keychain** — passwords never touch `connections.json`; stored in macOS Keychain /
-  Linux Secret Service / Windows Credential Manager via the `keyring` crate; fetched at connect time
-- New connection auto-expands in sidebar after save + connect
+- Connection Manager — modal grid (Name / DB Server / Security / Last Accessed) with filter row
+- New / **Edit** Connection dialog — structured fields (host, port, connection type, replica set,
+  username, auth source, **auth mechanism**), Test Connection, Save & Connect
+- **Password in OS keychain** — never written to disk; macOS Keychain / Linux Secret Service /
+  Windows Credential Manager via the `keyring` crate, fetched at connect time
+- **Structured connection storage** — `ConnectionConfig` holds individual fields, not a raw URI
+- Color-tagging (red/blue/green/purple/none), honored through the tree subtree
+- **Open-connection persistence** — the sidebar shows only the *open* connections (the full saved
+  list lives in the Manager); the open set is persisted, so only those re-open after a restart
+- Connection tree — collapsible Connection → Database → Collection, live data on expand
+- Tree context menu: Open Collection, Copy Name, Disconnect / Others / All, Refresh / Refresh All
 
 ### Query workspace
-- Multiple tabs, each bound to a collection + its own query state
-- Auto-run query on collection open
-- Query bar: filter (JSON), sort, projection, skip, limit fields with syntax-colored JSON
-- Skip/Limit as steppers (click +/- or type directly)
-- Ctrl+Enter / Cmd+Enter to run
-- Result paging: first/prev/next/last, page-size picker (20/50/100/...)
-- View modes: **Table View** and **JSON View** (with syntax highlighting + text selection) —
-  **Tree View** is in the menu but not yet implemented (falls through to "coming soon")
-- "Query Code" sub-tab — renders the equivalent `db.collection.find(...)` shell command
-- "Explain" sub-tab is a placeholder ("coming soon")
-- Result table redesign — zebra rows, `_id`/number/string cell coloring, row selection,
-  resizable columns (no layout jump, centered handle)
-- **Inline cell editing** — double-click a primitive cell to edit in place; commits via `replace_document`
-- **Nested object & array drill-down** — double-click an object/array cell to drill in,
-  with a breadcrumb path (collection ▸ field ▸ …) to navigate back out
-- Right-click cell/row context menu: Copy Value, Copy as JSON, Copy Document
-- Document CRUD: insert (`insert_document`), edit/replace (`replace_document`),
-  delete (`delete_document`) via `DocumentModal.vue`
-- Compact result-toolbar menus (page size, view mode)
+- Multiple tabs, each bound to a collection with its own query state; auto-run on open
+- Query bar: filter / sort / projection / skip / limit with syntax-colored JSON; Ctrl/Cmd+Enter to run
+- **ObjectId helpers** — accepts shell-style `ObjectId("…")`, and pasting a bare 24-hex id
+  auto-builds `{ _id: ObjectId("…") }`
+- Result paging: first / prev / next, page-size picker (10/25/50/100/200)
+- View modes: **Table View** and **JSON View** (syntax-highlighted, selectable)
+- "Query Code" sub-tab — the equivalent `db.collection.find(...)` shell command
+- Result table — zebra rows, type-colored cells, row/cell selection, resizable columns
+- **Inline cell editing** (double-click a primitive; commits via `replace_document`)
+- **Nested object & array drill-down** with a breadcrumb path
+- Cell/row context menu: Copy Value / Copy as JSON / Copy Document
+- Document CRUD — insert / replace / delete via `DocumentModal.vue`
+- Large-result rendering memoized (no O(n²) column scan); typing in the query bar no longer leaks
+  into grid key-navigation
+- **Aggregation pipeline** runner — a Find/Aggregate mode toggle on the collection tab; pipeline
+  editor (`run_aggregate`) reusing the existing Table / JSON result views
+- **Explain** sub-tab — server `explain` (executionStats) for the current query, with a
+  stage / docs-examined / keys-examined / time summary (`explain_query`)
 
-### Collection & database management
-- Create a new collection — `create_collection` backend command + dialog, wired through the tree
-- Drop a database — `drop_database` backend command + confirmation modal (no longer a toast stub)
+### Collection & database
+- Create a collection (`create_collection`) and drop a database (`drop_database`, confirm dialog)
+- **Drop a collection** (`drop_collection`, confirm dialog) and **rename a collection**
+  (`rename_collection`, admin `renameCollection`)
+- **Add a database** (`create_database`) — name + required first collection
+- **Index management** — list / create (keys, unique, optional name) / drop indexes on a
+  collection (`list_indexes`, `create_index`, `drop_index`); the default `_id_` index is protected
+- **Import / Export** a collection to/from JSON and CSV via native OS dialogs
+  (`export_collection`, `import_collection`; `tauri-plugin-dialog`, Rust-side file I/O)
 
 ### Design system
-- `BaseIcon.vue` — inline SVG icon set, no external icon fonts/images
-- Theming via CSS custom properties in `theme.css`
+- `BaseIcon.vue` inline SVG icon set (no icon fonts/images); theming via CSS custom properties
 
 ---
 
-## Up Next 📋
+## Backlog by priority 📋
 
-### Query workspace gaps
-- [ ] Tree View result mode (menu entry exists, not implemented)
-- [ ] Explain sub-tab (currently a "coming soon" placeholder)
-- [ ] Visual Query Builder — toggle now opens `VisualQueryBuilder.vue` as a side panel, but it
-      doesn't yet generate/sync the actual filter/sort/projection
-- [ ] Load query from file / Save query to file
-- [ ] Query history (recent queries per collection)
-- [ ] Tab persistence across app restarts
+Most of these already have a button or menu item in the UI, currently disabled or showing a
+"coming soon" / "coming to Studio-4T" stub.
 
-### Connection management
-- [ ] Duplicate connection, Import/Export, "To URI" — present in Connection Manager toolbar but
-      not all wired yet (verify each individually)
-- [ ] Per-connection status indicator (connected / disconnected / error) in the tree
+### P1 — Medium — productivity & polish
+- [ ] **Save / Load query** to file + **Query history** per collection (toolbar buttons exist, disabled)
+- [ ] **Visual Query Builder** — wire the panel to generate/sync the actual filter/sort/projection
+- [ ] **Tree View** result mode (Key / Value / Type, expandable)
+- [ ] **Tab persistence** across app restarts
+- [ ] **Per-connection status** indicator in the tree (connected / loading / error)
+- [ ] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar stubs)
+- [ ] **Last-page** paging button (currently disabled)
+- [ ] **Server status** panel (host, version, uptime, connections, memory)
+- [ ] **Preferences** window (theme, default query limit, shortcuts list)
+- [ ] **IntelliShell** — embedded `db.<coll>.<method>(…)` console
 
-### Collection & database management
-- [ ] Create a new database
-- [ ] Drop a collection (menu item exists, not wired — shows toast stub)
-- [ ] Rename a collection (menu item exists, not wired — shows toast stub)
-
-### IntelliShell
-- [ ] Embedded MongoDB shell (toolbar/menu entries exist, not implemented — toast stub)
-
-### Index management
-- [ ] List indexes on a collection
-- [ ] Create an index
-- [ ] Drop an index
-
-### Data import / export
-- [ ] Export collection to JSON / CSV
-- [ ] Import JSON / CSV into a collection
-
-### GridFS
-- [ ] Browse GridFS buckets
-- [ ] Upload / download files
-
-### Server & preferences
-- [ ] Server status panel (connections, memory, uptime)
-- [ ] Preferences window (theme, default query limit, etc.)
+### P2 — Later — advanced / nice-to-have
+- [ ] **GridFS** — browse buckets, upload / download files
+- [ ] **Schema** inference & visualization
+- [ ] **SQL → MQL** translator
+- [ ] **Data masking** — export an obfuscated copy
+- [ ] **SQL Migration** — generate CREATE TABLE + INSERT from a collection
+- [ ] **Dark / light theme** toggle
+- [ ] **Keyboard shortcuts** reference / customization
 
 ---
 
-## Nice to Have 💡
-
-- [ ] SQL to MQL translator (like Studio-3T's SQL query feature) — toolbar entry exists as stub
-- [ ] Schema visualization — infer and display the shape of a collection — toolbar entry exists as stub
-- [ ] Aggregation pipeline builder — toolbar entry exists as stub
-- [ ] Data masking — toolbar entry exists as stub
-- [ ] SQL Migration — menu entry exists as stub
-- [ ] Dark / light theme toggle
-- [ ] Keyboard shortcuts reference / customization
+> Note: an experimental `studio3t-parity` branch contains unmerged prototypes of several
+> backlog items (Tree View, GridFS, server status, preferences, SQL→MQL, schema, masking).
+> Treat it as a reference, not shipped behavior.
