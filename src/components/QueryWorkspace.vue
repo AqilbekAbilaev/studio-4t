@@ -494,6 +494,11 @@ function cancelInlineEdit() {
 }
 
 function handleKeydown(e) {
+  // Don't hijack keys while the user is typing in a field (query bar, modals,
+  // inline cell editor) — otherwise arrow keys / Ctrl+C drive grid navigation
+  // instead of the input.
+  const t = e.target
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
   if (inlineEdit.value) return
   const tab = activeTab.value
   if (!tab) return
