@@ -58,7 +58,59 @@ function runQuery() {
     skip:       tab.skip || 0,
     limit:      tab.limit || 50,
   })
+  // Keep the Explain plan in sync when it's the visible sub-tab.
+  if (rtab.value === 'Explain') runExplain()
 }
+
+// Switch result sub-tab; the Explain plan is fetched lazily the first time it's
+// shown (and re-fetched whenever the query re-runs while it's open).
+function selectRtab(t) {
+  rtab.value = t
+  if (t === 'Explain') runExplain()
+}
+
+async function runExplain() {
+  const tab = activeTab.value
+  if (!tab || tab.kind !== 'collection') return
+  tab.explainRunning = true
+  tab.explainError = null
+  try {
+    const result = await invoke('explain_query', {
+      id:         tab.connectionId,
+      database:   tab.dbName,
+      collection: tab.collectionName,
+      filter:     toStrictJson(tab.filter),
+      projection: toStrictJson(tab.projection),
+      sort:       toStrictJson(tab.sort),
+      skip:       tab.skip || 0,
+      limit:      tab.limit || 50,
+    })
+    tab.explainResult = result
+  } catch (e) {
+    tab.explainError = String(e)
+    tab.explainResult = null
+  } finally {
+    tab.explainRunning = false
+  }
+}
+
+// Best-effort headline metrics pulled from the explain document; the full plan
+// is always shown below as formatted JSON.
+const explainSummary = computed(() => {
+  const r = activeTab.value && activeTab.value.explainResult
+  if (!r) return null
+  const stats = r.executionStats || {}
+  const winning = (r.queryPlanner && r.queryPlanner.winningPlan) || {}
+  const stage = (stats.executionStages && stats.executionStages.stage) || winning.stage || '—'
+  const fmt = (v) => (v === undefined || v === null ? '—' : v)
+  return {
+    stage:        stage,
+    nReturned:    fmt(stats.nReturned),
+    docsExamined: fmt(stats.totalDocsExamined),
+    keysExamined: fmt(stats.totalKeysExamined),
+    timeMs:       fmt(stats.executionTimeMillis),
+  }
+})
 
 // When the whole Query value is a bare 24-hex ObjectId (typed or pasted), build
 // the _id filter automatically so you can drop a copied id straight into the box.
@@ -811,7 +863,7 @@ const queryCode = computed(() => {
             :key="t"
             class="rtab"
             :class="{ active: rtab === t }"
-            @click="rtab = t"
+            @click="selectRtab(t)"
           >{{ t }}</button>
         </div>
 
@@ -1000,6 +1052,23 @@ const queryCode = computed(() => {
         <!-- Query Code sub-tab -->
         <div v-else-if="rtab === 'Query Code'" class="qcode-view">
           <pre class="qcode-pre"><span class="qcode-prompt">&gt;</span> {{ queryCode }}</pre>
+        </div>
+
+        <!-- Explain sub-tab -->
+        <div v-else-if="rtab === 'Explain'" class="explain-view">
+          <div v-if="activeTab.explainRunning" class="explain-msg">Running explain…</div>
+          <div v-else-if="activeTab.explainError" class="run-error">{{ activeTab.explainError }}</div>
+          <template v-else-if="activeTab.explainResult">
+            <div class="explain-summary" v-if="explainSummary">
+              <span class="es-item"><span class="es-k">Stage</span><span class="es-v">{{ explainSummary.stage }}</span></span>
+              <span class="es-item"><span class="es-k">Returned</span><span class="es-v">{{ explainSummary.nReturned }}</span></span>
+              <span class="es-item"><span class="es-k">Docs examined</span><span class="es-v">{{ explainSummary.docsExamined }}</span></span>
+              <span class="es-item"><span class="es-k">Keys examined</span><span class="es-v">{{ explainSummary.keysExamined }}</span></span>
+              <span class="es-item"><span class="es-k">Time</span><span class="es-v">{{ explainSummary.timeMs }} ms</span></span>
+            </div>
+            <div class="json-doc" v-html="syntaxHighlight(mongoStringify(activeTab.explainResult))"></div>
+          </template>
+          <div v-else class="explain-msg">Run a query, then this tab shows its execution plan.</div>
         </div>
 
         <!-- Other sub-tabs placeholder -->
@@ -1521,6 +1590,13 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
 .json-doc :deep(.jb)  { color: var(--cell-num); }
 .json-doc :deep(.jl)  { color: var(--text-faint); }
 .json-doc :deep(.joid) { color: var(--link); }
+
+.explain-view { flex: 1; overflow: auto; padding: 12px 16px; }
+.explain-msg { padding: 32px; color: var(--text-faint); font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.explain-summary { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 12px; margin-bottom: 12px; background: var(--panel-2, rgba(255,255,255,.03)); border: 1px solid var(--border-soft); border-radius: 6px; }
+.es-item { display: flex; flex-direction: column; gap: 2px; }
+.es-k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-faint); }
+.es-v { font-family: var(--mono); font-size: 13px; color: var(--text); }
 
 /* page size dropdown */
 .page-size-wrap { position: relative; }

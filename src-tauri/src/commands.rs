@@ -419,6 +419,96 @@ pub async fn drop_database(
 }
 
 #[tauri::command]
+pub async fn drop_collection(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    match col.drop().await {
+        Ok(val) => Ok(val),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
+pub async fn rename_collection(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    new_name: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    // MongoDB has no per-collection rename helper; the admin `renameCollection`
+    // command takes fully-qualified `db.collection` namespaces for both sides.
+    let from_namespace = format!("{}.{}", database, collection);
+    let to_namespace = format!("{}.{}", database, new_name);
+    let command = bson::doc! {
+        "renameCollection": from_namespace,
+        "to": to_namespace,
+    };
+    match client.database("admin").run_command(command).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
+pub async fn create_database(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    first_collection: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    // A MongoDB database only materializes once it holds content, so creating the
+    // first collection is what actually brings the database into existence.
+    match client
+        .database(&database)
+        .create_collection(&first_collection)
+        .await
+    {
+        Ok(val) => Ok(val),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
 pub async fn insert_document(
     pool: State<'_, ConnectionPool>,
     storage: State<'_, Storage>,
@@ -521,4 +611,71 @@ pub async fn delete_document(
         Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),
     }
+}
+
+#[tauri::command]
+pub async fn explain_query(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    filter: String,
+    projection: String,
+    sort: String,
+    skip: i64,
+    limit: i64,
+) -> Result<serde_json::Value, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    let filter_doc = match parse_filter(&filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let projection_doc = match parse_filter(&projection) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let sort_doc = match parse_filter(&sort) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    // The `explain` command wraps the equivalent `find` command and reports how
+    // the server would execute it; mirror the same optional fields find_documents uses.
+    let mut find_command = bson::doc! {
+        "find": collection,
+        "filter": filter_doc,
+    };
+    if !projection_doc.is_empty() {
+        find_command.insert("projection", projection_doc);
+    }
+    if !sort_doc.is_empty() {
+        find_command.insert("sort", sort_doc);
+    }
+    if skip > 0 {
+        find_command.insert("skip", skip);
+    }
+    if limit > 0 {
+        find_command.insert("limit", limit);
+    }
+
+    let explain_command = bson::doc! {
+        "explain": find_command,
+        "verbosity": "executionStats",
+    };
+    let result = match client.database(&database).run_command(explain_command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(serde_json::Value::from(bson::Bson::Document(result)))
 }
