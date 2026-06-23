@@ -29,10 +29,22 @@ function sanitizeQuotes(str) {
   return str.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
 }
 
+// Accept the mongosh / Studio-3T shell form ObjectId("…") in addition to the
+// extended-JSON {"$oid": "…"} the backend parses, so users can paste the same id
+// string the JSON view shows. Single or double quotes around the 24-hex id work.
+function expandShellTypes(str) {
+  return str.replace(
+    /ObjectId\(\s*["']([0-9a-fA-F]{24})["']\s*\)/g,
+    '{"$oid":"$1"}'
+  )
+}
+
 function toStrictJson(raw) {
   const s = (raw || '').trim()
   if (!s || s === '{}') return '{}'
-  return s.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$.]*)\s*:/g, '$1"$2":')
+  // Expand shell types before quoting bare keys: the result ({"$oid": …}) already
+  // has quoted keys, so the key-quoting pass leaves it untouched.
+  return expandShellTypes(s).replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$.]*)\s*:/g, '$1"$2":')
 }
 
 function runQuery() {
@@ -46,6 +58,19 @@ function runQuery() {
     skip:       tab.skip || 0,
     limit:      tab.limit || 50,
   })
+}
+
+// When the whole Query value is a bare 24-hex ObjectId (typed or pasted), build
+// the _id filter automatically so you can drop a copied id straight into the box.
+// Handled on input rather than the paste event because WebKitGTK doesn't reliably
+// populate clipboard data on paste.
+function onFilterInput(raw) {
+  const tab = activeTab.value
+  if (!tab) return
+  const v = sanitizeQuotes(raw)
+  tab.filter = /^[0-9a-fA-F]{24}$/.test(v.trim())
+    ? `{ _id: ObjectId("${v.trim()}") }`
+    : v
 }
 
 // ── table view helpers ─────────────────────────────────────
@@ -711,7 +736,7 @@ const queryCode = computed(() => {
           <input
             class="qval"
             :value="activeTab.filter"
-            @input="activeTab.filter = sanitizeQuotes($event.target.value)"
+            @input="onFilterInput($event.target.value)"
             placeholder="{}"
             spellcheck="false"
             autocorrect="off"
