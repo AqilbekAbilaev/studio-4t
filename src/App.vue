@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -296,6 +297,18 @@ async function handleContextAction(action) {
     return
   }
 
+  // Import/Export are wired for collections only; the database/connection-level
+  // variants stay stubs for now (they'd need multi-collection handling).
+  if (action === 'Export…' && saved.type === 'collection') {
+    await exportCollection(saved.nodeData)
+    return
+  }
+
+  if (action === 'Import…' && saved.type === 'collection') {
+    await importCollection(saved.nodeData)
+    return
+  }
+
   showToast(action + ' — coming to Studio-4T')
 }
 
@@ -475,6 +488,64 @@ async function dropIndex(name) {
 function indexKeyLabel(index) {
   if (!index || !index.key) return ''
   return Object.entries(index.key).map(([k, v]) => `${k}: ${v}`).join(', ')
+}
+
+async function exportCollection(nodeData) {
+  let path
+  try {
+    path = await saveDialog({
+      defaultPath: `${nodeData.collName}.json`,
+      filters: [
+        { name: 'JSON', extensions: ['json'] },
+        { name: 'CSV', extensions: ['csv'] },
+      ],
+    })
+  } catch (e) {
+    showToast('Export failed: ' + String(e))
+    return
+  }
+  if (!path) return  // user cancelled
+  const format = path.toLowerCase().endsWith('.csv') ? 'csv' : 'json'
+  try {
+    const count = await invoke('export_collection', {
+      id: nodeData.connId,
+      database: nodeData.dbName,
+      collection: nodeData.collName,
+      path: path,
+      format: format,
+    })
+    showToast(`Exported ${count} document${count !== 1 ? 's' : ''} to ${format.toUpperCase()}`)
+  } catch (e) {
+    showToast('Export failed: ' + String(e))
+  }
+}
+
+async function importCollection(nodeData) {
+  let path
+  try {
+    path = await openDialog({
+      multiple: false,
+      filters: [{ name: 'JSON or CSV', extensions: ['json', 'csv'] }],
+    })
+  } catch (e) {
+    showToast('Import failed: ' + String(e))
+    return
+  }
+  if (!path) return  // user cancelled
+  const format = String(path).toLowerCase().endsWith('.csv') ? 'csv' : 'json'
+  try {
+    const count = await invoke('import_collection', {
+      id: nodeData.connId,
+      database: nodeData.dbName,
+      collection: nodeData.collName,
+      path: path,
+      format: format,
+    })
+    await connectionTreeRef.value.refreshConn(nodeData.connId)
+    showToast(`Imported ${count} document${count !== 1 ? 's' : ''}`)
+  } catch (e) {
+    showToast('Import failed: ' + String(e))
+  }
 }
 
 // ── tab management ─────────────────────────────────────────
