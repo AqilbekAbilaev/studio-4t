@@ -76,6 +76,16 @@ const newDatabaseCollName = ref('')
 const addDatabaseError    = ref(null)
 const addDatabaseSaving   = ref(false)
 
+const indexesTarget   = ref(null)  // { connId, dbName, collName } | null
+const indexesList     = ref([])
+const indexesLoading  = ref(false)
+const indexesError    = ref(null)
+const newIndexKeys    = ref('')
+const newIndexName    = ref('')
+const newIndexUnique  = ref(false)
+const indexCreating   = ref(false)
+const pendingDropIndex = ref(null)  // index name armed for a confirming second click
+
 const contextActiveNodeKey = computed(() => {
   if (!contextMenu.value) return null
   const nd = contextMenu.value.nodeData
@@ -253,6 +263,21 @@ async function handleContextAction(action) {
     return
   }
 
+  if (action === 'Indexes…') {
+    indexesTarget.value = {
+      connId: saved.nodeData.connId,
+      dbName: saved.nodeData.dbName,
+      collName: saved.nodeData.collName,
+    }
+    indexesError.value = null
+    newIndexKeys.value = ''
+    newIndexName.value = ''
+    newIndexUnique.value = false
+    pendingDropIndex.value = null
+    await loadIndexes()
+    return
+  }
+
   if (action === 'Refresh All') {
     for (const conn of connectionTreeRef.value.getConnections()) {
       await connectionTreeRef.value.refreshConn(conn.id)
@@ -364,6 +389,82 @@ async function confirmAddDatabase() {
   } finally {
     addDatabaseSaving.value = false
   }
+}
+
+async function loadIndexes() {
+  const target = indexesTarget.value
+  if (!target) return
+  indexesLoading.value = true
+  indexesError.value = null
+  try {
+    indexesList.value = await invoke('list_indexes', {
+      id: target.connId,
+      database: target.dbName,
+      collection: target.collName,
+    })
+  } catch (e) {
+    indexesError.value = String(e)
+    indexesList.value = []
+  } finally {
+    indexesLoading.value = false
+  }
+}
+
+async function confirmCreateIndex() {
+  const target = indexesTarget.value
+  const keys = newIndexKeys.value.trim()
+  if (!target || !keys) return
+  indexCreating.value = true
+  indexesError.value = null
+  try {
+    await invoke('create_index', {
+      id: target.connId,
+      database: target.dbName,
+      collection: target.collName,
+      keys: keys,
+      unique: newIndexUnique.value,
+      name: newIndexName.value.trim(),
+    })
+    newIndexKeys.value = ''
+    newIndexName.value = ''
+    newIndexUnique.value = false
+    await loadIndexes()
+    showToast('Index created')
+  } catch (e) {
+    indexesError.value = String(e)
+  } finally {
+    indexCreating.value = false
+  }
+}
+
+// Two-click guard: the first click arms a row, the second actually drops it.
+async function dropIndex(name) {
+  if (pendingDropIndex.value !== name) {
+    pendingDropIndex.value = name
+    return
+  }
+  const target = indexesTarget.value
+  if (!target) return
+  indexesError.value = null
+  try {
+    await invoke('drop_index', {
+      id: target.connId,
+      database: target.dbName,
+      collection: target.collName,
+      name: name,
+    })
+    pendingDropIndex.value = null
+    await loadIndexes()
+    showToast(`Index "${name}" dropped`)
+  } catch (e) {
+    indexesError.value = String(e)
+    pendingDropIndex.value = null
+  }
+}
+
+function indexKeyLabel(index) {
+  if (!index || !index.key) return ''
+  return Object.entries(index.key).map(([k, v]) => `${k}: ${v}`).join(', ')
 }
 
 // ── tab management ─────────────────────────────────────────
@@ -647,6 +748,76 @@ async function runQuery(tabId, params) {
       </div>
     </div>
 
+    <!-- Indexes modal -->
+    <div v-if="indexesTarget" class="del-overlay" @mousedown.self="indexesTarget = null">
+      <div class="del-dialog idx-dialog">
+        <div class="del-title">
+          <div class="t">Indexes — {{ indexesTarget.collName }}</div>
+          <button class="close-btn" @click="indexesTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <div v-if="indexesLoading" class="idx-msg">Loading indexes…</div>
+          <table v-else-if="indexesList.length" class="idx-table">
+            <thead>
+              <tr><th>Name</th><th>Keys</th><th>Unique</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="idx in indexesList" :key="idx.name">
+                <td class="idx-name">{{ idx.name }}</td>
+                <td class="idx-keys">{{ indexKeyLabel(idx) }}</td>
+                <td>{{ idx.unique ? 'Yes' : '—' }}</td>
+                <td class="idx-actions">
+                  <button
+                    v-if="idx.name !== '_id_'"
+                    class="btn"
+                    :class="{ danger: pendingDropIndex === idx.name }"
+                    @click="dropIndex(idx.name)"
+                  >{{ pendingDropIndex === idx.name ? 'Confirm' : 'Drop' }}</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="idx-msg">No indexes.</div>
+
+          <div class="idx-create">
+            <div class="idx-create-title">Create index</div>
+            <input
+              v-model="newIndexKeys"
+              class="prompt-input"
+              placeholder='Keys, e.g. {"field": 1}'
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+            />
+            <input
+              v-model="newIndexName"
+              class="prompt-input"
+              style="margin-top:8px"
+              placeholder="Index name (optional)"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+            />
+            <label class="idx-unique">
+              <input type="checkbox" v-model="newIndexUnique" />
+              <span>Unique</span>
+            </label>
+          </div>
+
+          <div v-if="indexesError" class="del-error">{{ indexesError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="indexesTarget = null">Close</button>
+          <button class="btn primary" :disabled="!newIndexKeys.trim() || indexCreating" @click="confirmCreateIndex">
+            {{ indexCreating ? 'Creating…' : 'Create index' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast -->
     <div v-if="toast" class="toast">{{ toast }}</div>
   </div>
@@ -871,6 +1042,18 @@ async function runQuery(tabId, params) {
   box-sizing: border-box;
 }
 .prompt-input:focus { outline: none; border-color: var(--accent); }
+
+.idx-dialog { width: 560px; }
+.idx-msg { padding: 16px 0; color: var(--text-faint); font-size: 12px; }
+.idx-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.idx-table th { text-align: left; font-weight: 500; color: var(--text-faint); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.idx-table td { padding: 5px 8px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+.idx-name { font-family: var(--mono); }
+.idx-keys { font-family: var(--mono); color: var(--text-dim); }
+.idx-actions { text-align: right; width: 1%; white-space: nowrap; }
+.idx-create { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.idx-create-title { font-size: 12px; color: var(--text-faint); margin-bottom: 8px; }
+.idx-unique { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
 .del-footer {
   height: 48px;
   flex: none;

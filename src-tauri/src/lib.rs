@@ -57,6 +57,9 @@ pub fn run() {
             replace_document,
             delete_document,
             explain_query,
+            list_indexes,
+            create_index,
+            drop_index,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

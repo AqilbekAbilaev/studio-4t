@@ -3,7 +3,9 @@ use crate::pool::ConnectionPool;
 use crate::storage::{ConnectionConfig, Storage};
 use crate::uri;
 use mongodb::bson;
+use mongodb::options::IndexOptions;
 use mongodb::Client;
+use mongodb::IndexModel;
 use serde::Serialize;
 use tauri::State;
 use uuid::Uuid;
@@ -678,4 +680,119 @@ pub async fn explain_query(
         Err(e) => return Err(AppError::Mongo(e)),
     };
     Ok(serde_json::Value::from(bson::Bson::Document(result)))
+}
+
+#[tauri::command]
+pub async fn list_indexes(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+) -> Result<Vec<serde_json::Value>, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    // `listIndexes` returns the raw index documents (key spec, name, unique, …)
+    // inside a cursor envelope; the frontend only needs the first batch to display.
+    let command = bson::doc! { "listIndexes": collection };
+    let result = match client.database(&database).run_command(command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    let cursor_doc = match result.get_document("cursor") {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Bson(e.to_string())),
+    };
+    let first_batch = match cursor_doc.get_array("firstBatch") {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Bson(e.to_string())),
+    };
+    let mut indexes = Vec::new();
+    for entry in first_batch {
+        indexes.push(serde_json::Value::from(entry.clone()));
+    }
+    Ok(indexes)
+}
+
+#[tauri::command]
+pub async fn create_index(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    keys: String,
+    unique: bool,
+    name: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let keys_doc = match parse_filter(&keys) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    // An empty name lets MongoDB auto-generate one from the key spec.
+    let index_options = if name.trim().is_empty() {
+        IndexOptions::builder().unique(Some(unique)).build()
+    } else {
+        IndexOptions::builder()
+            .unique(Some(unique))
+            .name(Some(name))
+            .build()
+    };
+    let model = IndexModel::builder()
+        .keys(keys_doc)
+        .options(Some(index_options))
+        .build();
+    match col.create_index(model).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
+pub async fn drop_index(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    name: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    match col.drop_index(name).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
 }
