@@ -1289,7 +1289,7 @@ const queryCode = computed(() => {
   font-size: 12.5px;
 }
 .qbtn:hover:not(:disabled) { background: var(--bg-hover); }
-.qbtn.run { min-width: 92px; border: 1px solid var(--border); }
+.qbtn.run { min-width: 92px; border: 1px solid var(--green); }
 .qbtn.run .ic { color: var(--green); }
 .qbtn .ic  { color: var(--text-dim); }
 .qbtn .drop { color: var(--text-faint); }
