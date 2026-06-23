@@ -27,43 +27,54 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         Err(e) => return Err(e),
     };
 
-    // Edit — predefined items give macOS the standard Cmd+C/V/Z shortcuts
-    let undo = match PredefinedMenuItem::undo(app, None) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let redo = match PredefinedMenuItem::redo(app, None) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let separator_edit = match PredefinedMenuItem::separator(app) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let cut = match PredefinedMenuItem::cut(app, None) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let copy = match PredefinedMenuItem::copy(app, None) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let paste = match PredefinedMenuItem::paste(app, None) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let select_all = match PredefinedMenuItem::select_all(app, None) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let edit = match Submenu::with_items(
-        app,
-        "Edit",
-        true,
-        &[&undo, &redo, &separator_edit, &cut, &copy, &paste, &select_all],
-    ) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
+    // Edit — predefined items give macOS (and Windows) the standard Cmd/Ctrl+C/V/X/Z
+    // shortcuts the webview relies on. On Linux/WebKitGTK the webview already handles
+    // these natively in text inputs; adding the predefined items there registers
+    // accelerators that swallow Ctrl+C/V/X/A without performing the action, which breaks
+    // editing in the query bar and other fields — so on Linux we leave Edit empty.
+    let edit = if cfg!(target_os = "linux") {
+        match Submenu::new(app, "Edit", true) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        }
+    } else {
+        let undo = match PredefinedMenuItem::undo(app, None) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let redo = match PredefinedMenuItem::redo(app, None) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let separator_edit = match PredefinedMenuItem::separator(app) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let cut = match PredefinedMenuItem::cut(app, None) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let copy = match PredefinedMenuItem::copy(app, None) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let paste = match PredefinedMenuItem::paste(app, None) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let select_all = match PredefinedMenuItem::select_all(app, None) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        match Submenu::with_items(
+            app,
+            "Edit",
+            true,
+            &[&undo, &redo, &separator_edit, &cut, &copy, &paste, &select_all],
+        ) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        }
     };
 
     // Placeholder menus — items will be wired up as features are built
