@@ -1235,4 +1235,18 @@ mod tests {
         assert!(parse_pipeline("[]").unwrap().is_empty());
         assert!(parse_pipeline("").unwrap().is_empty());
     }
+
+    #[test]
+    fn sort_document_preserves_key_order() {
+        // The link the plan was least sure of: JS EJSON.stringify keeps key order, and
+        // bson::Document must keep it through serde_json -> BSON so sort fields apply in
+        // the order the user wrote them.
+        let doc = parse_ejson_document(r#"{"a":{"$numberInt":"1"},"b":{"$numberInt":"-1"}}"#).unwrap();
+        let keys: Vec<&str> = doc.keys().map(|k| k.as_str()).collect();
+        assert_eq!(keys, vec!["a", "b"]);
+
+        let reversed = parse_ejson_document(r#"{"b":{"$numberInt":"1"},"a":{"$numberInt":"1"}}"#).unwrap();
+        let reversed_keys: Vec<&str> = reversed.keys().map(|k| k.as_str()).collect();
+        assert_eq!(reversed_keys, vec!["b", "a"]);
+    }
 }
