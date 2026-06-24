@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { installInputUndo } from './utils/inputUndo'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -18,6 +19,9 @@ appWindow.listen('window-focus', async (event) => {
     await appWindow.setFocus();
   }
 });
+
+// WebKitGTK has no native undo/redo for text fields — install our own so Ctrl+Z works.
+onMounted(() => installInputUndo());
 
 // ── toolbar definition ─────────────────────────────────────
 const TOOLS = [
