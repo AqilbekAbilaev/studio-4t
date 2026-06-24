@@ -1635,7 +1635,13 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 46px;
-  background: var(--bg-panel-2);
+  /* Alternate per 25px row like the populated grid's row-number gutter, so the empty
+     state doesn't read as one solid near-black bar. */
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--bg-panel-2) 0 25px,
+    var(--bg-row-alt) 25px 50px
+  );
   border-right: 1px solid var(--border-soft);
 }
 
