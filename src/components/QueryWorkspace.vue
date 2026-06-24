@@ -81,6 +81,7 @@ function runAggregate() {
 function runQuery() {
   const tab = activeTab.value
   if (!tab || tab.kind !== 'collection') return
+  expandIdFilter(tab)
   drillPath.value = []
   emit('run-query', tab.id, {
     filter:     toStrictJson(tab.filter),
@@ -143,17 +144,15 @@ const explainSummary = computed(() => {
   }
 })
 
-// When the whole Query value is a bare 24-hex ObjectId (typed or pasted), build
-// the _id filter automatically so you can drop a copied id straight into the box.
-// Handled on input rather than the paste event because WebKitGTK doesn't reliably
-// populate clipboard data on paste.
-function onFilterInput(raw) {
-  const tab = activeTab.value
-  if (!tab) return
-  const v = sanitizeQuotes(raw)
-  tab.filter = /^[0-9a-fA-F]{24}$/.test(v.trim())
-    ? `{ _id: ObjectId("${v.trim()}") }`
-    : v
+// When the whole Query value is a bare 24-hex ObjectId, build the _id filter so you
+// can drop a copied id straight into the box. Done at run time (not on every
+// keystroke) so the field stays a plain text input — rewriting its value on input is
+// what defeats the browser's native undo/redo.
+function expandIdFilter(tab) {
+  const v = (tab.filter || '').trim()
+  if (/^[0-9a-fA-F]{24}$/.test(v)) {
+    tab.filter = `{ _id: ObjectId("${v}") }`
+  }
 }
 
 // ── table view helpers ─────────────────────────────────────
@@ -848,7 +847,7 @@ const queryCode = computed(() => {
           <input
             class="qval"
             :value="activeTab.filter"
-            @input="onFilterInput($event.target.value)"
+            @input="activeTab.filter = sanitizeQuotes($event.target.value)"
             placeholder="{}"
             spellcheck="false"
             autocorrect="off"
