@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
+import { parseField, parsePipeline } from '../utils/queryParser'
 
 const props = defineProps({
   tabs:        { type: Array,   required: true },
@@ -20,41 +21,48 @@ const viewMode     = ref('table')
 const viewMenu     = ref(false)
 const pageSizeMenu = ref(false)
 
-// ── query helpers ──────────────────────────────────────────
-// macOS's system-wide "Smart Quotes" substitutes curly quotes at the OS
-// text-input layer before the keystroke reaches the DOM, so the field would
-// otherwise show curly characters forever even though the backend now
-// tolerates them. Straighten on every keystroke so what you see matches
-// what gets sent.
-function sanitizeQuotes(str) {
-  return str.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
-}
-
-// Accept the mongosh / Studio-3T shell form ObjectId("…") in addition to the
-// extended-JSON {"$oid": "…"} the backend parses, so users can paste the same id
-// string the JSON view shows. Single or double quotes around the 24-hex id work.
-function expandShellTypes(str) {
-  return str.replace(
-    /ObjectId\(\s*["']([0-9a-fA-F]{24})["']\s*\)/g,
-    '{"$oid":"$1"}'
-  )
-}
-
-function toStrictJson(raw) {
-  const s = (raw || '').trim()
-  if (!s || s === '{}') return '{}'
-  // Expand shell types before quoting bare keys: the result ({"$oid": …}) already
-  // has quoted keys, so the key-quoting pass leaves it untouched.
-  return expandShellTypes(s).replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$.]*)\s*:/g, '$1"$2":')
-}
-
-// Same key-quoting / shell-type pass as toStrictJson, but for a pipeline array so
-// pasted shell pipelines like [{ $match: { … } }] become valid JSON.
-function toStrictPipeline(raw) {
-  const s = (raw || '').trim()
-  if (!s || s === '[]') return '[]'
-  return expandShellTypes(s).replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$.]*)\s*:/g, '$1"$2":')
-}
+// ── query parsing & validation ─────────────────────────────
+// Shell syntax is parsed to canonical Extended JSON by utils/queryParser.js (MongoDB's
+// own parser), which the Rust backend decodes to BSON. Fields are parsed live so we can
+// show an inline error and disable Run while the query is invalid, instead of silently
+// sending corrupted JSON.
+const parsedQuery = computed(() => {
+  const tab = activeTab.value
+  if (!tab || tab.kind !== 'collection') return null
+  return {
+    filter:     parseField(tab.filter),
+    projection: parseField(tab.projection),
+    sort:       parseField(tab.sort),
+  }
+})
+const parsedPipeline = computed(() => {
+  const tab = activeTab.value
+  if (!tab || tab.kind !== 'collection') return null
+  return parsePipeline(tab.pipeline)
+})
+const queryValid = computed(() => {
+  const p = parsedQuery.value
+  return !p || (p.filter.ok && p.projection.ok && p.sort.ok)
+})
+const pipelineValid = computed(() => {
+  const p = parsedPipeline.value
+  return !p || p.ok
+})
+const runValid = computed(() => (isAggregate.value ? pipelineValid.value : queryValid.value))
+// First offending field's message, shown under the query area / pipeline editor.
+const queryErrorText = computed(() => {
+  const p = parsedQuery.value
+  if (!p) return null
+  if (!p.filter.ok) return 'Query: ' + p.filter.error
+  if (!p.projection.ok) return 'Projection: ' + p.projection.error
+  if (!p.sort.ok) return 'Sort: ' + p.sort.error
+  return null
+})
+const pipelineErrorText = computed(() => {
+  const p = parsedPipeline.value
+  if (!p || p.ok) return null
+  return 'Pipeline: ' + p.error
+})
 
 function setMode(mode) {
   const tab = activeTab.value
@@ -74,19 +82,23 @@ function run() {
 function runAggregate() {
   const tab = activeTab.value
   if (!tab || tab.kind !== 'collection') return
+  const parsed = parsedPipeline.value
+  if (!parsed || !parsed.ok) return  // inline error is already shown
   drillPath.value = []
-  emit('run-aggregate', tab.id, { pipeline: toStrictPipeline(tab.pipeline) })
+  emit('run-aggregate', tab.id, { pipeline: parsed.ejson })
 }
 
 function runQuery() {
   const tab = activeTab.value
   if (!tab || tab.kind !== 'collection') return
   expandIdFilter(tab)
+  const parsed = parsedQuery.value
+  if (!parsed || !parsed.filter.ok || !parsed.projection.ok || !parsed.sort.ok) return
   drillPath.value = []
   emit('run-query', tab.id, {
-    filter:     toStrictJson(tab.filter),
-    projection: toStrictJson(tab.projection),
-    sort:       toStrictJson(tab.sort),
+    filter:     parsed.filter.ejson,
+    projection: parsed.projection.ejson,
+    sort:       parsed.sort.ejson,
     skip:       tab.skip || 0,
     limit:      tab.limit || 50,
   })
@@ -104,6 +116,12 @@ function selectRtab(t) {
 async function runExplain() {
   const tab = activeTab.value
   if (!tab || tab.kind !== 'collection') return
+  const parsed = parsedQuery.value
+  if (!parsed || !parsed.filter.ok || !parsed.projection.ok || !parsed.sort.ok) {
+    tab.explainError = 'Fix the query before running Explain.'
+    tab.explainResult = null
+    return
+  }
   tab.explainRunning = true
   tab.explainError = null
   try {
@@ -111,9 +129,9 @@ async function runExplain() {
       id:         tab.connectionId,
       database:   tab.dbName,
       collection: tab.collectionName,
-      filter:     toStrictJson(tab.filter),
-      projection: toStrictJson(tab.projection),
-      sort:       toStrictJson(tab.sort),
+      filter:     parsed.filter.ejson,
+      projection: parsed.projection.ejson,
+      sort:       parsed.sort.ejson,
       skip:       tab.skip || 0,
       limit:      tab.limit || 50,
     })
@@ -807,7 +825,7 @@ const queryCode = computed(() => {
           <button :class="{ on: !isAggregate }" @click="setMode('find')">Find</button>
           <button :class="{ on: isAggregate }" @click="setMode('aggregate')">Aggregate</button>
         </div>
-        <button class="qbtn run" @click="run" :disabled="activeTab.isRunning">
+        <button class="qbtn run" @click="run" :disabled="activeTab.isRunning || !runValid">
           <BaseIcon name="run" :size="16" class="ic" />
           {{ activeTab.isRunning ? 'Running…' : 'Run' }}
         </button>
@@ -830,7 +848,7 @@ const queryCode = computed(() => {
         <textarea
           class="agg-input"
           :value="activeTab.pipeline"
-          @input="activeTab.pipeline = sanitizeQuotes($event.target.value)"
+          @input="activeTab.pipeline = $event.target.value"
           @keydown.ctrl.enter.prevent="runAggregate"
           @keydown.meta.enter.prevent="runAggregate"
           placeholder='[ { "$match": {} }, { "$limit": 20 } ]'
@@ -838,6 +856,7 @@ const queryCode = computed(() => {
           autocorrect="off"
           autocapitalize="off"
         ></textarea>
+        <div v-if="pipelineErrorText" class="qparse-error">{{ pipelineErrorText }}</div>
       </div>
 
       <!-- Query fields grid -->
@@ -847,7 +866,7 @@ const queryCode = computed(() => {
           <input
             class="qval"
             :value="activeTab.filter"
-            @input="activeTab.filter = sanitizeQuotes($event.target.value)"
+            @input="activeTab.filter = $event.target.value"
             placeholder="{}"
             spellcheck="false"
             autocorrect="off"
@@ -860,13 +879,13 @@ const queryCode = computed(() => {
         </div>
         <span class="qlabel">Sort</span>
         <div class="qinput">
-          <input class="qval" :value="activeTab.sort" @input="activeTab.sort = sanitizeQuotes($event.target.value)" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="runQuery" />
+          <input class="qval" :value="activeTab.sort" @input="activeTab.sort = $event.target.value" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="runQuery" />
         </div>
         <span></span>
 
         <span class="qlabel">Projection</span>
         <div class="qinput">
-          <input class="qval" :value="activeTab.projection" @input="activeTab.projection = sanitizeQuotes($event.target.value)" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="runQuery" />
+          <input class="qval" :value="activeTab.projection" @input="activeTab.projection = $event.target.value" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="runQuery" />
         </div>
         <div class="num-cluster">
           <span class="qlabel">Limit</span>
@@ -907,6 +926,7 @@ const queryCode = computed(() => {
           </div>
         </div>
       </div>
+      <div v-if="!isAggregate && queryErrorText" class="qparse-error">{{ queryErrorText }}</div>
 
       <!-- Results -->
       <div class="results">
@@ -923,7 +943,7 @@ const queryCode = computed(() => {
 
         <!-- Result toolbar -->
         <div class="rtoolbar" v-if="rtab === 'Result'">
-          <button class="icon-btn" @click="run" :disabled="activeTab.isRunning">
+          <button class="icon-btn" @click="run" :disabled="activeTab.isRunning || !runValid">
             <BaseIcon name="refresh" :size="16" />
           </button>
           <button class="icon-btn"
@@ -1328,6 +1348,7 @@ const queryCode = computed(() => {
   line-height: 1.5;
 }
 .agg-input:focus { outline: none; border-color: var(--accent); }
+.qparse-error { color: #e05555; font-size: 12px; padding: 4px 12px 6px; flex: none; }
 
 /* Query fields */
 .qfields {
