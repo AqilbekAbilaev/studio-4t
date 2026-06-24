@@ -191,30 +191,31 @@ fn normalize_smart_quotes(value: &str) -> String {
         .collect()
 }
 
-fn parse_filter(filter: &str) -> Result<bson::Document, AppError> {
-    let trimmed = filter.trim();
+// Decode a single Extended-JSON document into BSON. The frontend's query parser
+// (utils/queryParser.js) emits canonical EJSON, so this is the decode end of that
+// contract; it's used for filter / projection / sort / insert document / _id filter /
+// index keys. `normalize_smart_quotes` stays as a cheap paste-safety backstop.
+fn parse_ejson_document(ejson: &str) -> Result<bson::Document, AppError> {
+    let trimmed = ejson.trim();
     if trimmed.is_empty() || trimmed == "{}" {
         return Ok(bson::doc! {});
     }
     let normalized = normalize_smart_quotes(trimmed);
-    // Deserialize via bson::Bson so that extended-JSON types ({"$oid": "..."}, {"$date": "..."})
-    // are correctly decoded into their BSON equivalents. serde_json::Value + bson::to_document
-    // would treat {"$oid": "..."} as a plain nested document, breaking _id filters.
+    // Deserialize via bson::Bson so that extended-JSON types ({"$oid": "..."}, {"$date": "..."},
+    // {"$numberInt": "..."}, {"$regularExpression": {...}}) decode into their BSON equivalents.
+    // serde_json::Value + bson::to_document would treat {"$oid": "..."} as a plain nested
+    // document, breaking _id filters.
     let bson_val: bson::Bson = match serde_json::from_str(&normalized) {
         Ok(val) => val,
-        Err(e) => return Err(AppError::Bson(format!(
-            // serde_json's "key must be a string" fires on unquoted keys like { name: 1 }.
-            // The frontend preprocesses these, so if we still hit this, surface a clear hint.
-            "Invalid query JSON ({e}). Keys must be quoted, e.g. {{\"name\": 1}}"
-        ))),
+        Err(e) => return Err(AppError::Bson(format!("Invalid Extended JSON ({e})"))),
     };
     match bson_val {
         bson::Bson::Document(doc) => Ok(doc),
-        _ => Err(AppError::Bson("Filter must be a JSON object".to_string())),
+        _ => Err(AppError::Bson("Expected a JSON object".to_string())),
     }
 }
 
-// Parse an aggregation pipeline: a JSON array of stage objects. Mirrors parse_filter's
+// Parse an aggregation pipeline: a JSON array of stage objects. Mirrors parse_ejson_document's
 // smart-quote and extended-JSON handling so pasted shell pipelines behave the same way.
 fn parse_pipeline(pipeline: &str) -> Result<Vec<bson::Document>, AppError> {
     let trimmed = pipeline.trim();
@@ -443,15 +444,15 @@ pub async fn find_documents(
         .database(&database)
         .collection::<bson::Document>(&collection);
 
-    let filter_doc = match parse_filter(&filter) {
+    let filter_doc = match parse_ejson_document(&filter) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let projection_doc = match parse_filter(&projection) {
+    let projection_doc = match parse_ejson_document(&projection) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let sort_doc = match parse_filter(&sort) {
+    let sort_doc = match parse_ejson_document(&sort) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -734,7 +735,7 @@ pub async fn insert_document(
     let col = client
         .database(&database)
         .collection::<bson::Document>(&collection);
-    let doc = match parse_filter(&document) {
+    let doc = match parse_ejson_document(&document) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -768,11 +769,11 @@ pub async fn replace_document(
     let col = client
         .database(&database)
         .collection::<bson::Document>(&collection);
-    let filter_doc = match parse_filter(&id_filter) {
+    let filter_doc = match parse_ejson_document(&id_filter) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let mut replacement = match parse_filter(&document) {
+    let mut replacement = match parse_ejson_document(&document) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -807,7 +808,7 @@ pub async fn delete_document(
     let col = client
         .database(&database)
         .collection::<bson::Document>(&collection);
-    let filter_doc = match parse_filter(&id_filter) {
+    let filter_doc = match parse_ejson_document(&id_filter) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -841,15 +842,15 @@ pub async fn explain_query(
         Err(e) => return Err(e),
     };
 
-    let filter_doc = match parse_filter(&filter) {
+    let filter_doc = match parse_ejson_document(&filter) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let projection_doc = match parse_filter(&projection) {
+    let projection_doc = match parse_ejson_document(&projection) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let sort_doc = match parse_filter(&sort) {
+    let sort_doc = match parse_ejson_document(&sort) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -948,7 +949,7 @@ pub async fn create_index(
     let col = client
         .database(&database)
         .collection::<bson::Document>(&collection);
-    let keys_doc = match parse_filter(&keys) {
+    let keys_doc = match parse_ejson_document(&keys) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -1151,5 +1152,87 @@ pub async fn import_collection(
     match col.insert_many(docs).await {
         Ok(result) => Ok(result.inserted_ids.len()),
         Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The frontend's query parser emits canonical Extended JSON; these confirm the Rust
+    // decode (the same `serde_json::from_str::<bson::Bson>` the commands use) yields the
+    // right BSON types for the tricky cases.
+
+    #[test]
+    fn ejson_objectid_decodes_to_object_id() {
+        let doc = parse_ejson_document(r#"{"_id":{"$oid":"507f1f77bcf86cd799439011"}}"#).unwrap();
+        assert!(matches!(doc.get("_id"), Some(bson::Bson::ObjectId(_))));
+    }
+
+    #[test]
+    fn ejson_date_decodes_to_datetime() {
+        let doc =
+            parse_ejson_document(r#"{"created":{"$date":{"$numberLong":"1704067200000"}}}"#).unwrap();
+        assert!(matches!(doc.get("created"), Some(bson::Bson::DateTime(_))));
+    }
+
+    #[test]
+    fn ejson_regex_decodes_to_regular_expression() {
+        let doc =
+            parse_ejson_document(r#"{"name":{"$regularExpression":{"pattern":"^jo","options":"i"}}}"#)
+                .unwrap();
+        assert!(matches!(doc.get("name"), Some(bson::Bson::RegularExpression(_))));
+    }
+
+    #[test]
+    fn ejson_nested_operator_number_decodes_to_int32() {
+        let doc = parse_ejson_document(r#"{"age":{"$gt":{"$numberInt":"18"}}}"#).unwrap();
+        let inner = doc.get_document("age").unwrap();
+        assert!(matches!(inner.get("$gt"), Some(bson::Bson::Int32(18))));
+    }
+
+    #[test]
+    fn ejson_string_with_punctuation_is_preserved() {
+        let doc = parse_ejson_document(r#"{"note":"hello, world: x"}"#).unwrap();
+        match doc.get("note") {
+            Some(bson::Bson::String(value)) => assert_eq!(value, "hello, world: x"),
+            other => panic!("expected a string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn empty_and_braces_decode_to_empty_document() {
+        assert!(parse_ejson_document("").unwrap().is_empty());
+        assert!(parse_ejson_document("{}").unwrap().is_empty());
+    }
+
+    #[test]
+    fn non_object_ejson_is_an_error() {
+        assert!(parse_ejson_document("[1, 2, 3]").is_err());
+    }
+
+    #[test]
+    fn smart_quotes_are_normalized_as_a_backstop() {
+        let doc = parse_ejson_document("{\u{201C}name\u{201D}:\u{201C}John\u{201D}}").unwrap();
+        match doc.get("name") {
+            Some(bson::Bson::String(value)) => assert_eq!(value, "John"),
+            other => panic!("expected a string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn pipeline_canonical_ejson_decodes_to_stage_documents() {
+        let stages = parse_pipeline(
+            r#"[{"$match":{"x":{"$numberInt":"1"}}},{"$group":{"_id":"$y","n":{"$sum":{"$numberInt":"1"}}}}]"#,
+        )
+        .unwrap();
+        assert_eq!(stages.len(), 2);
+        assert!(stages[0].contains_key("$match"));
+    }
+
+    #[test]
+    fn empty_pipeline_decodes_to_no_stages() {
+        assert!(parse_pipeline("[]").unwrap().is_empty());
+        assert!(parse_pipeline("").unwrap().is_empty());
     }
 }
