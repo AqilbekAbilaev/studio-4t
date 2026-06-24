@@ -13,6 +13,10 @@
 - Unit tests — 32 covering storage, URI building, and pool state
 - Stable rendering on Linux/WebKitGTK — DMABUF renderer disabled + repaint-on-refocus so the
   result grid doesn't go blank / freeze scroll after switching windows
+- Working text-editing shortcuts on Linux/WebKitGTK — the native Edit menu is left empty on Linux
+  (its predefined accelerators were swallowing Ctrl+C/V/X/A in inputs); and since WebKitGTK has no
+  native undo for form fields, a small JS shim (`utils/inputUndo.js`) gives every input/textarea
+  Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, installed in both webviews
 
 ### Connections
 - Connection Manager — modal grid (Name / DB Server / Security / Last Accessed) with filter row
