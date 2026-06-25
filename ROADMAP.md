@@ -69,6 +69,10 @@
   toolbar button; restores filter / sort / projection / skip / limit and auto-runs; deduplicates by
   content (move-to-top); covers both Find and Aggregate modes (`get_query_history`,
   `push_query_history`, `clear_query_history`)
+- **Save / Load query (Query Browser)** — "Save query" toolbar popover prompts for a name and
+  persists to `saved_queries.json` (global, not per-collection); "Load query" opens a Query Browser
+  modal with search, Name / Mode / Saved columns, a preview panel, and Delete + Load actions
+  (`list_saved_queries`, `save_query`, `delete_saved_query`)
 
 ---
 
@@ -78,7 +82,6 @@ Most of these already have a button or menu item in the UI, currently disabled o
 "coming soon" / "coming to Studio-4T" stub.
 
 ### P1 — Medium — productivity & polish
-- [ ] **Save / Load query** to file (toolbar buttons exist, disabled)
 - [x] **Query history** per collection — last 50 queries persisted in `history.json`; dropdown on the toolbar button; restores filter / sort / projection / skip / limit; deduplicates by content (move-to-top); covers both Find and Aggregate modes
 - [ ] **Visual Query Builder** — wire the panel to generate/sync the actual filter/sort/projection
 - [ ] **Tree View** result mode (Key / Value / Type, expandable)
