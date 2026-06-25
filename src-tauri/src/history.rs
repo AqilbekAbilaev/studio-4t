@@ -1,0 +1,97 @@
+use crate::error::AppError;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::UNIX_EPOCH;
+
+const MAX_HISTORY: usize = 50;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct QueryHistoryEntry {
+    pub id: String,
+    pub mode: String,
+    pub filter: String,
+    pub sort: String,
+    pub projection: String,
+    pub skip: i64,
+    pub limit: i64,
+    pub pipeline: String,
+    pub ran_at: String,
+}
+
+pub struct HistoryStorage {
+    path: PathBuf,
+}
+
+impl HistoryStorage {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path: path }
+    }
+
+    fn load_all(&self) -> HashMap<String, Vec<QueryHistoryEntry>> {
+        if !self.path.exists() {
+            return HashMap::new();
+        }
+        let content = std::fs::read_to_string(&self.path).unwrap_or_default();
+        serde_json::from_str(&content).unwrap_or_default()
+    }
+
+    fn save_all(&self, map: &HashMap<String, Vec<QueryHistoryEntry>>) -> Result<(), AppError> {
+        if let Some(parent) = self.path.parent() {
+            match std::fs::create_dir_all(parent) {
+                Ok(val) => val,
+                Err(e) => return Err(AppError::Io(e)),
+            };
+        }
+        let content = match serde_json::to_string_pretty(map) {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Serde(e)),
+        };
+        match std::fs::write(&self.path, content) {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Io(e)),
+        };
+        Ok(())
+    }
+
+    pub fn get(&self, key: &str) -> Vec<QueryHistoryEntry> {
+        let map = self.load_all();
+        match map.get(key) {
+            Some(entries) => entries.clone(),
+            None => Vec::new(),
+        }
+    }
+
+    pub fn push(&self, key: &str, entry: QueryHistoryEntry) -> Result<(), AppError> {
+        let mut map = self.load_all();
+        let entries = map.entry(key.to_string()).or_insert_with(Vec::new);
+        entries.retain(|e| !is_same_query(e, &entry));
+        entries.insert(0, entry);
+        entries.truncate(MAX_HISTORY);
+        self.save_all(&map)
+    }
+
+    pub fn clear(&self, key: &str) -> Result<(), AppError> {
+        let mut map = self.load_all();
+        map.remove(key);
+        self.save_all(&map)
+    }
+}
+
+fn is_same_query(a: &QueryHistoryEntry, b: &QueryHistoryEntry) -> bool {
+    a.mode == b.mode
+        && a.filter == b.filter
+        && a.sort == b.sort
+        && a.projection == b.projection
+        && a.skip == b.skip
+        && a.limit == b.limit
+        && a.pipeline == b.pipeline
+}
+
+pub fn now_ms() -> String {
+    let ms = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    format!("{}", ms)
+}

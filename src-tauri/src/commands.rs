@@ -1,4 +1,6 @@
 use crate::error::AppError;
+use crate::history::{now_ms, HistoryStorage, QueryHistoryEntry};
+use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
 use crate::pool::ConnectionPool;
 use crate::storage::{ConnectionConfig, Storage};
 use crate::uri;
@@ -16,6 +18,7 @@ pub struct DatabaseInfo {
     pub collections: Vec<String>,
     pub accessible: bool,
 }
+
 
 #[tauri::command]
 pub async fn test_connection(uri: String) -> Result<(), AppError> {
@@ -1152,6 +1155,108 @@ pub async fn import_collection(
     match col.insert_many(docs).await {
         Ok(result) => Ok(result.inserted_ids.len()),
         Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+
+#[tauri::command]
+pub fn list_saved_queries(sq: State<'_, SavedQueryStorage>) -> Vec<SavedQueryEntry> {
+    sq.load()
+}
+
+#[tauri::command]
+pub fn save_query(
+    sq:         State<'_, SavedQueryStorage>,
+    name:       String,
+    mode:       String,
+    filter:     String,
+    sort:       String,
+    projection: String,
+    skip:       i64,
+    limit:      i64,
+    pipeline:   String,
+) -> Result<String, AppError> {
+    let id = Uuid::new_v4().to_string();
+    let entry = SavedQueryEntry {
+        id:         id.clone(),
+        name:       name,
+        mode:       mode,
+        filter:     filter,
+        sort:       sort,
+        projection: projection,
+        skip:       skip,
+        limit:      limit,
+        pipeline:   pipeline,
+        saved_at:   now_ms(),
+    };
+    match sq.insert(entry) {
+        Ok(_)  => Ok(id),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub fn delete_saved_query(sq: State<'_, SavedQueryStorage>, id: String) -> Result<(), AppError> {
+    match sq.delete(&id) {
+        Ok(val) => Ok(val),
+        Err(e)  => Err(e),
+    }
+}
+
+#[tauri::command]
+pub fn get_query_history(
+    history: State<'_, HistoryStorage>,
+    connection_id: String,
+    database: String,
+    collection: String,
+) -> Vec<QueryHistoryEntry> {
+    let key = format!("{}::{}::{}", connection_id, database, collection);
+    history.get(&key)
+}
+
+#[tauri::command]
+pub fn push_query_history(
+    history: State<'_, HistoryStorage>,
+    connection_id: String,
+    database: String,
+    collection: String,
+    mode: String,
+    filter: String,
+    sort: String,
+    projection: String,
+    skip: i64,
+    limit: i64,
+    pipeline: String,
+) -> Result<(), AppError> {
+    let key = format!("{}::{}::{}", connection_id, database, collection);
+    let entry = QueryHistoryEntry {
+        id: Uuid::new_v4().to_string(),
+        mode: mode,
+        filter: filter,
+        sort: sort,
+        projection: projection,
+        skip: skip,
+        limit: limit,
+        pipeline: pipeline,
+        ran_at: now_ms(),
+    };
+    match history.push(&key, entry) {
+        Ok(val) => Ok(val),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub fn clear_query_history(
+    history: State<'_, HistoryStorage>,
+    connection_id: String,
+    database: String,
+    collection: String,
+) -> Result<(), AppError> {
+    let key = format!("{}::{}::{}", connection_id, database, collection);
+    match history.clear(&key) {
+        Ok(val) => Ok(val),
+        Err(e) => Err(e),
     }
 }
 

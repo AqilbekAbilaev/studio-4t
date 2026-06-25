@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
+import QueryBrowserModal from './QueryBrowserModal.vue'
 import { parseField, parsePipeline } from '../utils/queryParser'
 
 const props = defineProps({
@@ -10,7 +11,11 @@ const props = defineProps({
   activeTabId: { type: String,  required: true },
   vqbOpen:     { type: Boolean, default: false },
 })
-const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggregate', 'toggle-vqb'])
+const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggregate', 'toggle-vqb', 'toast'])
+
+const showQueryBrowser = ref(false)
+const showSaveForm     = ref(false)
+const saveName         = ref('')
 
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
 const isAggregate = computed(() => activeTab.value && activeTab.value.mode === 'aggregate')
@@ -20,6 +25,9 @@ const rtab         = ref('Result')
 const viewMode     = ref('table')
 const viewMenu     = ref(false)
 const pageSizeMenu = ref(false)
+const historyMenu    = ref(false)
+const historyEntries = ref([])
+const historyLoading = ref(false)
 
 // ── query parsing & validation ─────────────────────────────
 // Shell syntax is parsed to canonical Extended JSON by utils/queryParser.js (MongoDB's
@@ -322,6 +330,131 @@ function setPageSize(size) {
   pageSizeMenu.value = false
   runQuery()
 }
+
+// ── query history ──────────────────────────────────────
+async function openHistoryMenu() {
+  const tab = activeTab.value
+  if (!tab || tab.kind !== 'collection') return
+  if (historyMenu.value) {
+    historyMenu.value = false
+    return
+  }
+  historyLoading.value = true
+  historyMenu.value = true
+  try {
+    historyEntries.value = await invoke('get_query_history', {
+      connectionId: tab.connectionId,
+      database:     tab.dbName,
+      collection:   tab.collectionName,
+    })
+  } catch (_) {
+    historyEntries.value = []
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function applyHistoryEntry(entry) {
+  const tab = activeTab.value
+  if (!tab) return
+  if (entry.mode === 'aggregate') {
+    tab.mode     = 'aggregate'
+    tab.pipeline = entry.pipeline
+  } else {
+    tab.mode       = 'find'
+    tab.filter     = entry.filter
+    tab.sort       = entry.sort
+    tab.projection = entry.projection
+    tab.skip       = Number(entry.skip)
+    tab.limit      = Number(entry.limit)
+  }
+  historyMenu.value = false
+  await nextTick()
+  run()
+}
+
+async function clearHistory() {
+  const tab = activeTab.value
+  if (!tab) return
+  try {
+    await invoke('clear_query_history', {
+      connectionId: tab.connectionId,
+      database:     tab.dbName,
+      collection:   tab.collectionName,
+    })
+    historyEntries.value = []
+  } catch (_) {}
+}
+
+function openQueryBrowser() {
+  showQueryBrowser.value = true
+}
+
+async function saveCurrentQuery() {
+  const tab = activeTab.value
+  const name = saveName.value.trim()
+  if (!tab || !name) return
+  try {
+    await invoke('save_query', {
+      name:       name,
+      mode:       tab.mode       || 'find',
+      filter:     tab.filter     || '',
+      sort:       tab.sort       || '',
+      projection: tab.projection || '',
+      skip:       tab.skip       ?? 0,
+      limit:      tab.limit      ?? 50,
+      pipeline:   tab.pipeline   || '',
+    })
+    showSaveForm.value = false
+    saveName.value = ''
+    emit('toast', `Saved as "${name}"`)
+  } catch (e) {
+    emit('toast', 'Save failed: ' + String(e))
+  }
+}
+
+async function applyFromBrowser(entry) {
+  const tab = activeTab.value
+  if (!tab) return
+  if (entry.mode === 'aggregate') {
+    tab.mode     = 'aggregate'
+    tab.pipeline = entry.pipeline
+  } else {
+    tab.mode       = 'find'
+    tab.filter     = entry.filter
+    tab.sort       = entry.sort
+    tab.projection = entry.projection
+    tab.skip       = Number(entry.skip)
+    tab.limit      = Number(entry.limit)
+  }
+  await nextTick()
+  run()
+}
+
+function formatHistoryTime(ranAt) {
+  const ms = Number(ranAt)
+  if (!ms) return ''
+  return new Date(ms).toLocaleString(undefined, {
+    month:  'short',
+    day:    'numeric',
+    hour:   '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function historyLabel(entry) {
+  if (entry.mode === 'aggregate') {
+    const p = (entry.pipeline || '').trim()
+    return p.length > 60 ? p.slice(0, 60) + '…' : (p || '[]')
+  }
+  const f = (entry.filter || '').trim()
+  return f.length > 60 ? f.slice(0, 60) + '…' : (f || '{}')
+}
+
+watch(() => activeTab.value && activeTab.value.id, () => {
+  historyMenu.value = false
+  historyEntries.value = []
+})
 
 // ── copy document ──────────────────────────────────────
 function copySelectedDocument() {
@@ -830,9 +963,53 @@ const queryCode = computed(() => {
           {{ activeTab.isRunning ? 'Running…' : 'Run' }}
         </button>
         <template v-if="!isAggregate">
-          <button class="qbtn" disabled><BaseIcon name="load"    :size="16" class="ic" /> Load query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
-          <button class="qbtn" disabled><BaseIcon name="save"    :size="16" class="ic" /> Save query   <BaseIcon name="caretDown" :size="11" class="drop" /></button>
-          <button class="qbtn" disabled><BaseIcon name="history" :size="16" class="ic" /> Query history</button>
+          <button class="qbtn" @click="openQueryBrowser"><BaseIcon name="load" :size="16" class="ic" /> Load query</button>
+          <div class="save-wrap">
+            <button class="qbtn" :class="{ on: showSaveForm }" @click="showSaveForm = !showSaveForm">
+              <BaseIcon name="save" :size="16" class="ic" /> Save query
+            </button>
+            <div v-if="showSaveForm" class="save-backdrop" @mousedown.self="showSaveForm = false"></div>
+            <div v-if="showSaveForm" class="save-form">
+              <input
+                v-model="saveName"
+                placeholder="Query name…"
+                class="save-input"
+                @keydown.enter.prevent="saveCurrentQuery"
+                @keydown.escape="showSaveForm = false"
+                v-focus
+              />
+              <button class="save-btn primary" @click="saveCurrentQuery" :disabled="!saveName.trim()">Save</button>
+              <button class="save-btn" @click="showSaveForm = false">Cancel</button>
+            </div>
+          </div>
+          <div class="hist-wrap">
+            <button class="qbtn" :class="{ on: historyMenu }" @click="openHistoryMenu">
+              <BaseIcon name="history" :size="16" class="ic" /> Query history
+            </button>
+            <div v-if="historyMenu" class="hist-backdrop" @mousedown.self="historyMenu = false"></div>
+            <div v-if="historyMenu" class="hist-menu">
+              <div class="hist-header">
+                <span class="hist-title">Query History</span>
+                <button class="hist-clear" @click="clearHistory" :disabled="!historyEntries.length">Clear</button>
+              </div>
+              <div v-if="historyLoading" class="hist-empty">Loading…</div>
+              <div v-else-if="!historyEntries.length" class="hist-empty">No history for this collection.</div>
+              <div v-else class="hist-list">
+                <div
+                  v-for="entry in historyEntries"
+                  :key="entry.id"
+                  class="hist-item"
+                  @click="applyHistoryEntry(entry)"
+                >
+                  <div class="hist-item-top">
+                    <span class="hist-mode">{{ entry.mode }}</span>
+                    <span class="hist-time">{{ formatHistoryTime(entry.ran_at) }}</span>
+                  </div>
+                  <div class="hist-query">{{ historyLabel(entry) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
           <button class="qbtn" disabled><BaseIcon name="anchor"  :size="16" class="ic" /> Set default query <BaseIcon name="caretDown" :size="11" class="drop" /></button>
           <button class="qbtn" disabled><BaseIcon name="copy"    :size="16" class="ic" /> Copy</button>
           <button class="qbtn" disabled><BaseIcon name="paste"   :size="16" class="ic" /> Paste</button>
@@ -1192,6 +1369,12 @@ const queryCode = computed(() => {
     :initial-doc="docModalMode === 'edit' ? activeTab?.results[activeTab.selectedRow] : null"
     @close="showDocModal = false"
     @save="onDocSave"
+  />
+
+  <QueryBrowserModal
+    v-if="showQueryBrowser"
+    @close="showQueryBrowser = false"
+    @apply="applyFromBrowser"
   />
 
   <!-- Delete confirmation -->
@@ -1876,5 +2059,139 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
   font-size: 12px;
   padding: 0;
   outline: none;
+}
+
+/* ── save query popover ────────────────────────────────── */
+.save-wrap { position: relative; }
+.save-backdrop { position: fixed; inset: 0; z-index: 19; }
+.save-form {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 290px;
+  background: #2a2c30;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.5);
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+}
+.save-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 6px 9px;
+  outline: none;
+  min-width: 0;
+}
+.save-input:focus { border-color: var(--accent); }
+.save-btn {
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  background: var(--bg-toolbar);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.save-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.save-btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
+.save-btn:disabled { opacity: .4; cursor: default; }
+
+/* ── query history dropdown ────────────────────────────── */
+.hist-wrap { position: relative; }
+.qbtn.on { background: var(--bg-hover); }
+
+.hist-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+}
+.hist-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 340px;
+  background: #2a2c30;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  box-shadow: 0 14px 34px rgba(0,0,0,.55);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  max-height: 360px;
+}
+.hist-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  flex: none;
+}
+.hist-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  flex: 1;
+}
+.hist-clear {
+  font-size: 11px;
+  color: var(--text-faint);
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.hist-clear:hover:not(:disabled) { color: var(--text); background: var(--bg-hover); }
+.hist-clear:disabled { opacity: .4; cursor: default; }
+.hist-empty {
+  padding: 20px 14px;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-align: center;
+}
+.hist-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px;
+}
+.hist-item {
+  padding: 7px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.hist-item:hover { background: var(--bg-hover); }
+.hist-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.hist-mode {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.hist-time {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-left: auto;
+}
+.hist-query {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

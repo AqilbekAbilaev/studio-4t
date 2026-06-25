@@ -615,6 +615,18 @@ async function runQuery(tabId, params) {
     tab.hasRun = true
     tab.elapsedMs = Date.now() - t0
     showToast(`Query returned ${tab.results.length} document${tab.results.length !== 1 ? 's' : ''} in ${(tab.elapsedMs / 1000).toFixed(3)}s`)
+    invoke('push_query_history', {
+      connectionId: tab.connectionId,
+      database:     tab.dbName,
+      collection:   tab.collectionName,
+      mode:         'find',
+      filter:       tab.filter     || '',
+      sort:         tab.sort       || '',
+      projection:   tab.projection || '',
+      skip:         params.skip    ?? 0,
+      limit:        params.limit   ?? 50,
+      pipeline:     '',
+    }).catch(() => {})
   } catch (e) {
     tab.runError = String(e)
   } finally {
@@ -638,6 +650,18 @@ async function runAggregate(tabId, params) {
     tab.hasRun = true
     tab.elapsedMs = Date.now() - t0
     showToast(`Aggregation returned ${tab.results.length} document${tab.results.length !== 1 ? 's' : ''} in ${(tab.elapsedMs / 1000).toFixed(3)}s`)
+    invoke('push_query_history', {
+      connectionId: tab.connectionId,
+      database:     tab.dbName,
+      collection:   tab.collectionName,
+      mode:         'aggregate',
+      filter:       '',
+      sort:         '',
+      projection:   '',
+      skip:         0,
+      limit:        50,
+      pipeline:     tab.pipeline || '',
+    }).catch(() => {})
   } catch (e) {
     tab.runError = String(e)
   } finally {
@@ -697,6 +721,7 @@ async function runAggregate(tabId, params) {
         @run-query="runQuery"
         @run-aggregate="runAggregate"
         @toggle-vqb="vqbOpen = !vqbOpen"
+        @toast="showToast"
       />
       <VisualQueryBuilder v-if="vqbOpen" />
     </div>
