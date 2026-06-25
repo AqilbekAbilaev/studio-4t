@@ -8,7 +8,6 @@ import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
 import ConnectionManager from './components/ConnectionManager.vue'
-import VisualQueryBuilder from './components/VisualQueryBuilder.vue'
 import ContextMenu from './components/ContextMenu.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -620,6 +619,7 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
 }
 
 function activateTab(id) { activeTabId.value = id }
+
 function onCopyQuery() {
   const tab = tabs.value.find(t => t.id === activeTabId.value)
   if (!tab) return
@@ -659,7 +659,6 @@ async function onPasteQuery() {
     limit:      Number(q.limit),
   })
 }
-
 
 function closeTab(id) {
   const idx = tabs.value.findIndex(t => t.id === id)
@@ -791,18 +790,17 @@ async function runAggregate(tabId, params) {
       <QueryWorkspace
         :tabs="tabs"
         :active-tab-id="activeTabId"
-        :clipboard-query="clipboardQuery"
         :vqb-open="vqbOpen"
+        :clipboard-query="clipboardQuery"
         @activate-tab="activateTab"
         @close-tab="closeTab"
         @run-query="runQuery"
         @run-aggregate="runAggregate"
         @toggle-vqb="vqbOpen = !vqbOpen"
+        @toast="showToast"
         @copy-query="onCopyQuery"
         @paste-query="onPasteQuery"
-        @toast="showToast"
       />
-      <VisualQueryBuilder v-if="vqbOpen" />
     </div>
 
     <!-- Context menu -->

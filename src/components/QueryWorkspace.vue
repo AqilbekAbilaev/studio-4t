@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
 import QueryBrowserModal from './QueryBrowserModal.vue'
+import VisualQueryBuilder from './VisualQueryBuilder.vue'
 import { parseField, parsePipeline } from '../utils/queryParser'
 
 const props = defineProps({
@@ -17,9 +18,89 @@ const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggrega
 const showQueryBrowser = ref(false)
 const showSaveForm     = ref(false)
 const saveName         = ref('')
+const showDefaultMenu  = ref(false)
+const draggedField     = ref('')
+
+function onThClick(col) {
+  if (!props.vqbOpen) return
+  draggedField.value = col
+  nextTick(() => { draggedField.value = '' })
+}
+
+// ── drag a result cell → Visual Query Builder ──────────────
+// HTML5 drag-and-drop doesn't fire drop events reliably inside Tauri's WKWebView,
+// so dragging is done with raw mouse events. A drag only starts once the pointer
+// moves past a small threshold, so a plain click still selects the cell. On drop
+// we hit-test the pointer against the VQB sections (tagged with data-vqb-drop)
+// and hand the field + section to VisualQueryBuilder via the vqbDrop prop.
+const DRAG_THRESHOLD  = 5
+const dragging        = ref(false)
+const dragGhost       = ref({ x: 0, y: 0, label: '' })
+const dragOverSection = ref(null)
+const vqbDrop         = ref(null)
+
+let dragField         = ''
+let dragStartX        = 0
+let dragStartY        = 0
+let suppressNextClick = false
+
+function sectionAtPoint(x, y) {
+  const el = document.elementFromPoint(x, y)
+  const zone = el && el.closest('[data-vqb-drop]')
+  return zone ? zone.getAttribute('data-vqb-drop') : null
+}
+
+function onCellMouseDown(e, col) {
+  if (!props.vqbOpen || e.button !== 0) return
+  if (e.target.tagName === 'INPUT') return  // inline cell editor is active
+  // Suppress the browser's native press-drag selection gesture, which otherwise
+  // auto-scrolls the grid sideways as the pointer moves toward the VQB panel.
+  // Click and dblclick still fire, so cell selection / editing is unaffected.
+  e.preventDefault()
+  suppressNextClick = false
+  dragField  = col
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  dragging.value = false
+  document.addEventListener('mousemove', onDragMove)
+  document.addEventListener('mouseup',   onDragUp)
+}
+
+function onDragMove(e) {
+  if (!dragging.value) {
+    if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) < DRAG_THRESHOLD) return
+    dragging.value = true
+    document.body.style.cursor = 'grabbing'
+  }
+  dragGhost.value = { x: e.clientX, y: e.clientY, label: dragField }
+  dragOverSection.value = sectionAtPoint(e.clientX, e.clientY)
+}
+
+function onDragUp(e) {
+  document.removeEventListener('mousemove', onDragMove)
+  document.removeEventListener('mouseup',   onDragUp)
+  document.body.style.cursor = ''
+  if (dragging.value) {
+    const section = sectionAtPoint(e.clientX, e.clientY)
+    if (section) vqbDrop.value = { field: dragField, section: section, nonce: Date.now() }
+    suppressNextClick = true  // swallow the click that fires after a real drag
+  }
+  dragging.value = false
+  dragOverSection.value = null
+  dragField = ''
+}
+
+function onCellClick(rowIdx, col) {
+  if (suppressNextClick) { suppressNextClick = false; return }
+  selectCell(rowIdx, col)
+}
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onDragMove)
+  document.removeEventListener('mouseup',   onDragUp)
+})
 
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
-const showDefaultMenu  = ref(false)
 const isAggregate = computed(() => activeTab.value && activeTab.value.mode === 'aggregate')
 
 // per-tab local state for result sub-tab and view mode
@@ -389,6 +470,45 @@ async function clearHistory() {
   } catch (_) {}
 }
 
+async function setDefaultQuery() {
+  const tab = activeTab.value
+  if (!tab) return
+  try {
+    await invoke('set_default_query', {
+      connectionId: tab.connectionId,
+      database:     tab.dbName,
+      collection:   tab.collectionName,
+      mode:         tab.mode       || 'find',
+      filter:       tab.filter     || '',
+      sort:         tab.sort       || '',
+      projection:   tab.projection || '',
+      skip:         tab.skip       ?? 0,
+      limit:        tab.limit      ?? 50,
+      pipeline:     tab.pipeline   || '',
+    })
+    showDefaultMenu.value = false
+    emit('toast', 'Default query set for this collection.')
+  } catch (e) {
+    emit('toast', 'Failed: ' + String(e))
+  }
+}
+
+async function clearDefaultQuery() {
+  const tab = activeTab.value
+  if (!tab) return
+  try {
+    await invoke('clear_default_query', {
+      connectionId: tab.connectionId,
+      database:     tab.dbName,
+      collection:   tab.collectionName,
+    })
+    showDefaultMenu.value = false
+    emit('toast', 'Default query cleared.')
+  } catch (e) {
+    emit('toast', 'Failed: ' + String(e))
+  }
+}
+
 function openQueryBrowser() {
   showQueryBrowser.value = true
 }
@@ -471,45 +591,6 @@ const tableRef   = ref(null)
 const colWidths  = ref({})   // col name → px; empty = auto layout
 
 // Reset widths when switching tabs so we re-measure on the new results
-async function setDefaultQuery() {
-  const tab = activeTab.value
-  if (!tab) return
-  try {
-    await invoke('set_default_query', {
-      connectionId: tab.connectionId,
-      database:     tab.dbName,
-      collection:   tab.collectionName,
-      mode:         tab.mode       || 'find',
-      filter:       tab.filter     || '',
-      sort:         tab.sort       || '',
-      projection:   tab.projection || '',
-      skip:         tab.skip       ?? 0,
-      limit:        tab.limit      ?? 50,
-      pipeline:     tab.pipeline   || '',
-    })
-    showDefaultMenu.value = false
-    emit('toast', 'Default query set for this collection.')
-  } catch (e) {
-    emit('toast', 'Failed: ' + String(e))
-  }
-}
-
-async function clearDefaultQuery() {
-  const tab = activeTab.value
-  if (!tab) return
-  try {
-    await invoke('clear_default_query', {
-      connectionId: tab.connectionId,
-      database:     tab.dbName,
-      collection:   tab.collectionName,
-    })
-    showDefaultMenu.value = false
-    emit('toast', 'Default query cleared.')
-  } catch (e) {
-    emit('toast', 'Failed: ' + String(e))
-  }
-}
-
 watch(() => activeTab.value?.id, () => { colWidths.value = {} })
 
 let resizeCol = null
@@ -1167,6 +1248,7 @@ const queryCode = computed(() => {
 
       <!-- Results -->
       <div class="results">
+        <div class="result-content">
         <!-- Result sub-tabs -->
         <div class="rtabs">
           <button
@@ -1297,9 +1379,10 @@ const queryCode = computed(() => {
                     v-for="col in gridColumns"
                     :key="col"
                     :style="colWidths[col] ? { minWidth: colWidths[col] + 'px', maxWidth: colWidths[col] + 'px' } : {}"
+                    @click.stop="onThClick(col)"
                   >
                     {{ col === '_id' ? '{Document id}' : (/^\d+$/.test(col) ? `[${col}]` : col) }}
-                    <div class="col-resize-handle" @mousedown="startResize($event, col)" @dblclick.stop="autoFitColumn($event, col)"></div>
+                    <div class="col-resize-handle" draggable="false" @dragstart.prevent @mousedown="startResize($event, col)" @dblclick.stop="autoFitColumn($event, col)"></div>
                   </th>
                   <th class="col-filler"></th>
                 </tr>
@@ -1316,7 +1399,8 @@ const queryCode = computed(() => {
                     v-for="col in gridColumns"
                     :key="col"
                     :class="{ selcell: activeTab.selectedRow === i && selectedCol === col, drillable: isDrillable(col, row[col]) }"
-                    @click.stop="selectCell(i, col)"
+                    @mousedown="onCellMouseDown($event, col)"
+                    @click.stop="onCellClick(i, col)"
                     @dblclick.stop="isDrillable(col, row[col]) ? openCellDrill(i, col) : startInlineEdit(i, col)"
                     @contextmenu="openCellCtx($event, i, col)"
                   >
@@ -1397,6 +1481,15 @@ const queryCode = computed(() => {
             {{ (activeTab.elapsedMs / 1000).toFixed(3) }}s
           </span>
         </div>
+        </div><!-- /result-content -->
+        <VisualQueryBuilder
+          v-if="vqbOpen"
+          :tabs="props.tabs"
+          :active-tab-id="props.activeTabId"
+          :dragged-field="draggedField"
+          :vqb-drop="vqbDrop"
+          :drag-over-section="dragOverSection"
+        />
       </div>
     </template>
   </div>
@@ -1421,6 +1514,13 @@ const queryCode = computed(() => {
       </div>
     </div>
   </template>
+
+  <!-- Floating label that follows the pointer while dragging a cell into the VQB -->
+  <div
+    v-if="dragging"
+    class="drag-ghost"
+    :style="{ left: dragGhost.x + 14 + 'px', top: dragGhost.y + 14 + 'px' }"
+  >{{ dragGhost.label }}</div>
 
   <!-- Document insert / edit modal -->
   <DocumentModal
@@ -1681,7 +1781,8 @@ const queryCode = computed(() => {
 .num-steppers button:hover { background: var(--bg-hover); color: var(--text); }
 
 /* Results */
-.results { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.results { flex: 1; display: flex; flex-direction: row; min-height: 0; }
+.result-content { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .rtabs { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); flex: none; }
 .rtab {
   padding: 6px 16px;
@@ -1841,6 +1942,22 @@ table.grid tr.selrow td.rownum { background: #2e3033; }
 table.grid tr.filler td { height: 25px; padding: 0; }
 table.grid tr.filler:nth-child(even) td { background: var(--bg-row-alt); }
 th.col-filler, td.col-filler { border-right: none; width: 100%; }
+
+/* Drag ghost — follows the pointer while dragging a cell into the VQB.
+   pointer-events:none is required so elementFromPoint sees the dropzone, not the ghost. */
+.drag-ghost {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+  white-space: nowrap;
+}
 
 /* Cell context menu */
 .cell-ctx-backdrop { position: fixed; inset: 0; z-index: 80; }
@@ -2121,6 +2238,40 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
   outline: none;
 }
 
+/* ── set default query dropdown ────────────────────────── */
+.default-wrap { position: relative; }
+.default-backdrop { position: fixed; inset: 0; z-index: 19; }
+.default-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+  background: #2a2c30;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.5);
+  z-index: 20;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.default-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.default-item:hover { background: var(--bg-hover); color: var(--text); }
+.default-item .ic { color: var(--text-faint); flex: none; }
+
 /* ── save query popover ────────────────────────────────── */
 .save-wrap { position: relative; }
 .save-backdrop { position: fixed; inset: 0; z-index: 19; }
@@ -2243,40 +2394,6 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
 }
 .hist-time {
   font-size: 10.5px;
-/* ── set default query dropdown ────────────────────────── */
-.default-wrap { position: relative; }
-.default-backdrop { position: fixed; inset: 0; z-index: 19; }
-.default-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 240px;
-  background: #2a2c30;
-  border: 1px solid var(--border-soft);
-  border-radius: 7px;
-  box-shadow: 0 10px 28px rgba(0,0,0,.5);
-  z-index: 20;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-}
-.default-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 5px;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 12.5px;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-}
-.default-item:hover { background: var(--bg-hover); color: var(--text); }
-.default-item .ic { color: var(--text-faint); flex: none; }
-
   color: var(--text-faint);
   margin-left: auto;
 }
