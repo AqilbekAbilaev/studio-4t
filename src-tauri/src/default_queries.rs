@@ -1,0 +1,67 @@
+use crate::error::AppError;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DefaultQuery {
+    pub mode:       String,
+    pub filter:     String,
+    pub sort:       String,
+    pub projection: String,
+    pub skip:       i64,
+    pub limit:      i64,
+    pub pipeline:   String,
+}
+
+pub struct DefaultQueryStorage {
+    path: PathBuf,
+}
+
+impl DefaultQueryStorage {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path: path }
+    }
+
+    fn load_all(&self) -> HashMap<String, DefaultQuery> {
+        if !self.path.exists() {
+            return HashMap::new();
+        }
+        let content = std::fs::read_to_string(&self.path).unwrap_or_default();
+        serde_json::from_str(&content).unwrap_or_default()
+    }
+
+    fn save_all(&self, map: &HashMap<String, DefaultQuery>) -> Result<(), AppError> {
+        if let Some(parent) = self.path.parent() {
+            match std::fs::create_dir_all(parent) {
+                Ok(val) => val,
+                Err(e)  => return Err(AppError::Io(e)),
+            };
+        }
+        let content = match serde_json::to_string_pretty(map) {
+            Ok(val) => val,
+            Err(e)  => return Err(AppError::Serde(e)),
+        };
+        match std::fs::write(&self.path, content) {
+            Ok(val) => val,
+            Err(e)  => return Err(AppError::Io(e)),
+        };
+        Ok(())
+    }
+
+    pub fn get(&self, key: &str) -> Option<DefaultQuery> {
+        self.load_all().remove(key)
+    }
+
+    pub fn set(&self, key: &str, entry: DefaultQuery) -> Result<(), AppError> {
+        let mut map = self.load_all();
+        map.insert(key.to_string(), entry);
+        self.save_all(&map)
+    }
+
+    pub fn clear(&self, key: &str) -> Result<(), AppError> {
+        let mut map = self.load_all();
+        map.remove(key);
+        self.save_all(&map)
+    }
+}

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { installInputUndo } from './utils/inputUndo'
+import { parseField } from './utils/queryParser'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -553,7 +554,7 @@ async function importCollection(nodeData) {
 }
 
 // ── tab management ─────────────────────────────────────────
-function openCollectionTab({ connectionId, connectionName, dbName, collectionName }, startMode = 'find') {
+async function openCollectionTab({ connectionId, connectionName, dbName, collectionName }, startMode = 'find') {
   const existing = tabs.value.find(t =>
     t.kind === 'collection' &&
     t.connectionId === connectionId &&
@@ -580,8 +581,39 @@ function openCollectionTab({ connectionId, connectionName, dbName, collectionNam
     selectedRow: -1, elapsedMs: null,
   })
   activeTabId.value = id
+
+  let def = null
+  try {
+    def = await invoke('get_default_query', {
+      connectionId: connectionId,
+      database:     dbName,
+      collection:   collectionName,
+    })
+  } catch (_) {}
+
   // Aggregation tabs open with an empty pipeline; nothing to run until the user writes one.
-  if (startMode === 'find') {
+  if (startMode !== 'find') return
+
+  if (def) {
+    const tab = tabs.value.find(t => t.id === id)
+    if (tab) {
+      tab.filter     = def.filter     || ''
+      tab.sort       = def.sort       || ''
+      tab.projection = def.projection || ''
+      tab.skip       = Number(def.skip)
+      tab.limit      = Number(def.limit)
+    }
+    const pf = parseField(def.filter     || '')
+    const ps = parseField(def.sort       || '')
+    const pp = parseField(def.projection || '')
+    runQuery(id, {
+      filter:     pf.ok ? pf.ejson : '{}',
+      sort:       ps.ok ? ps.ejson : '{}',
+      projection: pp.ok ? pp.ejson : '{}',
+      skip:       Number(def.skip),
+      limit:      Number(def.limit),
+    })
+  } else {
     runQuery(id, { filter: '{}', projection: '{}', sort: '{}', skip: 0, limit: 50 })
   }
 }
