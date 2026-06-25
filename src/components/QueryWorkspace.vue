@@ -96,7 +96,7 @@ function runAggregate() {
   emit('run-aggregate', tab.id, { pipeline: parsed.ejson })
 }
 
-function runQuery() {
+function runQuery(addToHistory = true) {
   const tab = activeTab.value
   if (!tab || tab.kind !== 'collection') return
   expandIdFilter(tab)
@@ -104,11 +104,12 @@ function runQuery() {
   if (!parsed || !parsed.filter.ok || !parsed.projection.ok || !parsed.sort.ok) return
   drillPath.value = []
   emit('run-query', tab.id, {
-    filter:     parsed.filter.ejson,
-    projection: parsed.projection.ejson,
-    sort:       parsed.sort.ejson,
-    skip:       tab.skip || 0,
-    limit:      tab.limit || 50,
+    filter:        parsed.filter.ejson,
+    projection:    parsed.projection.ejson,
+    sort:          parsed.sort.ejson,
+    skip:          tab.skip || 0,
+    limit:         tab.limit || 50,
+    addToHistory:  addToHistory,
   })
   // Keep the Explain plan in sync when it's the visible sub-tab.
   if (rtab.value === 'Explain') runExplain()
@@ -305,21 +306,21 @@ function goFirst() {
   const tab = activeTab.value
   if (!tab) return
   tab.skip = 0
-  runQuery()
+  runQuery(false)
 }
 
 function goPrev() {
   const tab = activeTab.value
   if (!tab) return
   tab.skip = Math.max(0, (tab.skip || 0) - (tab.limit || 50))
-  runQuery()
+  runQuery(false)
 }
 
 function goNext() {
   const tab = activeTab.value
   if (!tab) return
   tab.skip = (tab.skip || 0) + (tab.limit || 50)
-  runQuery()
+  runQuery(false)
 }
 
 function setPageSize(size) {

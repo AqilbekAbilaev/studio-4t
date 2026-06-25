@@ -605,28 +605,31 @@ async function runQuery(tabId, params) {
   tab.isRunning = true
   tab.runError = null
   const t0 = Date.now()
+  const { addToHistory = true, ...queryParams } = params
   try {
     tab.results = await invoke('find_documents', {
       id:         tab.connectionId,
       database:   tab.dbName,
       collection: tab.collectionName,
-      ...params,
+      ...queryParams,
     })
     tab.hasRun = true
     tab.elapsedMs = Date.now() - t0
     showToast(`Query returned ${tab.results.length} document${tab.results.length !== 1 ? 's' : ''} in ${(tab.elapsedMs / 1000).toFixed(3)}s`)
-    invoke('push_query_history', {
-      connectionId: tab.connectionId,
-      database:     tab.dbName,
-      collection:   tab.collectionName,
-      mode:         'find',
-      filter:       tab.filter     || '',
-      sort:         tab.sort       || '',
-      projection:   tab.projection || '',
-      skip:         params.skip    ?? 0,
-      limit:        params.limit   ?? 50,
-      pipeline:     '',
-    }).catch(() => {})
+    if (addToHistory) {
+      invoke('push_query_history', {
+        connectionId: tab.connectionId,
+        database:     tab.dbName,
+        collection:   tab.collectionName,
+        mode:         'find',
+        filter:       tab.filter     || '',
+        sort:         tab.sort       || '',
+        projection:   tab.projection || '',
+        skip:         queryParams.skip  ?? 0,
+        limit:        queryParams.limit ?? 50,
+        pipeline:     '',
+      }).catch(() => {})
+    }
   } catch (e) {
     tab.runError = String(e)
   } finally {
