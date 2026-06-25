@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { installInputUndo } from './utils/inputUndo'
@@ -54,7 +54,8 @@ let toastTimer = null
 const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
 const expandConnectionId = ref(null)
-const vqbOpen = ref(false)
+const vqbOpen        = ref(false)
+const clipboardQuery = ref(null)
 const contextMenu = ref(null)
 const tagOverrides = ref({})
 
@@ -619,6 +620,46 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
 }
 
 function activateTab(id) { activeTabId.value = id }
+function onCopyQuery() {
+  const tab = tabs.value.find(t => t.id === activeTabId.value)
+  if (!tab) return
+  clipboardQuery.value = {
+    mode:       tab.mode       || 'find',
+    filter:     tab.filter     || '',
+    sort:       tab.sort       || '',
+    projection: tab.projection || '',
+    skip:       tab.skip       ?? 0,
+    limit:      tab.limit      ?? 50,
+    pipeline:   tab.pipeline   || '',
+  }
+  showToast('Query copied.')
+}
+
+async function onPasteQuery() {
+  const tab = tabs.value.find(t => t.id === activeTabId.value)
+  if (!tab || !clipboardQuery.value) return
+  const q = clipboardQuery.value
+  tab.mode       = q.mode
+  tab.filter     = q.filter
+  tab.sort       = q.sort
+  tab.projection = q.projection
+  tab.skip       = Number(q.skip)
+  tab.limit      = Number(q.limit)
+  tab.pipeline   = q.pipeline
+  if (q.mode !== 'find') return
+  const pf = parseField(q.filter     || '')
+  const ps = parseField(q.sort       || '')
+  const pp = parseField(q.projection || '')
+  await nextTick()
+  runQuery(tab.id, {
+    filter:     pf.ok ? pf.ejson : '{}',
+    sort:       ps.ok ? ps.ejson : '{}',
+    projection: pp.ok ? pp.ejson : '{}',
+    skip:       Number(q.skip),
+    limit:      Number(q.limit),
+  })
+}
+
 
 function closeTab(id) {
   const idx = tabs.value.findIndex(t => t.id === id)
@@ -750,12 +791,15 @@ async function runAggregate(tabId, params) {
       <QueryWorkspace
         :tabs="tabs"
         :active-tab-id="activeTabId"
+        :clipboard-query="clipboardQuery"
         :vqb-open="vqbOpen"
         @activate-tab="activateTab"
         @close-tab="closeTab"
         @run-query="runQuery"
         @run-aggregate="runAggregate"
         @toggle-vqb="vqbOpen = !vqbOpen"
+        @copy-query="onCopyQuery"
+        @paste-query="onPasteQuery"
         @toast="showToast"
       />
       <VisualQueryBuilder v-if="vqbOpen" />

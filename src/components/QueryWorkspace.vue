@@ -7,11 +7,12 @@ import QueryBrowserModal from './QueryBrowserModal.vue'
 import { parseField, parsePipeline } from '../utils/queryParser'
 
 const props = defineProps({
-  tabs:        { type: Array,   required: true },
-  activeTabId: { type: String,  required: true },
-  vqbOpen:     { type: Boolean, default: false },
+  tabs:           { type: Array,   required: true },
+  activeTabId:    { type: String,  required: true },
+  vqbOpen:        { type: Boolean, default: false },
+  clipboardQuery: { type: Object,  default: null },
 })
-const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggregate', 'toggle-vqb', 'toast'])
+const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggregate', 'toggle-vqb', 'toast', 'copy-query', 'paste-query'])
 
 const showQueryBrowser = ref(false)
 const showSaveForm     = ref(false)
@@ -1066,8 +1067,12 @@ const queryCode = computed(() => {
               </button>
             </div>
           </div>
-          <button class="qbtn" disabled><BaseIcon name="copy"    :size="16" class="ic" /> Copy</button>
-          <button class="qbtn" disabled><BaseIcon name="paste"   :size="16" class="ic" /> Paste</button>
+          <button class="qbtn" @click="emit('copy-query')">
+            <BaseIcon name="copy" :size="16" class="ic" /> Copy
+          </button>
+          <button class="qbtn" :disabled="!props.clipboardQuery" @click="emit('paste-query')">
+            <BaseIcon name="paste" :size="16" class="ic" /> Paste
+          </button>
         </template>
         <span class="qbar-spacer"></span>
         <button v-if="!isAggregate" class="vqb-toggle" :class="{ on: vqbOpen }" @click="emit('toggle-vqb')">
