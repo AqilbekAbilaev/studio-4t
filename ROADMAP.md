@@ -52,7 +52,8 @@
   stage / docs-examined / keys-examined / time summary (`explain_query`)
 - **Query history** per collection — last 50 queries persisted in `history.json`; dropdown on the
   toolbar button; restores filter / sort / projection / skip / limit and auto-runs; deduplicates by
-  content (move-to-top); covers both Find and Aggregate modes
+  content (move-to-top); covers both Find and Aggregate modes; pagination runs (prev/next/first)
+  are excluded from history
 - **Save / Load query (Query Browser)** — "Save query" toolbar popover prompts for a name and
   persists to `saved_queries.json` (global, not per-collection); "Load query" opens a modal with
   search, Name / Mode / Saved columns, a preview panel, and Delete + Load actions
