@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::history::{now_ms, HistoryStorage, QueryHistoryEntry};
+use crate::default_queries::{DefaultQuery, DefaultQueryStorage};
 use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
 use crate::pool::ConnectionPool;
 use crate::storage::{ConnectionConfig, Storage};
@@ -1158,6 +1159,61 @@ pub async fn import_collection(
     }
 }
 
+
+#[tauri::command]
+pub fn get_default_query(
+    dq:            State<'_, DefaultQueryStorage>,
+    connection_id: String,
+    database:      String,
+    collection:    String,
+) -> Option<DefaultQuery> {
+    let key = format!("{}::{}::{}", connection_id, database, collection);
+    dq.get(&key)
+}
+
+#[tauri::command]
+pub fn set_default_query(
+    dq:            State<'_, DefaultQueryStorage>,
+    connection_id: String,
+    database:      String,
+    collection:    String,
+    mode:          String,
+    filter:        String,
+    sort:          String,
+    projection:    String,
+    skip:          i64,
+    limit:         i64,
+    pipeline:      String,
+) -> Result<(), AppError> {
+    let key = format!("{}::{}::{}", connection_id, database, collection);
+    let entry = DefaultQuery {
+        mode:       mode,
+        filter:     filter,
+        sort:       sort,
+        projection: projection,
+        skip:       skip,
+        limit:      limit,
+        pipeline:   pipeline,
+    };
+    match dq.set(&key, entry) {
+        Ok(val) => Ok(val),
+        Err(e)  => Err(e),
+    }
+}
+
+#[tauri::command]
+pub fn clear_default_query(
+    dq:            State<'_, DefaultQueryStorage>,
+    connection_id: String,
+    database:      String,
+    collection:    String,
+) -> Result<(), AppError> {
+    let key = format!("{}::{}::{}", connection_id, database, collection);
+    match dq.clear(&key) {
+        Ok(val) => Ok(val),
+        Err(e)  => Err(e),
+    }
+}
 
 #[tauri::command]
 pub fn list_saved_queries(sq: State<'_, SavedQueryStorage>) -> Vec<SavedQueryEntry> {

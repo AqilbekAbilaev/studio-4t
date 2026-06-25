@@ -18,6 +18,7 @@ const showSaveForm     = ref(false)
 const saveName         = ref('')
 
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
+const showDefaultMenu  = ref(false)
 const isAggregate = computed(() => activeTab.value && activeTab.value.mode === 'aggregate')
 
 // per-tab local state for result sub-tab and view mode
@@ -469,6 +470,45 @@ const tableRef   = ref(null)
 const colWidths  = ref({})   // col name → px; empty = auto layout
 
 // Reset widths when switching tabs so we re-measure on the new results
+async function setDefaultQuery() {
+  const tab = activeTab.value
+  if (!tab) return
+  try {
+    await invoke('set_default_query', {
+      connectionId: tab.connectionId,
+      database:     tab.dbName,
+      collection:   tab.collectionName,
+      mode:         tab.mode       || 'find',
+      filter:       tab.filter     || '',
+      sort:         tab.sort       || '',
+      projection:   tab.projection || '',
+      skip:         tab.skip       ?? 0,
+      limit:        tab.limit      ?? 50,
+      pipeline:     tab.pipeline   || '',
+    })
+    showDefaultMenu.value = false
+    emit('toast', 'Default query set for this collection.')
+  } catch (e) {
+    emit('toast', 'Failed: ' + String(e))
+  }
+}
+
+async function clearDefaultQuery() {
+  const tab = activeTab.value
+  if (!tab) return
+  try {
+    await invoke('clear_default_query', {
+      connectionId: tab.connectionId,
+      database:     tab.dbName,
+      collection:   tab.collectionName,
+    })
+    showDefaultMenu.value = false
+    emit('toast', 'Default query cleared.')
+  } catch (e) {
+    emit('toast', 'Failed: ' + String(e))
+  }
+}
+
 watch(() => activeTab.value?.id, () => { colWidths.value = {} })
 
 let resizeCol = null
@@ -1011,7 +1051,21 @@ const queryCode = computed(() => {
               </div>
             </div>
           </div>
-          <button class="qbtn" disabled><BaseIcon name="anchor"  :size="16" class="ic" /> Set default query <BaseIcon name="caretDown" :size="11" class="drop" /></button>
+          <div class="default-wrap">
+            <button class="qbtn" :class="{ on: showDefaultMenu }" @click="showDefaultMenu = !showDefaultMenu">
+              <BaseIcon name="anchor" :size="16" class="ic" /> Set default query
+              <BaseIcon name="caretDown" :size="11" class="drop" />
+            </button>
+            <div v-if="showDefaultMenu" class="default-backdrop" @mousedown.self="showDefaultMenu = false"></div>
+            <div v-if="showDefaultMenu" class="default-menu">
+              <button class="default-item" @click="setDefaultQuery">
+                <BaseIcon name="anchor" :size="13" class="ic" /> Set as default for this collection
+              </button>
+              <button class="default-item" @click="clearDefaultQuery">
+                <BaseIcon name="trash" :size="13" class="ic" /> Clear default
+              </button>
+            </div>
+          </div>
           <button class="qbtn" disabled><BaseIcon name="copy"    :size="16" class="ic" /> Copy</button>
           <button class="qbtn" disabled><BaseIcon name="paste"   :size="16" class="ic" /> Paste</button>
         </template>
@@ -2184,6 +2238,40 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
 }
 .hist-time {
   font-size: 10.5px;
+/* ── set default query dropdown ────────────────────────── */
+.default-wrap { position: relative; }
+.default-backdrop { position: fixed; inset: 0; z-index: 19; }
+.default-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+  background: #2a2c30;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.5);
+  z-index: 20;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.default-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.default-item:hover { background: var(--bg-hover); color: var(--text); }
+.default-item .ic { color: var(--text-faint); flex: none; }
+
   color: var(--text-faint);
   margin-left: auto;
 }

@@ -1,4 +1,5 @@
 mod commands;
+mod default_queries;
 mod error;
 mod history;
 mod keychain;
@@ -9,6 +10,7 @@ mod storage;
 mod uri;
 
 use commands::*;
+use default_queries::DefaultQueryStorage;
 use history::HistoryStorage;
 use pool::ConnectionPool;
 use saved_queries::SavedQueryStorage;
@@ -26,6 +28,7 @@ pub fn run() {
             app.manage(Storage::new(data_dir.join("connections.json")));
             app.manage(HistoryStorage::new(data_dir.join("history.json")));
             app.manage(SavedQueryStorage::new(data_dir.join("saved_queries.json")));
+            app.manage(DefaultQueryStorage::new(data_dir.join("default_queries.json")));
             app.manage(ConnectionPool::new());
 
             let native_menu = match menu::build(app.handle()) {
@@ -70,6 +73,9 @@ pub fn run() {
             run_aggregate,
             export_collection,
             import_collection,
+            get_default_query,
+            set_default_query,
+            clear_default_query,
             list_saved_queries,
             save_query,
             delete_saved_query,
