@@ -59,7 +59,9 @@
   persists to `saved_queries.json` (global, not per-collection); "Load query" opens a modal with
   search, Name / Mode / Saved columns, a preview panel, and Delete + Load actions
 - **Visual Query Builder** — a panel that generates the actual filter/sort/projection
-  (`utils/vqbGenerator.js`), with drag-and-drop of result-grid cells to seed conditions
+  (`utils/vqbGenerator.js`); result-grid cells are draggable any time and a drag opens the panel
+  automatically (and closes it again if the drag is released outside it); operator dropdown styled
+  to match the design system
 - **Default query per collection** — set / clear a default filter for a collection
   (`default_queries.rs`, persisted) that auto-loads when the collection is opened
 - **Copy / paste query between tabs** — copy a tab's full query state and paste it into another tab
