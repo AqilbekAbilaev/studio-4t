@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::history::{now_ms, HistoryStorage, QueryHistoryEntry};
 use crate::default_queries::{DefaultQuery, DefaultQueryStorage};
 use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
+use crate::tabs::TabStorage;
 use crate::pool::ConnectionPool;
 use crate::storage::{ConnectionConfig, Storage};
 use crate::uri;
@@ -1210,6 +1211,22 @@ pub fn clear_default_query(
 ) -> Result<(), AppError> {
     let key = format!("{}::{}::{}", connection_id, database, collection);
     match dq.clear(&key) {
+        Ok(val) => Ok(val),
+        Err(e)  => Err(e),
+    }
+}
+
+#[tauri::command]
+pub fn get_open_tabs(ts: State<'_, TabStorage>) -> Option<serde_json::Value> {
+    ts.load()
+}
+
+#[tauri::command]
+pub fn set_open_tabs(
+    ts:      State<'_, TabStorage>,
+    session: serde_json::Value,
+) -> Result<(), AppError> {
+    match ts.save(&session) {
         Ok(val) => Ok(val),
         Err(e)  => Err(e),
     }
