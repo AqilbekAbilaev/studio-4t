@@ -4,6 +4,7 @@
 
 ### Foundation
 - Native system menu bar (File, Edit, Database, Collection, Index, GridFS, View, Help)
+- Window opens maximized by default
 - Async connection pool — one `Client` per connection, reused across operations; concurrent
   connections don't block each other
 - Fast TCP probe — instant "connection refused" feedback before the MongoDB handshake
@@ -57,6 +58,11 @@
 - **Save / Load query (Query Browser)** — "Save query" toolbar popover prompts for a name and
   persists to `saved_queries.json` (global, not per-collection); "Load query" opens a modal with
   search, Name / Mode / Saved columns, a preview panel, and Delete + Load actions
+- **Visual Query Builder** — a panel that generates the actual filter/sort/projection
+  (`utils/vqbGenerator.js`), with drag-and-drop of result-grid cells to seed conditions
+- **Default query per collection** — set / clear a default filter for a collection
+  (`default_queries.rs`, persisted) that auto-loads when the collection is opened
+- **Copy / paste query between tabs** — copy a tab's full query state and paste it into another tab
 
 ### Collection & database
 - Create a collection (`create_collection`) and drop a database (`drop_database`, confirm dialog)
@@ -70,6 +76,9 @@
 
 ### Design system
 - `BaseIcon.vue` inline SVG icon set (no icon fonts/images); theming via CSS custom properties
+- `QueryWorkspace.vue` split into focused components (`TabBar`, `QuickstartPane`, `QueryBar`,
+  `PipelineEditor`, `ResultsPanel`, `ResultTable`); the workspace is now a slim orchestrator that
+  owns the parse + run pipeline
 
 ---
 
@@ -79,7 +88,6 @@ Most of these already have a button or menu item in the UI, currently disabled o
 "coming soon" / "coming to Studio-4T" stub.
 
 ### P1 — Medium — productivity & polish
-- [ ] **Visual Query Builder** — wire the panel to generate/sync the actual filter/sort/projection
 - [ ] **Tree View** result mode (Key / Value / Type, expandable)
 - [ ] **Tab persistence** across app restarts
 - [ ] **Per-connection status** indicator in the tree (connected / loading / error)
