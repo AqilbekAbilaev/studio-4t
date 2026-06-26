@@ -7,6 +7,7 @@ mod menu;
 mod pool;
 mod saved_queries;
 mod storage;
+mod tabs;
 mod uri;
 
 use commands::*;
@@ -15,6 +16,7 @@ use history::HistoryStorage;
 use pool::ConnectionPool;
 use saved_queries::SavedQueryStorage;
 use storage::Storage;
+use tabs::TabStorage;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -29,6 +31,7 @@ pub fn run() {
             app.manage(HistoryStorage::new(data_dir.join("history.json")));
             app.manage(SavedQueryStorage::new(data_dir.join("saved_queries.json")));
             app.manage(DefaultQueryStorage::new(data_dir.join("default_queries.json")));
+            app.manage(TabStorage::new(data_dir.join("tabs.json")));
             app.manage(ConnectionPool::new());
 
             let native_menu = match menu::build(app.handle()) {
@@ -76,6 +79,8 @@ pub fn run() {
             get_default_query,
             set_default_query,
             clear_default_query,
+            get_open_tabs,
+            set_open_tabs,
             list_saved_queries,
             save_query,
             delete_saved_query,

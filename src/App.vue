@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { installInputUndo } from './utils/inputUndo'
@@ -20,8 +20,67 @@ appWindow.listen('window-focus', async (event) => {
   }
 });
 
-// WebKitGTK has no native undo/redo for text fields — install our own so Ctrl+Z works.
-onMounted(() => installInputUndo());
+// ── tab-session persistence ────────────────────────────────
+// Persist open collection tabs (and which one is active) so they return after a
+// restart. Only the persistable fields are projected — result sets and other
+// runtime state are rebuilt on demand, so paging through data never saves.
+function projectSession() {
+  return {
+    activeTabId: activeTabId.value,
+    tabs: tabs.value
+      .filter(t => t.kind === 'collection')
+      .map(t => ({
+        id: t.id, kind: 'collection', title: t.title,
+        connectionId: t.connectionId, connectionName: t.connectionName,
+        dbName: t.dbName, collectionName: t.collectionName,
+        filter: t.filter, sort: t.sort, projection: t.projection,
+        skip: t.skip, limit: t.limit, mode: t.mode, pipeline: t.pipeline,
+      })),
+  }
+}
+
+let saveTabsTimer = null
+function scheduleSaveTabs() {
+  clearTimeout(saveTabsTimer)
+  saveTabsTimer = setTimeout(() => {
+    invoke('set_open_tabs', { session: projectSession() }).catch(() => {})
+  }, 400)
+}
+
+onMounted(async () => {
+  // WebKitGTK has no native undo/redo for text fields — install our own so Ctrl+Z works.
+  installInputUndo()
+
+  // Restore the previous session's tabs before wiring up the save watcher, so the
+  // empty default never overwrites tabs.json first.
+  try {
+    const session = await invoke('get_open_tabs')
+    const saved = session?.tabs
+    if (saved?.length) {
+      const conns = await invoke('list_connections')
+      const validIds = new Set(conns.map(c => c.id))
+      const restored = saved
+        .filter(t => validIds.has(t.connectionId))    // drop tabs for deleted connections
+        .map(t => ({
+          ...t,
+          results: [], hasRun: false, isRunning: false, runError: null,
+          selectedRow: -1, elapsedMs: null, _restored: true,
+        }))
+      if (restored.length) {
+        tabs.value.push(...restored)
+        if (restored.some(t => t.id === session.activeTabId)) {
+          activeTabId.value = session.activeTabId
+        }
+        const active = tabs.value.find(t => t.id === activeTabId.value)
+        if (active && active._restored) runRestoredTab(active)
+      }
+    }
+  } catch (_) {}
+
+  // Save on any change to the open tabs or the active tab. The watched getter
+  // reads only persistable fields, so result-set updates don't trigger it.
+  watch(() => JSON.stringify(projectSession()), scheduleSaveTabs)
+});
 
 // ── toolbar definition ─────────────────────────────────────
 const TOOLS = [
@@ -618,7 +677,30 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
   }
 }
 
-function activateTab(id) { activeTabId.value = id }
+function activateTab(id) {
+  activeTabId.value = id
+  const tab = tabs.value.find(t => t.id === id)
+  if (tab && tab._restored) runRestoredTab(tab)
+}
+
+// A tab restored from a previous session carries its query text but no results.
+// We run it lazily — the first time it becomes active — so a restart doesn't
+// reconnect to every server at once. Find tabs re-run their stored query;
+// aggregate tabs just keep their pipeline text and wait for a manual run.
+function runRestoredTab(tab) {
+  tab._restored = false
+  if (tab.mode !== 'find') return
+  const pf = parseField(tab.filter     || '')
+  const ps = parseField(tab.sort       || '')
+  const pp = parseField(tab.projection || '')
+  runQuery(tab.id, {
+    filter:     pf.ok ? pf.ejson : '{}',
+    sort:       ps.ok ? ps.ejson : '{}',
+    projection: pp.ok ? pp.ejson : '{}',
+    skip:       Number(tab.skip),
+    limit:      Number(tab.limit),
+  })
+}
 
 function onCopyQuery() {
   const tab = tabs.value.find(t => t.id === activeTabId.value)
