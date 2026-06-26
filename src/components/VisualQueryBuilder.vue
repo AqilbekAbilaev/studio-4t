@@ -184,11 +184,14 @@ function removeSortField(id) {
               @input="applyAndRun"
               spellcheck="false"
             />
-            <select class="pill grow" v-model="c.op" @change="applyAndRun">
-              <option v-for="op in OPERATORS" :key="op.value" :value="op.value">
-                {{ op.label }}
-              </option>
-            </select>
+            <div class="op-select grow">
+              <select class="pill" v-model="c.op" @change="applyAndRun">
+                <option v-for="op in OPERATORS" :key="op.value" :value="op.value">
+                  {{ op.label }}
+                </option>
+              </select>
+              <BaseIcon name="caretDown" :size="12" class="op-caret" />
+            </div>
             <button class="icon-btn sm" @click="removeCondition(c.id)">
               <BaseIcon name="trash" :size="13" />
             </button>
@@ -444,7 +447,25 @@ function removeSortField(id) {
   cursor: default;
 }
 .cond-val   { font-family: var(--mono); }
-select.pill { cursor: pointer; }
+
+/* operator dropdown — strip native chrome, overlay a token-colored caret */
+.op-select { position: relative; display: flex; }
+.op-select.grow { flex: 1; }
+.op-select select.pill {
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 24px;
+}
+.op-caret {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
 
 /* icon buttons */
 .icon-btn.sm {
