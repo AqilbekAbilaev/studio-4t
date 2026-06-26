@@ -19,7 +19,7 @@ const props = defineProps({
 // `run` re-runs the active tab in its current mode (the toolbar refresh button).
 // `requery` re-runs the find query with an explicit history flag (pagination, CRUD
 // refresh). Both delegate to the parent, which owns the parse + run pipeline.
-const emit = defineEmits(['run', 'requery', 'select-rtab'])
+const emit = defineEmits(['run', 'requery', 'select-rtab', 'open-vqb', 'close-vqb'])
 
 const viewMode     = ref('table')
 const viewMenu     = ref(false)
@@ -344,6 +344,8 @@ const queryCode = computed(() => {
       @dragged-field="draggedField = $event"
       @drag-over-section="dragOverSection = $event"
       @vqb-drop="vqbDrop = $event"
+      @open-vqb="emit('open-vqb')"
+      @close-vqb="emit('close-vqb')"
       @crud-error="crudError = $event"
     />
 

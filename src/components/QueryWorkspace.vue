@@ -16,7 +16,7 @@ const props = defineProps({
   vqbOpen:        { type: Boolean, default: false },
   clipboardQuery: { type: Object,  default: null },
 })
-const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggregate', 'toggle-vqb', 'toast', 'copy-query', 'paste-query'])
+const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggregate', 'toggle-vqb', 'open-vqb', 'close-vqb', 'toast', 'copy-query', 'paste-query'])
 
 const showQueryBrowser = ref(false)
 
@@ -241,6 +241,8 @@ async function applyFromBrowser(entry) {
         @run="run"
         @requery="runQuery"
         @select-rtab="selectRtab"
+        @open-vqb="emit('open-vqb')"
+        @close-vqb="emit('close-vqb')"
       />
     </template>
   </div>

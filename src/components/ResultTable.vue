@@ -13,7 +13,7 @@ const props = defineProps({
 // consumed by VisualQueryBuilder, which lives beside this grid in ResultsPanel, so they
 // bubble up rather than being held here. `update:drillPath` keeps drill state (owned by
 // ResultsPanel so it survives view switches and the run-reset) in sync via v-model.
-const emit = defineEmits(['dragged-field', 'drag-over-section', 'vqb-drop', 'crud-error', 'update:drillPath'])
+const emit = defineEmits(['dragged-field', 'drag-over-section', 'vqb-drop', 'open-vqb', 'close-vqb', 'crud-error', 'update:drillPath'])
 
 function onThClick(col) {
   if (!props.vqbOpen) return
@@ -35,6 +35,7 @@ let dragField         = ''
 let dragStartX        = 0
 let dragStartY        = 0
 let suppressNextClick = false
+let openedByDrag      = false  // did *this* drag auto-open the panel?
 
 function sectionAtPoint(x, y) {
   const el = document.elementFromPoint(x, y)
@@ -43,13 +44,14 @@ function sectionAtPoint(x, y) {
 }
 
 function onCellMouseDown(e, col) {
-  if (!props.vqbOpen || e.button !== 0) return
+  if (e.button !== 0) return
   if (e.target.tagName === 'INPUT') return  // inline cell editor is active
   // Suppress the browser's native press-drag selection gesture, which otherwise
   // auto-scrolls the grid sideways as the pointer moves toward the VQB panel.
   // Click and dblclick still fire, so cell selection / editing is unaffected.
   e.preventDefault()
   suppressNextClick = false
+  openedByDrag = false
   dragField  = col
   dragStartX = e.clientX
   dragStartY = e.clientY
@@ -63,6 +65,9 @@ function onDragMove(e) {
     if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) < DRAG_THRESHOLD) return
     dragging.value = true
     document.body.style.cursor = 'grabbing'
+    // Opening the panel mid-drag renders its drop zones (data-vqb-drop) just in
+    // time for the pointer to reach them, so the drop hit-test below still works.
+    if (!props.vqbOpen) { openedByDrag = true; emit('open-vqb') }
   }
   dragGhost.value = { x: e.clientX, y: e.clientY, label: dragField }
   emit('drag-over-section', sectionAtPoint(e.clientX, e.clientY))
@@ -75,6 +80,8 @@ function onDragUp(e) {
   if (dragging.value) {
     const section = sectionAtPoint(e.clientX, e.clientY)
     if (section) emit('vqb-drop', { field: dragField, section: section, nonce: Date.now() })
+    // Dropped outside the panel: if this drag is what opened it, close it again.
+    else if (openedByDrag) emit('close-vqb')
     suppressNextClick = true  // swallow the click that fires after a real drag
   }
   dragging.value = false
