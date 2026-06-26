@@ -797,6 +797,8 @@ async function runAggregate(tabId, params) {
         @run-query="runQuery"
         @run-aggregate="runAggregate"
         @toggle-vqb="vqbOpen = !vqbOpen"
+        @open-vqb="vqbOpen = true"
+        @close-vqb="vqbOpen = false"
         @toast="showToast"
         @copy-query="onCopyQuery"
         @paste-query="onPasteQuery"
