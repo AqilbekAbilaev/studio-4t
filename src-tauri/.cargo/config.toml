@@ -1,0 +1,5 @@
+# Compiling the boa_engine JavaScript engine (used by IntelliShell) generates
+# very large functions that can overflow rustc's default codegen stack and crash
+# with SIGSEGV. Give rustc a bigger stack for every build in this project.
+[env]
+RUST_MIN_STACK = "33554432"

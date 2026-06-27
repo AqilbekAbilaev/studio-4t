@@ -225,6 +225,15 @@ async function handleContextAction(action) {
     return
   }
 
+  if (action === 'Open IntelliShell') {
+    openShellTab({
+      connectionId: saved.nodeData.connId,
+      connectionName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+    })
+    return
+  }
+
   if (action.startsWith('Choose Color:')) {
     const color = action.split(':')[1]
     tagOverrides.value = { ...tagOverrides.value, [saved.nodeData.connId]: color }
@@ -677,6 +686,22 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
   }
 }
 
+// Open an IntelliShell tab scoped to a connection + database. Each shell tab has
+// its own backend JS session (sessionId), so variables persist across runs.
+function openShellTab({ connectionId, connectionName, dbName }) {
+  const id = 't' + Date.now()
+  tabs.value.push({
+    id: id, kind: 'shell',
+    title: 'mongosh: ' + dbName,
+    connectionId: connectionId,
+    connectionName: connectionName,
+    dbName: dbName,
+    sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
+    entries: [], history: [], isRunning: false,
+  })
+  activeTabId.value = id
+}
+
 function activateTab(id) {
   activeTabId.value = id
   const tab = tabs.value.find(t => t.id === id)
@@ -745,6 +770,10 @@ async function onPasteQuery() {
 function closeTab(id) {
   const idx = tabs.value.findIndex(t => t.id === id)
   if (idx < 0) return
+  const closing = tabs.value[idx]
+  if (closing.kind === 'shell' && closing.sessionId) {
+    invoke('close_shell_session', { sessionId: closing.sessionId }).catch(() => {})
+  }
   tabs.value.splice(idx, 1)
   if (activeTabId.value === id) {
     const next = tabs.value[Math.max(0, idx - 1)]
