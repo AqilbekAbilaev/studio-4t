@@ -7,6 +7,7 @@ mod menu;
 mod pool;
 mod saved_queries;
 mod shell;
+mod ssh;
 mod shell_history;
 mod storage;
 mod tabs;
@@ -58,6 +59,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             test_connection,
+            test_ssh_connection,
             save_connection,
             update_connection,
             list_connections,

@@ -68,6 +68,23 @@ async function pickTlsFile(target) {
   } catch (_) {}
 }
 
+// ssh tab
+const useSsh          = ref(isEditMode ? !!props.editConn.ssh_enabled : false)
+const sshHost         = ref(isEditMode ? (props.editConn.ssh_host ?? '') : '')
+const sshPort         = ref(isEditMode ? (props.editConn.ssh_port ?? 22) : 22)
+const sshUser         = ref(isEditMode ? (props.editConn.ssh_user ?? '') : '')
+const sshAuth         = ref(isEditMode ? (props.editConn.ssh_auth ?? 'password') : 'password')
+const sshPassword     = ref('')   // never pre-filled — empty means "keep existing"
+const sshKeyFile      = ref(isEditMode ? (props.editConn.ssh_key_file ?? '') : '')
+const sshKeyPassphrase = ref('')  // never pre-filled
+
+async function pickSshKey() {
+  try {
+    const picked = await openDialog({ multiple: false })
+    if (typeof picked === 'string') sshKeyFile.value = picked
+  } catch (_) {}
+}
+
 // advanced tab
 const selectedTag = ref(isEditMode ? (props.editConn.tag ?? 'none') : 'none')
 
@@ -149,7 +166,25 @@ async function testConnection() {
   status.value = null
   isTesting.value = true
   try {
-    await invoke('test_connection', { uri: buildUriForTest() })
+    if (useSsh.value) {
+      await invoke('test_ssh_connection', {
+        sshHost:       sshHost.value,
+        sshPort:       Number(sshPort.value) || 22,
+        sshUser:       sshUser.value,
+        sshAuth:       sshAuth.value,
+        sshPassword:   sshPassword.value || null,
+        sshKeyFile:    sshKeyFile.value || null,
+        sshPassphrase: sshKeyPassphrase.value || null,
+        mongoHost:     host.value,
+        mongoPort:     Number(port.value) || 27017,
+        username:      authMode.value !== 'none' ? (username.value || null) : null,
+        password:      authMode.value !== 'none' ? (password.value || null) : null,
+        authDb:        authMode.value !== 'none' ? (authDb.value || null) : null,
+        authMechanism: authMode.value,
+      })
+    } else {
+      await invoke('test_connection', { uri: buildUriForTest() })
+    }
     status.value = { type: 'success', message: 'Connected successfully.' }
   } catch (e) {
     status.value = { type: 'error', message: String(e) }
@@ -180,6 +215,14 @@ async function save() {
       tlsCaFile:                    useTls.value ? (tlsCaFile.value || null) : null,
       tlsCertKeyFile:               useTls.value ? (tlsCertKeyFile.value || null) : null,
       tlsAllowInvalidCertificates:  useTls.value ? tlsAllowInvalidCerts.value : false,
+      sshEnabled:    useSsh.value,
+      sshHost:       useSsh.value ? (sshHost.value || null) : null,
+      sshPort:       Number(sshPort.value) || 22,
+      sshUser:       useSsh.value ? (sshUser.value || null) : null,
+      sshAuth:       useSsh.value ? sshAuth.value : null,
+      sshKeyFile:    (useSsh.value && sshAuth.value === 'key') ? (sshKeyFile.value || null) : null,
+      sshPassword:   (useSsh.value && sshAuth.value === 'password') ? (sshPassword.value || null) : null,
+      sshPassphrase: (useSsh.value && sshAuth.value === 'key') ? (sshKeyPassphrase.value || null) : null,
       tag:             selectedTag.value !== 'none' ? selectedTag.value : null,
     }
 
@@ -199,6 +242,12 @@ async function save() {
         tls_ca_file:                    fields.tlsCaFile,
         tls_cert_key_file:              fields.tlsCertKeyFile,
         tls_allow_invalid_certificates: fields.tlsAllowInvalidCertificates,
+        ssh_enabled:  fields.sshEnabled,
+        ssh_host:     fields.sshHost,
+        ssh_port:     fields.sshPort,
+        ssh_user:     fields.sshUser,
+        ssh_auth:     fields.sshAuth,
+        ssh_key_file: fields.sshKeyFile,
         tag:             fields.tag,
       }
       emit('updated', updated)
@@ -390,8 +439,54 @@ async function save() {
 
         <!-- SSH Tunnel -->
         <div v-else-if="activeTab === 'ssh'" class="nc-form">
-          <label class="chk-line big"><span class="cb"></span> Use SSH tunnel</label>
-          <div class="nc-hint" style="margin-top:12px">SSH tunnel configuration — coming soon.</div>
+          <label class="chk-line big" @click="useSsh = !useSsh">
+            <span class="cb" :class="{ on: useSsh }"><BaseIcon v-if="useSsh" name="check" :size="12" /></span>
+            Use SSH tunnel
+          </label>
+
+          <template v-if="useSsh">
+            <div class="nc-inline2">
+              <div class="nc-field" style="flex:1">
+                <label>SSH host</label>
+                <input class="nc-input" v-model="sshHost" placeholder="bastion.example.com" spellcheck="false" />
+              </div>
+              <div class="nc-field" style="width:92px">
+                <label>Port</label>
+                <input class="nc-input" type="number" v-model.number="sshPort" />
+              </div>
+            </div>
+            <div class="nc-field">
+              <label>SSH user</label>
+              <input class="nc-input" v-model="sshUser" spellcheck="false" />
+            </div>
+            <div class="nc-field">
+              <label>Authentication</label>
+              <div class="seg">
+                <button type="button" class="seg-b" :class="{ on: sshAuth === 'password' }" @click="sshAuth = 'password'">Password</button>
+                <button type="button" class="seg-b" :class="{ on: sshAuth === 'key' }" @click="sshAuth = 'key'">Private key</button>
+              </div>
+            </div>
+
+            <div v-if="sshAuth === 'password'" class="nc-field">
+              <label>SSH password</label>
+              <input class="nc-input" type="password" v-model="sshPassword" :placeholder="isEditMode ? 'Leave blank to keep existing' : ''" />
+            </div>
+            <template v-else>
+              <div class="nc-field">
+                <label>Private key file</label>
+                <div class="nc-file-row">
+                  <input class="nc-input" v-model="sshKeyFile" placeholder="~/.ssh/id_ed25519" spellcheck="false" />
+                  <button type="button" class="nc-browse" @click="pickSshKey">Browse…</button>
+                </div>
+              </div>
+              <div class="nc-field">
+                <label>Key passphrase (optional)</label>
+                <input class="nc-input" type="password" v-model="sshKeyPassphrase" :placeholder="isEditMode ? 'Leave blank to keep existing' : ''" />
+              </div>
+            </template>
+
+            <div class="nc-hint">The MongoDB host/port (Server tab) are resolved from the SSH host. Standalone connections only — replica set / SRV over SSH aren't supported yet.</div>
+          </template>
         </div>
 
         <!-- SSL -->
