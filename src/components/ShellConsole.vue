@@ -2,6 +2,7 @@
 import { ref, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from './BaseIcon.vue'
+import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
 
 // IntelliShell console. Bound to a shell tab (connection + database). Each tab
 // carries its own backend session (tab.sessionId), so variables persist across
@@ -22,12 +23,12 @@ function scrollToEnd() {
   })
 }
 
-// Pretty-print the completion value. Phase 1 uses plain JSON; a shared
-// mongosh-style formatter (ObjectId(...) etc.) is wired in a later phase.
+// Pretty-print the completion value mongosh-style (ObjectId(...), etc.) with
+// syntax highlighting, shared with the results panel.
 function formatValue(value) {
   if (value === undefined || value === null) return ''
   try {
-    return JSON.stringify(value, null, 2)
+    return syntaxHighlight(mongoStringify(value))
   } catch (_) {
     return String(value)
   }
@@ -111,7 +112,7 @@ function onKeydown(e) {
         <pre class="cmd"><span class="prompt">&gt;</span> {{ entry.command }}</pre>
         <pre v-for="(line, j) in entry.logs" :key="j" class="log">{{ line }}</pre>
         <pre v-if="entry.error" class="err">{{ entry.error }}</pre>
-        <pre v-else-if="entry.value !== undefined && entry.value !== null" class="val">{{ formatValue(entry.value) }}</pre>
+        <pre v-else-if="entry.value !== undefined && entry.value !== null" class="val" v-html="formatValue(entry.value)"></pre>
       </div>
     </div>
 
@@ -159,8 +160,19 @@ function onKeydown(e) {
 .cmd { color: var(--text); white-space: pre-wrap; word-break: break-word; margin: 0; }
 .prompt { color: var(--accent); margin-right: 6px; }
 .log { color: var(--text-dim); white-space: pre-wrap; word-break: break-word; margin: 2px 0 0; }
-.val { color: var(--cell-num); white-space: pre-wrap; word-break: break-word; margin: 2px 0 0; }
+.val { color: var(--text); white-space: pre-wrap; word-break: break-word; margin: 2px 0 0; }
 .err { color: #e0625b; white-space: pre-wrap; word-break: break-word; margin: 2px 0 0; }
+
+/* select/copy transcript output, and color JSON tokens like the results panel */
+.transcript :deep(span) { -webkit-user-select: text; user-select: text; }
+.cmd, .log, .val, .err { -webkit-user-select: text; user-select: text; }
+.val :deep(.jk)  { color: var(--cell-key); }
+.val :deep(.jop) { color: var(--cell-op); }
+.val :deep(.js)  { color: var(--cell-str); }
+.val :deep(.jn)  { color: var(--cell-num); }
+.val :deep(.jb)  { color: var(--cell-num); }
+.val :deep(.jl)  { color: var(--text-faint); }
+.val :deep(.joid) { color: var(--link); }
 
 .input-row {
   flex: none; display: flex; align-items: flex-start; gap: 8px;
