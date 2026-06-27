@@ -25,20 +25,10 @@ impl TabStorage {
     }
 
     pub fn save(&self, session: &serde_json::Value) -> Result<(), AppError> {
-        if let Some(parent) = self.path.parent() {
-            match std::fs::create_dir_all(parent) {
-                Ok(val) => val,
-                Err(e)  => return Err(AppError::Io(e)),
-            };
-        }
         let content = match serde_json::to_string_pretty(session) {
             Ok(val) => val,
             Err(e)  => return Err(AppError::Serde(e)),
         };
-        match std::fs::write(&self.path, content) {
-            Ok(val) => val,
-            Err(e)  => return Err(AppError::Io(e)),
-        };
-        Ok(())
+        crate::persist::atomic_write(&self.path, &content)
     }
 }

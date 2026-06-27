@@ -4,6 +4,7 @@ mod error;
 mod history;
 mod keychain;
 mod menu;
+mod persist;
 mod pool;
 mod saved_queries;
 mod shell;

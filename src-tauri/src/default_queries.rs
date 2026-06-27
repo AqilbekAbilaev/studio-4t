@@ -2,6 +2,7 @@ use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DefaultQuery {
@@ -16,11 +17,12 @@ pub struct DefaultQuery {
 
 pub struct DefaultQueryStorage {
     path: PathBuf,
+    lock: Mutex<()>,
 }
 
 impl DefaultQueryStorage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path }
+        Self { path: path, lock: Mutex::new(()) }
     }
 
     fn load_all(&self) -> HashMap<String, DefaultQuery> {
@@ -32,21 +34,11 @@ impl DefaultQueryStorage {
     }
 
     fn save_all(&self, map: &HashMap<String, DefaultQuery>) -> Result<(), AppError> {
-        if let Some(parent) = self.path.parent() {
-            match std::fs::create_dir_all(parent) {
-                Ok(val) => val,
-                Err(e)  => return Err(AppError::Io(e)),
-            };
-        }
         let content = match serde_json::to_string_pretty(map) {
             Ok(val) => val,
             Err(e)  => return Err(AppError::Serde(e)),
         };
-        match std::fs::write(&self.path, content) {
-            Ok(val) => val,
-            Err(e)  => return Err(AppError::Io(e)),
-        };
-        Ok(())
+        crate::persist::atomic_write(&self.path, &content)
     }
 
     pub fn get(&self, key: &str) -> Option<DefaultQuery> {
@@ -54,12 +46,20 @@ impl DefaultQueryStorage {
     }
 
     pub fn set(&self, key: &str, entry: DefaultQuery) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut map = self.load_all();
         map.insert(key.to_string(), entry);
         self.save_all(&map)
     }
 
     pub fn clear(&self, key: &str) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut map = self.load_all();
         map.remove(key);
         self.save_all(&map)

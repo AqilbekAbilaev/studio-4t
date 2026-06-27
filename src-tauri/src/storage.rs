@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 fn default_host() -> String { String::from("localhost") }
 fn default_port() -> u16 { 27017 }
@@ -61,11 +62,14 @@ pub struct ConnectionConfig {
 
 pub struct Storage {
     path: PathBuf,
+    // Serializes read-modify-write sequences so concurrent commands can't lose
+    // each other's updates to the same file.
+    lock: Mutex<()>,
 }
 
 impl Storage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path }
+        Self { path: path, lock: Mutex::new(()) }
     }
 
     pub fn load(&self) -> Vec<ConnectionConfig> {
@@ -77,30 +81,28 @@ impl Storage {
     }
 
     pub fn save(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
-        if let Some(parent) = self.path.parent() {
-            match std::fs::create_dir_all(parent) {
-                Ok(val) => val,
-                Err(e) => return Err(AppError::Io(e)),
-            };
-        }
         let content = match serde_json::to_string_pretty(connections) {
             Ok(val) => val,
             Err(e) => return Err(AppError::Serde(e)),
         };
-        match std::fs::write(&self.path, content) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Io(e)),
-        };
-        Ok(())
+        crate::persist::atomic_write(&self.path, &content)
     }
 
     pub fn add(&self, config: ConnectionConfig) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut connections = self.load();
         connections.push(config);
         self.save(&connections)
     }
 
     pub fn update(&self, config: ConnectionConfig) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut connections = self.load();
         if let Some(c) = connections.iter_mut().find(|c| c.id == config.id) {
             *c = config;
@@ -109,6 +111,10 @@ impl Storage {
     }
 
     pub fn remove(&self, id: &str) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut connections = self.load();
         connections.retain(|c| c.id != id);
         self.save(&connections)
