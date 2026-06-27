@@ -5,6 +5,7 @@ use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
 use crate::tabs::TabStorage;
 use crate::pool::ConnectionPool;
 use crate::shell::{ShellEngine, ShellResult};
+use crate::shell_history::ShellHistoryStorage;
 use crate::storage::{ConnectionConfig, Storage};
 use crate::uri;
 use mongodb::bson;
@@ -1382,6 +1383,32 @@ pub async fn close_shell_session(
 ) -> Result<(), AppError> {
     shell.close(session_id);
     Ok(())
+}
+
+/// Persisted IntelliShell command history for a connection (oldest first).
+#[tauri::command]
+pub fn get_shell_history(
+    history: State<'_, ShellHistoryStorage>,
+    connection_id: String,
+) -> Vec<String> {
+    history.get(&connection_id)
+}
+
+#[tauri::command]
+pub fn push_shell_command(
+    history: State<'_, ShellHistoryStorage>,
+    connection_id: String,
+    command: String,
+) -> Result<(), AppError> {
+    history.push(&connection_id, command)
+}
+
+#[tauri::command]
+pub fn clear_shell_history(
+    history: State<'_, ShellHistoryStorage>,
+    connection_id: String,
+) -> Result<(), AppError> {
+    history.clear(&connection_id)
 }
 
 #[cfg(test)]
