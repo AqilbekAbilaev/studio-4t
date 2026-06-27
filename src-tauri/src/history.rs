@@ -2,6 +2,7 @@ use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
 const MAX_HISTORY: usize = 50;
@@ -21,11 +22,12 @@ pub struct QueryHistoryEntry {
 
 pub struct HistoryStorage {
     path: PathBuf,
+    lock: Mutex<()>,
 }
 
 impl HistoryStorage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path }
+        Self { path: path, lock: Mutex::new(()) }
     }
 
     fn load_all(&self) -> HashMap<String, Vec<QueryHistoryEntry>> {
@@ -37,21 +39,11 @@ impl HistoryStorage {
     }
 
     fn save_all(&self, map: &HashMap<String, Vec<QueryHistoryEntry>>) -> Result<(), AppError> {
-        if let Some(parent) = self.path.parent() {
-            match std::fs::create_dir_all(parent) {
-                Ok(val) => val,
-                Err(e) => return Err(AppError::Io(e)),
-            };
-        }
         let content = match serde_json::to_string_pretty(map) {
             Ok(val) => val,
             Err(e) => return Err(AppError::Serde(e)),
         };
-        match std::fs::write(&self.path, content) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Io(e)),
-        };
-        Ok(())
+        crate::persist::atomic_write(&self.path, &content)
     }
 
     pub fn get(&self, key: &str) -> Vec<QueryHistoryEntry> {
@@ -63,6 +55,10 @@ impl HistoryStorage {
     }
 
     pub fn push(&self, key: &str, entry: QueryHistoryEntry) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut map = self.load_all();
         let entries = map.entry(key.to_string()).or_insert_with(Vec::new);
         entries.retain(|e| !is_same_query(e, &entry));
@@ -72,6 +68,10 @@ impl HistoryStorage {
     }
 
     pub fn clear(&self, key: &str) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut map = self.load_all();
         map.remove(key);
         self.save_all(&map)

@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 const MAX_HISTORY: usize = 200;
 
@@ -9,11 +10,12 @@ const MAX_HISTORY: usize = 200;
 /// for ↑/↓ recall.
 pub struct ShellHistoryStorage {
     path: PathBuf,
+    lock: Mutex<()>,
 }
 
 impl ShellHistoryStorage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path }
+        Self { path: path, lock: Mutex::new(()) }
     }
 
     fn load_all(&self) -> HashMap<String, Vec<String>> {
@@ -25,21 +27,11 @@ impl ShellHistoryStorage {
     }
 
     fn save_all(&self, map: &HashMap<String, Vec<String>>) -> Result<(), AppError> {
-        if let Some(parent) = self.path.parent() {
-            match std::fs::create_dir_all(parent) {
-                Ok(val) => val,
-                Err(e) => return Err(AppError::Io(e)),
-            };
-        }
         let content = match serde_json::to_string_pretty(map) {
             Ok(val) => val,
             Err(e) => return Err(AppError::Serde(e)),
         };
-        match std::fs::write(&self.path, content) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Io(e)),
-        };
-        Ok(())
+        crate::persist::atomic_write(&self.path, &content)
     }
 
     pub fn get(&self, key: &str) -> Vec<String> {
@@ -53,6 +45,10 @@ impl ShellHistoryStorage {
     /// Append a command, moving any existing identical entry to the most-recent
     /// position and capping the list to the newest MAX_HISTORY commands.
     pub fn push(&self, key: &str, command: String) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut map = self.load_all();
         let commands = map.entry(key.to_string()).or_insert_with(Vec::new);
         commands.retain(|existing| existing != &command);
@@ -65,6 +61,10 @@ impl ShellHistoryStorage {
     }
 
     pub fn clear(&self, key: &str) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
         let mut map = self.load_all();
         map.remove(key);
         self.save_all(&map)
