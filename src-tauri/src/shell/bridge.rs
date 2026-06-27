@@ -20,6 +20,14 @@ use mongodb::options::IndexOptions;
 use mongodb::{Client, Collection, IndexModel};
 use tokio::runtime::Handle;
 
+/// `find()` without an explicit `.limit()` returns at most this many documents,
+/// so a bare `db.coll.find({})` on a large collection can't hang the shell
+/// fetching everything (mongosh shows a small batch for the same reason).
+const DEFAULT_FIND_LIMIT: i64 = 20;
+/// Hard ceiling on documents materialized by a single find/aggregate, so an
+/// explicit large `.limit()` or a huge pipeline can't exhaust memory.
+const MAX_DOCS: usize = 5000;
+
 /// The live connection a shell session is bound to. Rebound before each eval.
 pub(super) struct DbInner {
     pub client: Client,
@@ -85,8 +93,8 @@ const DB_PREAMBLE: &str = r#"
                 projection: function (p) { spec.projection = p; cache = null; return cursor; },
                 toArray:    function () { return run(); },
                 pretty:     function () { return run(); },
-                count:      function () { return run().length; },
-                size:       function () { return run().length; },
+                count:      function () { return method === 'find' ? call(name, 'countDocuments', [spec.filter || {}]) : run().length; },
+                size:       function () { return method === 'find' ? call(name, 'countDocuments', [spec.filter || {}]) : run().length; },
                 forEach:    function (fn) { var a = run(); for (var i = 0; i < a.length; i++) { fn(a[i], i); } },
                 map:        function (fn) { var a = run(); var out = []; for (var i = 0; i < a.length; i++) { out.push(fn(a[i], i)); } return out; },
                 hasNext:    function () { run(); return pos < cache.length; },
@@ -297,11 +305,18 @@ async fn exec_find(
             query = query.skip(skip as u64);
         }
     }
-    if let Some(limit) = args.get(4).and_then(|value| value.as_f64()) {
-        if limit > 0.0 {
-            query = query.limit(limit as i64);
-        }
-    }
+    // Default to a small batch when no limit is set; never fetch beyond MAX_DOCS.
+    let requested = args
+        .get(4)
+        .and_then(|value| value.as_f64())
+        .map(|value| value as i64)
+        .unwrap_or(0);
+    let effective_limit = if requested <= 0 {
+        DEFAULT_FIND_LIMIT
+    } else {
+        requested.min(MAX_DOCS as i64)
+    };
+    query = query.limit(effective_limit);
 
     let mut cursor = match query.await {
         Ok(value) => value,
@@ -509,6 +524,10 @@ async fn exec_aggregate(
     };
     let mut docs = Vec::new();
     loop {
+        // Safety ceiling so a huge pipeline result can't exhaust memory.
+        if docs.len() >= MAX_DOCS {
+            break;
+        }
         let has_next = match cursor.advance().await {
             Ok(value) => value,
             Err(e) => return Err(e.to_string()),
