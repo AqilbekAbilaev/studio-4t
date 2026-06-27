@@ -28,14 +28,20 @@ function projectSession() {
   return {
     activeTabId: activeTabId.value,
     tabs: tabs.value
-      .filter(t => t.kind === 'collection')
-      .map(t => ({
-        id: t.id, kind: 'collection', title: t.title,
-        connectionId: t.connectionId, connectionName: t.connectionName,
-        dbName: t.dbName, collectionName: t.collectionName,
-        filter: t.filter, sort: t.sort, projection: t.projection,
-        skip: t.skip, limit: t.limit, mode: t.mode, pipeline: t.pipeline,
-      })),
+      .filter(t => t.kind === 'collection' || t.kind === 'shell')
+      .map(t => t.kind === 'shell'
+        ? {
+            id: t.id, kind: 'shell', title: t.title,
+            connectionId: t.connectionId, connectionName: t.connectionName,
+            dbName: t.dbName, code: t.code,
+          }
+        : {
+            id: t.id, kind: 'collection', title: t.title,
+            connectionId: t.connectionId, connectionName: t.connectionName,
+            dbName: t.dbName, collectionName: t.collectionName,
+            filter: t.filter, sort: t.sort, projection: t.projection,
+            skip: t.skip, limit: t.limit, mode: t.mode, pipeline: t.pipeline,
+          }),
   }
 }
 
@@ -61,11 +67,24 @@ onMounted(async () => {
       const validIds = new Set(conns.map(c => c.id))
       const restored = saved
         .filter(t => validIds.has(t.connectionId))    // drop tabs for deleted connections
-        .map(t => ({
-          ...t,
-          results: [], hasRun: false, isRunning: false, runError: null,
-          selectedRow: -1, elapsedMs: null, _restored: true,
-        }))
+        .map(t => t.kind === 'shell'
+          ? {
+              // Rebuild a shell tab with a fresh backend session (JS contexts are
+              // ephemeral); the editor text is restored, history loads on mount.
+              id: t.id, kind: 'shell', title: t.title,
+              connectionId: t.connectionId, connectionName: t.connectionName,
+              dbName: t.dbName,
+              sessionId: (crypto.randomUUID ? crypto.randomUUID() : t.id),
+              code: t.code || '', history: [], isRunning: false,
+              results: [], resultView: 'table', resultTab: 'Console',
+              runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
+              logs: [], scalar: undefined, hasScalar: false,
+            }
+          : {
+              ...t,
+              results: [], hasRun: false, isRunning: false, runError: null,
+              selectedRow: -1, elapsedMs: null, _restored: true,
+            })
       if (restored.length) {
         tabs.value.push(...restored)
         if (restored.some(t => t.id === session.activeTabId)) {
