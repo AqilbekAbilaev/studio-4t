@@ -6,6 +6,7 @@ import DocumentModal from './DocumentModal.vue'
 import VisualQueryBuilder from './VisualQueryBuilder.vue'
 import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
+import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
 
 const props = defineProps({
   activeTab:   { type: Object,  required: true },
@@ -67,52 +68,6 @@ function startVqbResize(e) {
   document.addEventListener('mouseup', onUp)
 }
 
-// ── Mongo shell-style stringifier (renders {"$oid": "..."} as ObjectId("...")) ────
-function mongoStringify(value, indent = '') {
-  if (value === null) return 'null'
-  if (Array.isArray(value)) {
-    if (!value.length) return '[]'
-    const inner = indent + '  '
-    const items = value.map((v) => inner + mongoStringify(v, inner))
-    return '[\n' + items.join(',\n') + '\n' + indent + ']'
-  }
-  if (typeof value === 'object') {
-    const keys = Object.keys(value)
-    if (keys.length === 1 && keys[0] === '$oid' && typeof value.$oid === 'string') {
-      return `ObjectId("${value.$oid}")`
-    }
-    if (!keys.length) return '{}'
-    const inner = indent + '  '
-    const items = keys.map((k) => `${inner}${JSON.stringify(k)} : ${mongoStringify(value[k], inner)}`)
-    return '{\n' + items.join(',\n') + '\n' + indent + '}'
-  }
-  return JSON.stringify(value)
-}
-
-// ── JSON syntax highlighter ────────────────────────────
-function syntaxHighlight(json) {
-  return json
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(
-      /(ObjectId\("[0-9a-fA-F]{24}"\)|"(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
-      (match) => {
-        if (match.startsWith('ObjectId(')) return `<span class="joid">${match}</span>`
-        if (match[0] === '"') {
-          if (/:$/.test(match)) {
-            return match[1] === '$'
-              ? `<span class="jop">${match}</span>`
-              : `<span class="jk">${match}</span>`
-          }
-          return `<span class="js">${match}</span>`
-        }
-        if (match === 'true' || match === 'false') return `<span class="jb">${match}</span>`
-        if (match === 'null') return `<span class="jl">${match}</span>`
-        return `<span class="jn">${match}</span>`
-      }
-    )
-}
 
 // ── pagination ─────────────────────────────────────────
 const PAGE_SIZES = [10, 25, 50, 100, 200]
