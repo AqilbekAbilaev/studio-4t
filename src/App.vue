@@ -1238,7 +1238,7 @@ async function runAggregate(tabId, params) {
 
 /* ── Resizer ── */
 .resizer {
-  width: 5px;
+  width: 3px;
   flex: none;
   cursor: col-resize;
   background: var(--border);

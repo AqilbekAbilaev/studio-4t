@@ -65,6 +65,7 @@
 - **Default query per collection** — set / clear a default filter for a collection
   (`default_queries.rs`, persisted) that auto-loads when the collection is opened
 - **Copy / paste query between tabs** — copy a tab's full query state and paste it into another tab
+- **Tab persistence** — open tabs (and their query state) are saved and restored across app restarts
 
 ### Collection & database
 - Create a collection (`create_collection`) and drop a database (`drop_database`, confirm dialog)
@@ -91,7 +92,6 @@ Most of these already have a button or menu item in the UI, currently disabled o
 
 ### P1 — Medium — productivity & polish
 - [ ] **Tree View** result mode (Key / Value / Type, expandable)
-- [ ] **Tab persistence** across app restarts
 - [ ] **Per-connection status** indicator in the tree (connected / loading / error)
 - [ ] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar stubs)
 - [ ] **Last-page** paging button (currently disabled)

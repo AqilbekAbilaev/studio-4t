@@ -12,15 +12,19 @@ import {
 const props = defineProps({
   tabs:            { type: Array,  required: true },
   activeTabId:     { type: String, required: true },
+  // Panel width in px, owned by ResultsPanel (resizable, like the sidebar).
+  width:           { type: Number, default: 360 },
   draggedField:    { type: String, default: '' },
   // Set by QueryWorkspace when a result cell is dropped on a VQB section.
-  // Carries { field, section, nonce } — nonce makes each drop a fresh object
-  // so the watcher fires even when the same field lands on the same section twice.
+  // Carries { field, value, section, nonce } — nonce makes each drop a fresh
+  // object so the watcher fires even when the same field lands on the same
+  // section twice. value is the dragged cell's value (used by the query section).
   vqbDrop:         { type: Object, default: null },
   // Which section ('query' | 'proj' | 'sort') the pointer is currently over
   // during a drag, so we can highlight it as the drop target.
   dragOverSection: { type: String, default: null },
 })
+const emit = defineEmits(['run'])
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
 
 // ── query section ─────────────────────────────────────────
@@ -70,7 +74,7 @@ watch(() => props.vqbDrop, (drop) => {
   if (!field) return
   if (drop.section === 'query') {
     queryEnabled.value = true
-    conditions.value.push({ id: uid(), field: field, op: 'eq', value: '', enabled: true })
+    conditions.value.push({ id: uid(), field: field, op: 'eq', value: drop.value || '', enabled: true })
   } else if (drop.section === 'proj') {
     projEnabled.value = true
     projFields.value.push({ id: uid(), field: field, include: true })
@@ -85,28 +89,39 @@ function uid() { return Math.random().toString(36).slice(2, 10) }
 
 // ── core: generate fields only, no auto-run ──────────────
 // VQB updates the filter/sort/projection text in the query bar.
-// The user clicks Run in QueryWorkspace to execute the query.
+// The user clicks Run in QueryWorkspace (or presses Enter in a value input) to
+// execute the query.
+function applyToTab() {
+  const tab = activeTab.value
+  if (!tab) return
+
+  const filterStr = queryEnabled.value
+    ? generateFilter(conditions.value, logic.value)
+    : '{}'
+  const sortStr = sortEnabled.value
+    ? generateSort(sortFields.value)
+    : '{}'
+  const projStr = projEnabled.value
+    ? generateProjection(projFields.value)
+    : '{}'
+
+  tab.filter     = filterStr === '{}' ? '' : filterStr
+  tab.sort       = sortStr   === '{}' ? '' : sortStr
+  tab.projection = projStr   === '{}' ? '' : projStr
+}
+
 let timer = null
 function applyAndRun() {
   clearTimeout(timer)
-  timer = setTimeout(() => {
-    const tab = activeTab.value
-    if (!tab) return
+  timer = setTimeout(applyToTab, 400)
+}
 
-    const filterStr = queryEnabled.value
-      ? generateFilter(conditions.value, logic.value)
-      : '{}'
-    const sortStr = sortEnabled.value
-      ? generateSort(sortFields.value)
-      : '{}'
-    const projStr = projEnabled.value
-      ? generateProjection(projFields.value)
-      : '{}'
-
-    tab.filter     = filterStr === '{}' ? '' : filterStr
-    tab.sort       = sortStr   === '{}' ? '' : sortStr
-    tab.projection = projStr   === '{}' ? '' : projStr
-  }, 400)
+// Pressing Enter in a value input applies the query immediately (no debounce)
+// and runs it, instead of waiting for the debounce + a manual Run click.
+function applyAndExecute() {
+  clearTimeout(timer)
+  applyToTab()
+  emit('run')
 }
 
 // ── condition helpers ─────────────────────────────────────
@@ -154,7 +169,7 @@ function removeSortField(id) {
 </script>
 
 <template>
-  <div class="vqb">
+  <div class="vqb" :style="{ width: props.width + 'px' }">
 
     <!-- ── Query section ─────────────────────────────────── -->
     <div class="vqb-section" data-vqb-drop="query"
@@ -182,6 +197,7 @@ function removeSortField(id) {
               v-model="c.field"
               placeholder="field"
               @input="applyAndRun"
+              @keydown.enter.prevent="applyAndExecute"
               spellcheck="false"
             />
             <div class="op-select grow">
@@ -193,7 +209,7 @@ function removeSortField(id) {
               <BaseIcon name="caretDown" :size="12" class="op-caret" />
             </div>
             <button class="icon-btn sm" @click="removeCondition(c.id)">
-              <BaseIcon name="trash" :size="13" />
+              <BaseIcon name="trash" :size="18" />
             </button>
           </div>
           <div class="cond-line" v-if="!opNoValue(c.op)">
@@ -203,6 +219,7 @@ function removeSortField(id) {
               v-model="c.value"
               :placeholder="c.op === 'in' || c.op === 'nin' ? 'val1, val2, …' : 'value'"
               @input="applyAndRun"
+              @keydown.enter.prevent="applyAndExecute"
               spellcheck="false"
             />
             <span class="cb sm" :class="{ on: c.enabled }"
@@ -238,7 +255,7 @@ function removeSortField(id) {
             @click="f.include = !f.include; applyAndRun()"
           >{{ f.include ? 'Include' : 'Exclude' }}</button>
           <button class="icon-btn sm" @click="removeProjField(f.id)">
-            <BaseIcon name="trash" :size="13" />
+            <BaseIcon name="trash" :size="18" />
           </button>
         </div>
         <div class="add-field-row">
@@ -279,7 +296,7 @@ function removeSortField(id) {
             @click="f.dir = f.dir === 1 ? -1 : 1; applyAndRun()"
           >{{ f.dir === 1 ? '↑ ASC' : '↓ DESC' }}</button>
           <button class="icon-btn sm" @click="removeSortField(f.id)">
-            <BaseIcon name="trash" :size="13" />
+            <BaseIcon name="trash" :size="18" />
           </button>
         </div>
         <div class="add-field-row">
@@ -306,10 +323,9 @@ function removeSortField(id) {
 
 <style scoped>
 .vqb {
-  width: 360px;
+  /* width is set inline by ResultsPanel (resizable); default 360px */
   flex: none;
   background: var(--bg-panel);
-  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   min-height: 0;

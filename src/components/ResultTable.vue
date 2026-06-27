@@ -32,6 +32,7 @@ const dragging        = ref(false)
 const dragGhost       = ref({ x: 0, y: 0, label: '' })
 
 let dragField         = ''
+let dragValue         = ''
 let dragStartX        = 0
 let dragStartY        = 0
 let suppressNextClick = false
@@ -43,7 +44,7 @@ function sectionAtPoint(x, y) {
   return zone ? zone.getAttribute('data-vqb-drop') : null
 }
 
-function onCellMouseDown(e, col) {
+function onCellMouseDown(e, col, value) {
   if (e.button !== 0) return
   if (e.target.tagName === 'INPUT') return  // inline cell editor is active
   // Suppress the browser's native press-drag selection gesture, which otherwise
@@ -53,6 +54,7 @@ function onCellMouseDown(e, col) {
   suppressNextClick = false
   openedByDrag = false
   dragField  = col
+  dragValue  = value == null ? '' : String(value)
   dragStartX = e.clientX
   dragStartY = e.clientY
   dragging.value = false
@@ -79,7 +81,7 @@ function onDragUp(e) {
   document.body.style.cursor = ''
   if (dragging.value) {
     const section = sectionAtPoint(e.clientX, e.clientY)
-    if (section) emit('vqb-drop', { field: dragField, section: section, nonce: Date.now() })
+    if (section) emit('vqb-drop', { field: dragField, value: dragValue, section: section, nonce: Date.now() })
     // Dropped outside the panel: if this drag is what opened it, close it again.
     else if (openedByDrag) emit('close-vqb')
     suppressNextClick = true  // swallow the click that fires after a real drag
@@ -87,6 +89,7 @@ function onDragUp(e) {
   dragging.value = false
   emit('drag-over-section', null)
   dragField = ''
+  dragValue = ''
 }
 
 function onCellClick(rowIdx, col) {
@@ -586,7 +589,7 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
               v-for="col in gridColumns"
               :key="col"
               :class="{ selcell: activeTab.selectedRow === i && selectedCol === col, drillable: isDrillable(col, row[col]) }"
-              @mousedown="onCellMouseDown($event, col)"
+              @mousedown="onCellMouseDown($event, col, formatCell(col, row[col]))"
               @click.stop="onCellClick(i, col)"
               @dblclick.stop="isDrillable(col, row[col]) ? openCellDrill(i, col) : startInlineEdit(i, col)"
               @contextmenu="openCellCtx($event, i, col)"
