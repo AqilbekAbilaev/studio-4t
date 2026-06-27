@@ -32,6 +32,40 @@ const draggedField    = ref('')
 const dragOverSection = ref(null)
 const vqbDrop         = ref(null)
 
+// ── VQB panel resize ──────────────────────────────────────
+// Mirrors the connection sidebar (App.vue): a thin resizer bar between the grid
+// and the panel, dragged with the mouse. The panel is on the right, so dragging
+// right narrows it. Width is persisted so it survives toggling and restarts.
+function loadVqbWidth() {
+  const saved = parseInt(localStorage.getItem('vqbWidth'), 10)
+  if (Number.isFinite(saved)) return Math.max(280, Math.min(760, saved))
+  return 360
+}
+const vqbWidth     = ref(loadVqbWidth())
+const vqbResizing  = ref(false)
+
+function startVqbResize(e) {
+  e.preventDefault()
+  const startX = e.clientX
+  const startW = vqbWidth.value
+  vqbResizing.value = true
+  const onMove = (ev) => {
+    vqbWidth.value = Math.max(280, Math.min(760, startW + (startX - ev.clientX)))
+  }
+  const onUp = () => {
+    vqbResizing.value = false
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    localStorage.setItem('vqbWidth', String(vqbWidth.value))
+  }
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
 // ── Mongo shell-style stringifier (renders {"$oid": "..."} as ObjectId("...")) ────
 function mongoStringify(value, indent = '') {
   if (value === null) return 'null'
@@ -393,13 +427,24 @@ const queryCode = computed(() => {
       </span>
     </div>
     </div><!-- /result-content -->
+    <div
+      v-if="vqbOpen"
+      class="resizer"
+      :class="{ dragging: vqbResizing }"
+      title="Drag to resize"
+      @mousedown="startVqbResize"
+    >
+      <span class="resizer-grip"></span>
+    </div>
     <VisualQueryBuilder
       v-if="vqbOpen"
       :tabs="tabs"
       :active-tab-id="activeTabId"
+      :width="vqbWidth"
       :dragged-field="draggedField"
       :vqb-drop="vqbDrop"
       :drag-over-section="dragOverSection"
+      @run="emit('run')"
     />
   </div>
 
@@ -443,6 +488,28 @@ const queryCode = computed(() => {
 <style scoped>
 /* Results */
 .results { flex: 1; display: flex; flex-direction: row; min-height: 0; }
+
+/* ── VQB resizer ── (matches the connection sidebar resizer in App.vue) */
+.resizer {
+  width: 3px;
+  flex: none;
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resizer-grip {
+  width: 2px;
+  height: 32px;
+  background: transparent;
+  border-radius: 1px;
+  cursor: col-resize;
+  transition: background 0.12s;
+}
+.resizer:hover .resizer-grip,
+.resizer.dragging .resizer-grip { background: var(--accent); }
 .result-content { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .rtabs { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); flex: none; }
 .rtab {

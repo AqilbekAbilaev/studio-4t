@@ -33,30 +33,45 @@ function encodeValue(val) {
   return JSON.stringify(s)
 }
 
-function condExpr(c) {
+// Returns the inner `"field": <expr>` pair (no surrounding braces) so callers
+// can either merge several pairs into one object or wrap each in its own object.
+function condPair(c) {
   const f = c.field.trim()
-  if (c.op === 'null')    return `{ "${f}": null }`
-  if (c.op === 'exists')  return `{ "${f}": { $exists: true } }`
-  if (c.op === 'nexists') return `{ "${f}": { $exists: false } }`
-  if (c.op === 'eq')      return `{ "${f}": ${encodeValue(c.value)} }`
-  if (c.op === 'ne')      return `{ "${f}": { $ne: ${encodeValue(c.value)} } }`
-  if (c.op === 'gt')      return `{ "${f}": { $gt: ${encodeValue(c.value)} } }`
-  if (c.op === 'gte')     return `{ "${f}": { $gte: ${encodeValue(c.value)} } }`
-  if (c.op === 'lt')      return `{ "${f}": { $lt: ${encodeValue(c.value)} } }`
-  if (c.op === 'lte')     return `{ "${f}": { $lte: ${encodeValue(c.value)} } }`
-  if (c.op === 'regex')   return `{ "${f}": { $regex: ${JSON.stringify(c.value || '')}, $options: "i" } }`
+  if (c.op === 'null')    return `"${f}": null`
+  if (c.op === 'exists')  return `"${f}": { $exists: true }`
+  if (c.op === 'nexists') return `"${f}": { $exists: false }`
+  if (c.op === 'eq')      return `"${f}": ${encodeValue(c.value)}`
+  if (c.op === 'ne')      return `"${f}": { $ne: ${encodeValue(c.value)} }`
+  if (c.op === 'gt')      return `"${f}": { $gt: ${encodeValue(c.value)} }`
+  if (c.op === 'gte')     return `"${f}": { $gte: ${encodeValue(c.value)} }`
+  if (c.op === 'lt')      return `"${f}": { $lt: ${encodeValue(c.value)} }`
+  if (c.op === 'lte')     return `"${f}": { $lte: ${encodeValue(c.value)} }`
+  if (c.op === 'regex')   return `"${f}": { $regex: ${JSON.stringify(c.value || '')}, $options: "i" }`
   if (c.op === 'in' || c.op === 'nin') {
     const vals = (c.value || '').split(',').map(v => encodeValue(v.trim())).join(', ')
-    return `{ "${f}": { $${c.op}: [${vals}] } }`
+    return `"${f}": { $${c.op}: [${vals}] }`
   }
-  return `{ "${f}": ${encodeValue(c.value)} }`
+  return `"${f}": ${encodeValue(c.value)}`
 }
 
 export function generateFilter(conditions, logic) {
   const active = (conditions || []).filter(c => c.enabled && c.field.trim())
   if (!active.length) return '{}'
-  if (active.length === 1) return condExpr(active[0])
-  return `{ ${logic}: [ ${active.map(condExpr).join(', ')} ] }`
+  if (active.length === 1) return `{ ${condPair(active[0])} }`
+
+  // A top-level object is already an implicit AND, so $and would be redundant —
+  // merge the conditions into one flat object instead. The exception is when two
+  // conditions target the same field: duplicate keys can't share an object, so
+  // $and is genuinely required there.
+  if (logic === '$and') {
+    const fields = active.map(c => c.field.trim())
+    const hasDuplicateFields = new Set(fields).size !== fields.length
+    if (!hasDuplicateFields) {
+      return `{ ${active.map(condPair).join(', ')} }`
+    }
+  }
+
+  return `{ ${logic}: [ ${active.map(c => `{ ${condPair(c)} }`).join(', ')} ] }`
 }
 
 export function generateSort(fields) {
