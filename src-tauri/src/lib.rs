@@ -7,6 +7,7 @@ mod menu;
 mod pool;
 mod saved_queries;
 mod shell;
+mod shell_history;
 mod storage;
 mod tabs;
 mod uri;
@@ -17,6 +18,7 @@ use history::HistoryStorage;
 use pool::ConnectionPool;
 use saved_queries::SavedQueryStorage;
 use shell::ShellEngine;
+use shell_history::ShellHistoryStorage;
 use storage::Storage;
 use tabs::TabStorage;
 use tauri::Manager;
@@ -36,6 +38,9 @@ pub fn run() {
             app.manage(TabStorage::new(data_dir.join("tabs.json")));
             app.manage(ConnectionPool::new());
             app.manage(ShellEngine::new());
+            app.manage(ShellHistoryStorage::new(
+                data_dir.join("shell_history.json"),
+            ));
 
             let native_menu = match menu::build(app.handle()) {
                 Ok(val) => val,
@@ -92,6 +97,9 @@ pub fn run() {
             clear_query_history,
             run_shell_command,
             close_shell_session,
+            get_shell_history,
+            push_shell_command,
+            clear_shell_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

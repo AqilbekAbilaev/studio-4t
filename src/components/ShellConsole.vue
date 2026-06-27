@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from './BaseIcon.vue'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
@@ -15,6 +15,15 @@ const props = defineProps({
 const input       = ref('')
 const transcript  = ref(null)   // scrollback element, for autoscroll
 const histIndex   = ref(-1)     // position while cycling history with ↑/↓
+
+// Load this connection's persisted command history (oldest first) so ↑/↓
+// recalls commands from previous sessions too.
+onMounted(async () => {
+  try {
+    const past = await invoke('get_shell_history', { connectionId: props.activeTab.connectionId })
+    if (Array.isArray(past)) props.activeTab.history = past
+  } catch (_) {}
+})
 
 function scrollToEnd() {
   nextTick(() => {
@@ -41,6 +50,7 @@ async function run() {
   const entry = { command: code, logs: [], value: undefined, error: null }
   props.activeTab.entries.push(entry)
   props.activeTab.history.push(code)
+  invoke('push_shell_command', { connectionId: props.activeTab.connectionId, command: code }).catch(() => {})
   histIndex.value = -1
   input.value = ''
   props.activeTab.isRunning = true
