@@ -7,6 +7,9 @@ const props = defineProps({
   activeTab: { type: Object,  required: true },
   vqbOpen:   { type: Boolean, default: false },
   drillPath: { type: Array,   default: () => [] },  // field-name path navigated into
+  // Read-only grid (e.g. IntelliShell results, which aren't a single editable
+  // collection): disables inline cell editing. Drill-down still works.
+  readonly:  { type: Boolean, default: false },
 })
 
 // The drag-to-VQB outputs (`vqb-drop`, `dragged-field`, `drag-over-section`) are
@@ -380,6 +383,7 @@ function buildIdFilter(doc) {
 }
 
 function startInlineEdit(rowIdx, col) {
+  if (props.readonly) return
   const tab = props.activeTab
   if (!tab) return
   const val = gridDocs.value[rowIdx]?.[col]

@@ -697,7 +697,12 @@ function openShellTab({ connectionId, connectionName, dbName }) {
     connectionName: connectionName,
     dbName: dbName,
     sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
-    entries: [], history: [], isRunning: false,
+    // editor + command history (dropdown)
+    code: '', history: [], isRunning: false,
+    // result state, read by the reused result grid (ResultTable / TreeView)
+    results: [], resultView: 'table', resultTab: 'Console',
+    runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
+    logs: [], scalar: undefined, hasScalar: false,
   })
   activeTabId.value = id
 }
