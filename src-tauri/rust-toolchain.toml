@@ -1,0 +1,7 @@
+# Pin this project to a stable Rust toolchain managed by rustup. The embedded
+# JavaScript shell (boa_engine) and its dependencies require Rust >= 1.88, which
+# is newer than some system-packaged rustc. rustup reads this file and uses the
+# matching toolchain for any cargo/rustc invocation in this directory tree,
+# without disturbing a system-wide rustc.
+[toolchain]
+channel = "stable"

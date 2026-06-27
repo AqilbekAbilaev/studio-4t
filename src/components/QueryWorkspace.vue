@@ -7,6 +7,7 @@ import QuickstartPane from './QuickstartPane.vue'
 import QueryBar from './QueryBar.vue'
 import PipelineEditor from './PipelineEditor.vue'
 import ResultsPanel from './ResultsPanel.vue'
+import ShellConsole from './ShellConsole.vue'
 import QueryBrowserModal from './QueryBrowserModal.vue'
 import { parseField, parsePipeline } from '../utils/queryParser'
 
@@ -190,6 +191,9 @@ async function applyFromBrowser(entry) {
 
     <!-- Quickstart pane -->
     <QuickstartPane v-if="!activeTab || activeTab.kind === 'quickstart'" />
+
+    <!-- IntelliShell -->
+    <ShellConsole v-else-if="activeTab.kind === 'shell'" :active-tab="activeTab" />
 
     <!-- Collection workspace -->
     <template v-else-if="activeTab.kind === 'collection'">

@@ -22,6 +22,9 @@ pub enum AppError {
 
     #[error("Keychain error: {0}")]
     Keychain(String),
+
+    #[error("Shell error: {0}")]
+    Shell(String),
 }
 
 // Tauri commands return Result<T, E> where E must implement serde::Serialize.

@@ -4,6 +4,7 @@ use crate::default_queries::{DefaultQuery, DefaultQueryStorage};
 use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
 use crate::tabs::TabStorage;
 use crate::pool::ConnectionPool;
+use crate::shell::{ShellEngine, ShellResult};
 use crate::storage::{ConnectionConfig, Storage};
 use crate::uri;
 use mongodb::bson;
@@ -1331,6 +1332,37 @@ pub fn clear_query_history(
         Ok(val) => Ok(val),
         Err(e) => Err(e),
     }
+}
+
+// ── IntelliShell (embedded JavaScript shell) ──────────────────────────────
+
+/// Evaluate a block of JavaScript in the shell session identified by
+/// `session_id`. Each session has its own persistent JS context, so variables
+/// declared in one submission are visible in the next. Returns the transcript
+/// (printed lines, completion value, or a JS error message).
+#[tauri::command]
+pub async fn run_shell_command(
+    shell: State<'_, ShellEngine>,
+    session_id: String,
+    code: String,
+) -> Result<ShellResult, AppError> {
+    let receiver = shell.submit_eval(session_id, code);
+    match receiver.await {
+        Ok(result) => Ok(result),
+        Err(_) => Err(AppError::Shell(String::from(
+            "the shell engine is unavailable",
+        ))),
+    }
+}
+
+/// Drop a shell session's JavaScript context (called when its tab is closed).
+#[tauri::command]
+pub async fn close_shell_session(
+    shell: State<'_, ShellEngine>,
+    session_id: String,
+) -> Result<(), AppError> {
+    shell.close(session_id);
+    Ok(())
 }
 
 #[cfg(test)]
