@@ -24,6 +24,16 @@ pub struct ConnectionConfig {
     pub auth_db: Option<String>,
     #[serde(default)]
     pub auth_mechanism: Option<String>,
+    // TLS / SSL. `tls` enables it; the file paths and allow-invalid flag are
+    // applied as connection-string options (see uri::build_uri).
+    #[serde(default)]
+    pub tls: bool,
+    #[serde(default)]
+    pub tls_ca_file: Option<String>,
+    #[serde(default)]
+    pub tls_cert_key_file: Option<String>,
+    #[serde(default)]
+    pub tls_allow_invalid_certificates: bool,
     #[serde(default)]
     pub tag: Option<String>,
     #[serde(default)]
@@ -113,6 +123,10 @@ mod tests {
             username: None,
             auth_db: None,
             auth_mechanism: None,
+            tls: false,
+            tls_ca_file: None,
+            tls_cert_key_file: None,
+            tls_allow_invalid_certificates: false,
             tag: None,
             last_accessed: None,
             open: false,
