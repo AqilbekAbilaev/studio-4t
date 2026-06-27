@@ -68,6 +68,20 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
         query.push(format!("replicaSet={}", rs));
     }
 
+    // TLS. File paths are percent-encoded; the driver decodes query values.
+    if config.tls {
+        query.push(String::from("tls=true"));
+        if let Some(ca) = config.tls_ca_file.as_deref().filter(|s| !s.is_empty()) {
+            query.push(format!("tlsCAFile={}", percent_encode(ca)));
+        }
+        if let Some(cert) = config.tls_cert_key_file.as_deref().filter(|s| !s.is_empty()) {
+            query.push(format!("tlsCertificateKeyFile={}", percent_encode(cert)));
+        }
+        if config.tls_allow_invalid_certificates {
+            query.push(String::from("tlsAllowInvalidCertificates=true"));
+        }
+    }
+
     if query.is_empty() {
         format!("{scheme}://{creds}{host_part}/")
     } else {
@@ -183,6 +197,10 @@ mod tests {
             username: None,
             auth_db: None,
             auth_mechanism: None,
+            tls: false,
+            tls_ca_file: None,
+            tls_cert_key_file: None,
+            tls_allow_invalid_certificates: false,
             tag: None,
             last_accessed: None,
             open: false,
@@ -229,6 +247,29 @@ mod tests {
         };
         assert!(build_uri(&config, None).starts_with("mongodb+srv://"));
         assert!(!build_uri(&config, None).contains(":27017"));
+    }
+
+    #[test]
+    fn build_uri_tls_with_files() {
+        let config = ConnectionConfig {
+            tls: true,
+            tls_ca_file: Some(String::from("/etc/ssl/My CA.pem")),
+            tls_cert_key_file: Some(String::from("/etc/ssl/client.pem")),
+            tls_allow_invalid_certificates: true,
+            ..base_config()
+        };
+        let uri = build_uri(&config, None);
+        assert!(uri.contains("tls=true"));
+        // path is percent-encoded ('/' → %2F, ' ' → %20)
+        assert!(uri.contains("tlsCAFile=%2Fetc%2Fssl%2FMy%20CA.pem"));
+        assert!(uri.contains("tlsCertificateKeyFile=%2Fetc%2Fssl%2Fclient.pem"));
+        assert!(uri.contains("tlsAllowInvalidCertificates=true"));
+    }
+
+    #[test]
+    fn build_uri_no_tls_omits_params() {
+        let uri = build_uri(&base_config(), None);
+        assert!(!uri.contains("tls"));
     }
 
     #[test]

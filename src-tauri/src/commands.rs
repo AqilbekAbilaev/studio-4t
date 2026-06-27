@@ -54,6 +54,10 @@ pub async fn save_connection(
     password: Option<String>,
     auth_db: Option<String>,
     auth_mechanism: Option<String>,
+    tls: bool,
+    tls_ca_file: Option<String>,
+    tls_cert_key_file: Option<String>,
+    tls_allow_invalid_certificates: bool,
     tag: Option<String>,
 ) -> Result<String, AppError> {
     let id = Uuid::new_v4().to_string();
@@ -67,6 +71,10 @@ pub async fn save_connection(
         username: username,
         auth_db: auth_db,
         auth_mechanism: auth_mechanism,
+        tls: tls,
+        tls_ca_file: tls_ca_file,
+        tls_cert_key_file: tls_cert_key_file,
+        tls_allow_invalid_certificates: tls_allow_invalid_certificates,
         tag: tag,
         last_accessed: None,
         // A newly saved connection is opened in the sidebar.
@@ -117,6 +125,10 @@ pub async fn update_connection(
     password: Option<String>,
     auth_db: Option<String>,
     auth_mechanism: Option<String>,
+    tls: bool,
+    tls_ca_file: Option<String>,
+    tls_cert_key_file: Option<String>,
+    tls_allow_invalid_certificates: bool,
     tag: Option<String>,
 ) -> Result<(), AppError> {
     // Preserve last_accessed and the open state from the existing record.
@@ -134,6 +146,10 @@ pub async fn update_connection(
         username: username,
         auth_db: auth_db,
         auth_mechanism: auth_mechanism,
+        tls: tls,
+        tls_ca_file: tls_ca_file,
+        tls_cert_key_file: tls_cert_key_file,
+        tls_allow_invalid_certificates: tls_allow_invalid_certificates,
         tag: tag,
         last_accessed: last_accessed,
         open: open,

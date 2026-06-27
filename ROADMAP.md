@@ -25,6 +25,9 @@
   username, auth source, **auth mechanism**), Test Connection, Save & Connect
 - **Password in OS keychain** — never written to disk; macOS Keychain / Linux Secret Service /
   Windows Credential Manager via the `keyring` crate, fetched at connect time
+- **TLS / SSL** — enable TLS with a custom CA file, a client certificate (`tlsCAFile` /
+  `tlsCertificateKeyFile`), and an "allow invalid certificates" option for self-signed deployments;
+  configured in the connection dialog's SSL tab and applied on Test Connection + connect
 - **Structured connection storage** — `ConnectionConfig` holds individual fields, not a raw URI
 - Color-tagging (red/blue/green/purple/none), honored through the tree subtree
 - **Open-connection persistence** — the sidebar shows only the *open* connections (the full saved

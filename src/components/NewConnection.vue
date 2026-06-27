@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { emit as tauriEmit } from '@tauri-apps/api/event'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import BaseIcon from './BaseIcon.vue'
 
 const props = defineProps({
@@ -48,6 +49,25 @@ const authModeLabel = computed(() =>
   AUTH_MODES.find(m => m.value === authMode.value)?.label ?? authMode.value
 )
 
+// ssl tab
+const useTls              = ref(isEditMode ? !!props.editConn.tls : false)
+const tlsCaFile           = ref(isEditMode ? (props.editConn.tls_ca_file ?? '') : '')
+const tlsCertKeyFile      = ref(isEditMode ? (props.editConn.tls_cert_key_file ?? '') : '')
+const tlsAllowInvalidCerts = ref(isEditMode ? !!props.editConn.tls_allow_invalid_certificates : false)
+
+async function pickTlsFile(target) {
+  try {
+    const picked = await openDialog({
+      multiple: false,
+      filters: [{ name: 'Certificate', extensions: ['pem', 'crt', 'cert', 'cer', 'key'] }],
+    })
+    if (typeof picked === 'string') {
+      if (target === 'ca') tlsCaFile.value = picked
+      else tlsCertKeyFile.value = picked
+    }
+  } catch (_) {}
+}
+
 // advanced tab
 const selectedTag = ref(isEditMode ? (props.editConn.tag ?? 'none') : 'none')
 
@@ -84,6 +104,14 @@ function buildUriForTest() {
   }
   uri += isSrv ? host.value : `${host.value}:${port.value}`
   uri += `/${authDb.value || 'admin'}`
+  const params = []
+  if (useTls.value) {
+    params.push('tls=true')
+    if (tlsCaFile.value) params.push(`tlsCAFile=${encodeURIComponent(tlsCaFile.value)}`)
+    if (tlsCertKeyFile.value) params.push(`tlsCertificateKeyFile=${encodeURIComponent(tlsCertKeyFile.value)}`)
+    if (tlsAllowInvalidCerts.value) params.push('tlsAllowInvalidCertificates=true')
+  }
+  if (params.length) uri += `?${params.join('&')}`
   return uri
 }
 
@@ -148,6 +176,10 @@ async function save() {
       password:        authMode.value !== 'none' ? (password.value || null) : null,
       authDb:          authMode.value !== 'none' ? (authDb.value || null) : null,
       authMechanism:   authMode.value,
+      tls:                          useTls.value,
+      tlsCaFile:                    useTls.value ? (tlsCaFile.value || null) : null,
+      tlsCertKeyFile:               useTls.value ? (tlsCertKeyFile.value || null) : null,
+      tlsAllowInvalidCertificates:  useTls.value ? tlsAllowInvalidCerts.value : false,
       tag:             selectedTag.value !== 'none' ? selectedTag.value : null,
     }
 
@@ -163,6 +195,10 @@ async function save() {
         username:        fields.username,
         auth_db:         fields.authDb,
         auth_mechanism:  fields.authMechanism,
+        tls:                            fields.tls,
+        tls_ca_file:                    fields.tlsCaFile,
+        tls_cert_key_file:              fields.tlsCertKeyFile,
+        tls_allow_invalid_certificates: fields.tlsAllowInvalidCertificates,
         tag:             fields.tag,
       }
       emit('updated', updated)
@@ -360,8 +396,34 @@ async function save() {
 
         <!-- SSL -->
         <div v-else-if="activeTab === 'ssl'" class="nc-form">
-          <label class="chk-line big"><span class="cb"></span> Use SSL/TLS protocol to connect</label>
-          <div class="nc-hint" style="margin-top:12px">SSL/TLS configuration — coming soon.</div>
+          <label class="chk-line big" @click="useTls = !useTls">
+            <span class="cb" :class="{ on: useTls }"><BaseIcon v-if="useTls" name="check" :size="12" /></span>
+            Use SSL/TLS protocol to connect
+          </label>
+
+          <template v-if="useTls">
+            <div class="nc-field">
+              <label>Certificate Authority (.pem)</label>
+              <div class="nc-file-row">
+                <input class="nc-input" v-model="tlsCaFile" placeholder="Path to CA certificate" spellcheck="false" />
+                <button type="button" class="nc-browse" @click="pickTlsFile('ca')">Browse…</button>
+              </div>
+            </div>
+
+            <div class="nc-field">
+              <label>Client Certificate + Key (.pem)</label>
+              <div class="nc-file-row">
+                <input class="nc-input" v-model="tlsCertKeyFile" placeholder="Path to client certificate (optional)" spellcheck="false" />
+                <button type="button" class="nc-browse" @click="pickTlsFile('cert')">Browse…</button>
+              </div>
+            </div>
+
+            <label class="chk-line" @click="tlsAllowInvalidCerts = !tlsAllowInvalidCerts">
+              <span class="cb" :class="{ on: tlsAllowInvalidCerts }"><BaseIcon v-if="tlsAllowInvalidCerts" name="check" :size="12" /></span>
+              Allow invalid certificates (accept self-signed / expired)
+            </label>
+            <div class="nc-hint">A Certificate Authority file verifies the server securely; “allow invalid certificates” skips that check.</div>
+          </template>
         </div>
 
         <!-- Advanced -->
@@ -534,6 +596,13 @@ async function save() {
   color: var(--text); font-size: 13px; outline: none; width: 100%;
 }
 .nc-input:focus { border-color: var(--accent); }
+.nc-file-row { display: flex; gap: 8px; align-items: center; }
+.nc-browse {
+  flex: none; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--border-soft); background: var(--bg-toolbar);
+  color: var(--text); font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.nc-browse:hover { background: var(--bg-hover); }
 .nc-inline  { display: flex; align-items: center; gap: 8px; }
 .nc-inline2 { display: flex; gap: 14px; }
 .nc-inline2 .nc-field { flex: 1; }
