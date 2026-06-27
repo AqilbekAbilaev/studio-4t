@@ -38,7 +38,9 @@
 - **ObjectId helpers** — accepts shell-style `ObjectId("…")`, and pasting a bare 24-hex id
   auto-builds `{ _id: ObjectId("…") }`
 - Result paging: first / prev / next, page-size picker (10/25/50/100/200)
-- View modes: **Table View** and **JSON View** (syntax-highlighted, selectable)
+- View modes: **Table View**, **JSON View** (syntax-highlighted, selectable, text cursor), and
+  **Tree View** (expandable Key / Value / Type rows, EJSON-aware — renders ObjectId / Date / number
+  wrappers as scalars)
 - "Query Code" sub-tab — the equivalent `db.collection.find(...)` shell command
 - Result table — zebra rows, type-colored cells, row/cell selection, resizable columns
 - **Inline cell editing** (double-click a primitive; commits via `replace_document`)
@@ -60,8 +62,11 @@
   search, Name / Mode / Saved columns, a preview panel, and Delete + Load actions
 - **Visual Query Builder** — a panel that generates the actual filter/sort/projection
   (`utils/vqbGenerator.js`); result-grid cells are draggable any time and a drag opens the panel
-  automatically (and closes it again if the drag is released outside it); operator dropdown styled
-  to match the design system
+  automatically (and closes it again if the drag is released outside it); a dropped cell pastes
+  both its field *and* value into the Query section; pressing Enter in a condition input applies
+  and runs the query; `$and` generates a flat implicit-AND object (only wrapping in `$and` when two
+  conditions target the same field); operator dropdown styled to match the design system; the panel
+  is resizable with a sidebar-style handle and remembers its width
 - **Default query per collection** — set / clear a default filter for a collection
   (`default_queries.rs`, persisted) that auto-loads when the collection is opened
 - **Copy / paste query between tabs** — copy a tab's full query state and paste it into another tab
@@ -91,7 +96,6 @@ Most of these already have a button or menu item in the UI, currently disabled o
 "coming soon" / "coming to Studio-4T" stub.
 
 ### P1 — Medium — productivity & polish
-- [ ] **Tree View** result mode (Key / Value / Type, expandable)
 - [ ] **Per-connection status** indicator in the tree (connected / loading / error)
 - [ ] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar stubs)
 - [ ] **Last-page** paging button (currently disabled)
@@ -111,5 +115,5 @@ Most of these already have a button or menu item in the UI, currently disabled o
 ---
 
 > Note: an experimental `studio3t-parity` branch contains unmerged prototypes of several
-> backlog items (Tree View, GridFS, server status, preferences, SQL→MQL, schema, masking).
+> backlog items (GridFS, server status, preferences, SQL→MQL, schema, masking).
 > Treat it as a reference, not shipped behavior.
