@@ -12,11 +12,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use boa_engine::{js_string, Context, JsError, JsValue, NativeFunction, Source};
+use boa_engine::{js_string, Context, JsError, JsString, JsValue, NativeFunction, Source};
 use boa_gc::{Finalize, Trace};
 use boa_engine::error::JsNativeError;
 use mongodb::bson;
-use mongodb::{Client, Collection};
+use mongodb::options::IndexOptions;
+use mongodb::{Client, Collection, IndexModel};
 use tokio::runtime::Handle;
 
 /// The live connection a shell session is bound to. Rebound before each eval.
@@ -42,29 +43,76 @@ pub(super) fn install_db(context: &mut Context, slot: Rc<RefCell<Option<DbInner>
         captures,
     );
     let _ = context.register_global_callable(js_string!("__mongo"), 1, mongo);
+
+    // Generates a fresh ObjectId hex string for `ObjectId()` with no argument.
+    let new_oid = NativeFunction::from_copy_closure(|_this, _args, _context| {
+        let hex = bson::oid::ObjectId::new().to_hex();
+        Ok(JsValue::from(JsString::from(hex.as_str())))
+    });
+    let _ = context.register_global_callable(js_string!("__newOid"), 0, new_oid);
+
     let _ = context.eval(Source::from_bytes(DB_PREAMBLE));
 }
 
 /// `db` is a Proxy so `db.<anyCollection>` resolves dynamically (including
 /// not-yet-created collections, which MongoDB creates on first write).
+/// `find` / `aggregate` return a lazy cursor (chainable + iterable); a bare
+/// cursor left as the completion value is auto-materialized for display (see
+/// engine.rs). Extended-JSON constructors round-trip into BSON on the Rust side.
 const DB_PREAMBLE: &str = r#"
     (function () {
-        function makeCollection(name) {
-            function call(method, args) {
-                return globalThis.__mongo({ collection: name, method: method, args: args });
+        function call(name, method, args) {
+            return globalThis.__mongo({ collection: name, method: method, args: args });
+        }
+        function makeCursor(name, method, spec) {
+            var cache = null;
+            var pos = 0;
+            function run() {
+                if (cache === null) {
+                    var args = method === 'find'
+                        ? [spec.filter || {}, spec.projection || {}, spec.sort || {}, spec.skip || 0, spec.limit || 0]
+                        : [spec.pipeline || []];
+                    cache = call(name, method, args);
+                    pos = 0;
+                }
+                return cache;
             }
+            var cursor = {
+                __isCursor: true,
+                limit:      function (n) { spec.limit = n; cache = null; return cursor; },
+                skip:       function (n) { spec.skip = n; cache = null; return cursor; },
+                sort:       function (s) { spec.sort = s; cache = null; return cursor; },
+                projection: function (p) { spec.projection = p; cache = null; return cursor; },
+                toArray:    function () { return run(); },
+                pretty:     function () { return run(); },
+                count:      function () { return run().length; },
+                size:       function () { return run().length; },
+                forEach:    function (fn) { var a = run(); for (var i = 0; i < a.length; i++) { fn(a[i], i); } },
+                map:        function (fn) { var a = run(); var out = []; for (var i = 0; i < a.length; i++) { out.push(fn(a[i], i)); } return out; },
+                hasNext:    function () { run(); return pos < cache.length; },
+                next:       function () { run(); return pos < cache.length ? cache[pos++] : null; },
+            };
+            return cursor;
+        }
+        function makeCollection(name) {
             return {
-                find:            function (q, p) { return call('find', [q || {}, p || {}]); },
-                findOne:         function (q, p) { return call('findOne', [q || {}, p || {}]); },
-                insertOne:       function (d)    { return call('insertOne', [d]); },
-                insertMany:      function (d)    { return call('insertMany', [d]); },
-                updateOne:       function (q, u) { return call('updateOne', [q, u]); },
-                updateMany:      function (q, u) { return call('updateMany', [q, u]); },
-                replaceOne:      function (q, r) { return call('replaceOne', [q, r]); },
-                deleteOne:       function (q)    { return call('deleteOne', [q]); },
-                deleteMany:      function (q)    { return call('deleteMany', [q]); },
-                countDocuments:  function (q)    { return call('countDocuments', [q || {}]); },
-                aggregate:       function (p)    { return call('aggregate', [p || []]); },
+                find:                   function (q, p) { return makeCursor(name, 'find', { filter: q || {}, projection: p || {} }); },
+                findOne:                function (q, p) { return call(name, 'findOne', [q || {}, p || {}]); },
+                insertOne:              function (d)    { return call(name, 'insertOne', [d]); },
+                insertMany:             function (d)    { return call(name, 'insertMany', [d]); },
+                updateOne:              function (q, u) { return call(name, 'updateOne', [q, u]); },
+                updateMany:             function (q, u) { return call(name, 'updateMany', [q, u]); },
+                replaceOne:             function (q, r) { return call(name, 'replaceOne', [q, r]); },
+                deleteOne:              function (q)    { return call(name, 'deleteOne', [q]); },
+                deleteMany:             function (q)    { return call(name, 'deleteMany', [q]); },
+                countDocuments:         function (q)    { return call(name, 'countDocuments', [q || {}]); },
+                estimatedDocumentCount: function ()     { return call(name, 'estimatedDocumentCount', []); },
+                distinct:               function (f, q) { return call(name, 'distinct', [f, q || {}]); },
+                aggregate:              function (p)    { return makeCursor(name, 'aggregate', { pipeline: p || [] }); },
+                drop:                   function ()     { return call(name, 'drop', []); },
+                createIndex:            function (k, o) { return call(name, 'createIndex', [k, o || {}]); },
+                dropIndex:              function (n)    { return call(name, 'dropIndex', [n]); },
+                renameCollection:       function (n)    { return call(name, 'renameCollection', [n]); },
             };
         }
         var base = {
@@ -78,6 +126,15 @@ const DB_PREAMBLE: &str = r#"
                 return makeCollection(prop);
             }
         });
+        globalThis.ObjectId = function (id) {
+            return { $oid: (id === undefined || id === null) ? globalThis.__newOid() : String(id) };
+        };
+        globalThis.ISODate = function (s) {
+            return { $date: (s === undefined || s === null) ? new Date().toISOString() : String(s) };
+        };
+        globalThis.NumberLong = function (n) { return { $numberLong: String(n) }; };
+        globalThis.NumberInt = function (n) { return { $numberInt: String(n) }; };
+        globalThis.NumberDecimal = function (n) { return { $numberDecimal: String(n) }; };
     })();
 "#;
 
@@ -166,7 +223,15 @@ fn run_op(
             "deleteOne" => exec_delete(&collection, args, false).await,
             "deleteMany" => exec_delete(&collection, args, true).await,
             "countDocuments" => exec_count(&collection, args).await,
+            "estimatedDocumentCount" => exec_estimated_count(&collection).await,
+            "distinct" => exec_distinct(&collection, args).await,
             "aggregate" => exec_aggregate(&collection, args).await,
+            "drop" => exec_drop(&collection).await,
+            "createIndex" => exec_create_index(&collection, args).await,
+            "dropIndex" => exec_drop_index(&collection, args).await,
+            "renameCollection" => {
+                exec_rename(client, db_name, collection_name, args).await
+            }
             other => Err(format!("unsupported shell method: {}", other)),
         }
     })
@@ -210,15 +275,34 @@ async fn exec_find(
         Err(e) => return Err(e),
     };
     let mut query = collection.find(filter);
-    if args.len() > 1 {
-        let projection = match arg_doc(args, 1) {
-            Ok(doc) => doc,
-            Err(e) => return Err(e),
-        };
-        if !projection.is_empty() {
-            query = query.projection(projection);
+
+    // Positional args from the cursor: [filter, projection, sort, skip, limit].
+    let projection = match arg_doc(args, 1) {
+        Ok(doc) => doc,
+        Err(e) => return Err(e),
+    };
+    if !projection.is_empty() {
+        query = query.projection(projection);
+    }
+    let sort = match arg_doc(args, 2) {
+        Ok(doc) => doc,
+        Err(e) => return Err(e),
+    };
+    if !sort.is_empty() {
+        query = query.sort(sort);
+    }
+    // JS numbers may decode as floats, so read through f64 then cast.
+    if let Some(skip) = args.get(3).and_then(|value| value.as_f64()) {
+        if skip > 0.0 {
+            query = query.skip(skip as u64);
         }
     }
+    if let Some(limit) = args.get(4).and_then(|value| value.as_f64()) {
+        if limit > 0.0 {
+            query = query.limit(limit as i64);
+        }
+    }
+
     let mut cursor = match query.await {
         Ok(value) => value,
         Err(e) => return Err(e.to_string()),
@@ -458,5 +542,131 @@ fn update_result_to_json(result: mongodb::results::UpdateResult) -> serde_json::
         }
         None => {}
     }
+    serde_json::Value::Object(out)
+}
+
+async fn exec_estimated_count(
+    collection: &Collection<bson::Document>,
+) -> Result<serde_json::Value, String> {
+    match collection.estimated_document_count().await {
+        Ok(value) => Ok(serde_json::Value::from(value)),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+async fn exec_distinct(
+    collection: &Collection<bson::Document>,
+    args: &[serde_json::Value],
+) -> Result<serde_json::Value, String> {
+    let field = match args.first().and_then(|value| value.as_str()) {
+        Some(value) => value.to_string(),
+        None => return Err(String::from("distinct expects a field name")),
+    };
+    let filter = match arg_doc(args, 1) {
+        Ok(doc) => doc,
+        Err(e) => return Err(e),
+    };
+    match collection.distinct(field, filter).await {
+        Ok(values) => {
+            let array = values
+                .into_iter()
+                .map(serde_json::Value::from)
+                .collect::<Vec<serde_json::Value>>();
+            Ok(serde_json::Value::Array(array))
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+async fn exec_drop(
+    collection: &Collection<bson::Document>,
+) -> Result<serde_json::Value, String> {
+    match collection.drop().await {
+        Ok(_) => Ok(ok_result()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+async fn exec_create_index(
+    collection: &Collection<bson::Document>,
+    args: &[serde_json::Value],
+) -> Result<serde_json::Value, String> {
+    let keys = match arg_doc(args, 0) {
+        Ok(doc) => doc,
+        Err(e) => return Err(e),
+    };
+    let options_doc = match args.get(1) {
+        Some(value) => match to_document(value) {
+            Ok(doc) => doc,
+            Err(e) => return Err(e),
+        },
+        None => bson::Document::new(),
+    };
+    // The builder is typed-state, so pass Options straight through rather than
+    // conditionally reassigning (absent → None, i.e. unset).
+    let unique = options_doc.get("unique").and_then(|value| value.as_bool());
+    let name = options_doc
+        .get("name")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string());
+    let options = IndexOptions::builder().unique(unique).name(name).build();
+    let model = IndexModel::builder()
+        .keys(keys)
+        .options(Some(options))
+        .build();
+    match collection.create_index(model).await {
+        Ok(result) => {
+            let mut out = serde_json::Map::new();
+            out.insert(
+                String::from("name"),
+                serde_json::Value::from(result.index_name),
+            );
+            Ok(serde_json::Value::Object(out))
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+async fn exec_drop_index(
+    collection: &Collection<bson::Document>,
+    args: &[serde_json::Value],
+) -> Result<serde_json::Value, String> {
+    let name = match args.first().and_then(|value| value.as_str()) {
+        Some(value) => value.to_string(),
+        None => return Err(String::from("dropIndex expects an index name")),
+    };
+    match collection.drop_index(name).await {
+        Ok(_) => Ok(ok_result()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+async fn exec_rename(
+    client: &Client,
+    db_name: &str,
+    collection_name: &str,
+    args: &[serde_json::Value],
+) -> Result<serde_json::Value, String> {
+    let target = match args.first().and_then(|value| value.as_str()) {
+        Some(value) => value,
+        None => return Err(String::from("renameCollection expects a target name")),
+    };
+    let mut command = bson::Document::new();
+    command.insert(
+        "renameCollection",
+        format!("{}.{}", db_name, collection_name),
+    );
+    command.insert("to", format!("{}.{}", db_name, target));
+    // renameCollection must run against the admin database.
+    match client.database("admin").run_command(command).await {
+        Ok(doc) => Ok(bson_doc_to_json(doc)),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// A minimal `{ ok: 1 }` acknowledgement for void operations.
+fn ok_result() -> serde_json::Value {
+    let mut out = serde_json::Map::new();
+    out.insert(String::from("ok"), serde_json::Value::from(1));
     serde_json::Value::Object(out)
 }

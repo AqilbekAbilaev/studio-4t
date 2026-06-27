@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use boa_engine::{Context, Source};
+use boa_engine::{js_string, Context, JsValue, Source};
 use mongodb::Client;
 use serde::Serialize;
 use tokio::runtime::Handle;
@@ -200,6 +200,9 @@ fn eval_in(context: &mut Context, code: &str) -> ShellResult {
 
     match outcome {
         Ok(value) => {
+            // A bare cursor (e.g. `db.c.find()`) is materialized to its array so
+            // it displays results, mirroring mongosh.
+            let value = materialize_cursor(value, context);
             let json = match value.to_json(context) {
                 Ok(option) => option,
                 Err(_) => None,
@@ -215,6 +218,34 @@ fn eval_in(context: &mut Context, code: &str) -> ShellResult {
             value: None,
             error: Some(err.to_string()),
         },
+    }
+}
+
+/// If `value` is a shell cursor (tagged `__isCursor`), call its `toArray()` so
+/// the completion value displays as results rather than an opaque object.
+fn materialize_cursor(value: JsValue, context: &mut Context) -> JsValue {
+    let object = match value.as_object() {
+        Some(obj) => obj,
+        None => return value,
+    };
+    let is_cursor = match object.get(js_string!("__isCursor"), context) {
+        Ok(flag) => flag.to_boolean(),
+        Err(_) => false,
+    };
+    if !is_cursor {
+        return value;
+    }
+    let to_array = match object.get(js_string!("toArray"), context) {
+        Ok(method) => method,
+        Err(_) => return value,
+    };
+    let callable = match to_array.as_callable() {
+        Some(function) => function,
+        None => return value,
+    };
+    match callable.call(&value, &[], context) {
+        Ok(result) => result,
+        Err(_) => value,
     }
 }
 
