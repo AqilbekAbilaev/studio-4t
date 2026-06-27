@@ -5,16 +5,24 @@
 // and talk to it over a channel. Each shell tab gets its own `Context` (keyed by
 // session id) so that variables declared in one submission survive into the next.
 //
-// Phase 1: plain JavaScript only — `print` / `printjson` (defined in a JS
-// preamble that appends to a `__logs__` array) plus the completion value of the
-// evaluated code. The MongoDB `db` bridge is added in a later phase.
+// Each evaluation carries the live MongoDB connection (client + database +
+// runtime handle); the worker rebinds it into the session's shared slot so the
+// `db` bridge (see bridge.rs) can reach the driver. `print` / `printjson` are
+// defined in a JS preamble that appends to a `__logs__` array; the completion
+// value of the evaluated code is returned alongside the logs.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use boa_engine::{Context, Source};
+use mongodb::Client;
 use serde::Serialize;
+use tokio::runtime::Handle;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
+
+use super::bridge::{install_db, DbInner};
 
 /// One evaluation's transcript, returned to the frontend.
 #[derive(Debug, Clone, Serialize)]
@@ -35,11 +43,21 @@ enum ShellRequest {
     Eval {
         session_id: String,
         code: String,
+        client: Client,
+        default_db: String,
+        handle: Handle,
         reply: oneshot::Sender<ShellResult>,
     },
     Close {
         session_id: String,
     },
+}
+
+/// A live shell session: its JS context plus the shared slot the `db` bridge
+/// reads the current connection from.
+struct Session {
+    context: Context,
+    db_slot: Rc<RefCell<Option<DbInner>>>,
 }
 
 /// Managed-state handle to the shell worker thread. Holds only the channel
@@ -59,12 +77,24 @@ impl ShellEngine {
     }
 
     /// Queue `code` for evaluation in `session_id`'s context and return a
-    /// receiver the async command can await for the transcript.
-    pub fn submit_eval(&self, session_id: String, code: String) -> oneshot::Receiver<ShellResult> {
+    /// receiver the async command can await for the transcript. `client` and
+    /// `default_db` bind the `db` global for this evaluation; `handle` lets the
+    /// worker thread block on async driver calls.
+    pub fn submit_eval(
+        &self,
+        session_id: String,
+        code: String,
+        client: Client,
+        default_db: String,
+        handle: Handle,
+    ) -> oneshot::Receiver<ShellResult> {
         let (reply, reply_rx) = oneshot::channel::<ShellResult>();
         let request = ShellRequest::Eval {
             session_id: session_id,
             code: code,
+            client: client,
+            default_db: default_db,
+            handle: handle,
             reply: reply,
         };
         // If the worker is gone the request (and its reply sender) is dropped,
@@ -86,7 +116,7 @@ impl ShellEngine {
 /// Runs on a dedicated `std::thread` (not a runtime worker), so `blocking_recv`
 /// is safe here.
 fn worker(mut receiver: UnboundedReceiver<ShellRequest>) {
-    let mut sessions: HashMap<String, Context> = HashMap::new();
+    let mut sessions: HashMap<String, Session> = HashMap::new();
 
     loop {
         let request = match receiver.blocking_recv() {
@@ -98,12 +128,21 @@ fn worker(mut receiver: UnboundedReceiver<ShellRequest>) {
             ShellRequest::Eval {
                 session_id,
                 code,
+                client,
+                default_db,
+                handle,
                 reply,
             } => {
-                let context = sessions
+                let session = sessions
                     .entry(session_id)
-                    .or_insert_with(new_context);
-                let result = eval_in(context, &code);
+                    .or_insert_with(new_session);
+                // Bind the `db` global to this evaluation's connection.
+                *session.db_slot.borrow_mut() = Some(DbInner {
+                    client: client,
+                    db_name: default_db,
+                    handle: handle,
+                });
+                let result = eval_in(&mut session.context, &code);
                 let _ = reply.send(result);
             }
             ShellRequest::Close { session_id } => {
@@ -113,8 +152,10 @@ fn worker(mut receiver: UnboundedReceiver<ShellRequest>) {
     }
 }
 
-/// Build a fresh JS context with hang limits and the `print` preamble installed.
-fn new_context() -> Context {
+/// Build a fresh session: a JS context with hang limits, the `print` preamble,
+/// and the `db` bridge installed against a shared (initially empty) slot.
+fn new_session() -> Session {
+    let slot: Rc<RefCell<Option<DbInner>>> = Rc::new(RefCell::new(None));
     let mut context = Context::default();
 
     // Hang protection: abort runaway loops / recursion instead of freezing the
@@ -142,7 +183,12 @@ fn new_context() -> Context {
     "#;
     let _ = context.eval(Source::from_bytes(preamble));
 
-    context
+    install_db(&mut context, Rc::clone(&slot));
+
+    Session {
+        context: context,
+        db_slot: slot,
+    }
 }
 
 /// Reset the log buffer, run the user's code, and collect the transcript.

@@ -40,6 +40,9 @@ thiserror = "1"
 # Pure-Rust JavaScript engine powering the embedded shell (IntelliShell). Pure
 # Rust keeps cross-platform Tauri builds toolchain-free (no C deps like QuickJS).
 boa_engine = "0.21"
+# Direct dependency so boa's `#[derive(Trace, Finalize)]` macros (which expand to
+# `::boa_gc::…` paths) resolve. Version must track boa_engine's.
+boa_gc = "0.21"
 
 # keyring needs a per-platform backend feature; without one it silently uses an
 # in-memory mock store that loses every password when the app exits (which made
