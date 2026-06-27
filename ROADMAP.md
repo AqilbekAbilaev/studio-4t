@@ -106,6 +106,8 @@ Most of these already have a button or menu item in the UI, currently disabled o
 "coming soon" / "coming to Studio-4T" stub.
 
 ### P1 — Medium — productivity & polish
+- [ ] **IntelliShell editor** — live syntax highlighting + `db.`/method autocomplete, Run current
+  line, Save / Open query (the shell ships; these editor niceties need an editor lib, e.g. CodeMirror)
 - [ ] **Per-connection status** indicator in the tree (connected / loading / error)
 - [ ] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar stubs)
 - [ ] **Last-page** paging button (currently disabled)
