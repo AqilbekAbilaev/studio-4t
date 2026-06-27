@@ -1338,15 +1338,34 @@ pub fn clear_query_history(
 
 /// Evaluate a block of JavaScript in the shell session identified by
 /// `session_id`. Each session has its own persistent JS context, so variables
-/// declared in one submission are visible in the next. Returns the transcript
-/// (printed lines, completion value, or a JS error message).
+/// declared in one submission are visible in the next. The `db` global is bound
+/// to `id`'s connection and `database`. Returns the transcript (printed lines,
+/// completion value, or a JS error message).
 #[tauri::command]
 pub async fn run_shell_command(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
     shell: State<'_, ShellEngine>,
+    id: String,
+    database: String,
     session_id: String,
     code: String,
 ) -> Result<ShellResult, AppError> {
-    let receiver = shell.submit_eval(session_id, code);
+    // Resolve the connection exactly like find_documents so the shell shares the
+    // same pooled client and credential flow.
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let built_uri = uri::build_uri(&config, password.as_deref());
+    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    let handle = tokio::runtime::Handle::current();
+    let receiver = shell.submit_eval(session_id, code, client, database, handle);
     match receiver.await {
         Ok(result) => Ok(result),
         Err(_) => Err(AppError::Shell(String::from(

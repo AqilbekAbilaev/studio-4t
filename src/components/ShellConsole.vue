@@ -47,6 +47,8 @@ async function run() {
 
   try {
     const res = await invoke('run_shell_command', {
+      id:        props.activeTab.connectionId,
+      database:  props.activeTab.dbName,
       sessionId: props.activeTab.sessionId,
       code:      code,
     })
@@ -121,7 +123,7 @@ function onKeydown(e) {
         v-model="input"
         :disabled="activeTab.isRunning"
         @keydown="onKeydown"
-        placeholder="db is coming soon — try: 1 + 1, print('hi'), var x = 5"
+        placeholder="e.g. db.myCollection.find({}), db.runCommand({ ping: 1 }), 1 + 1"
         spellcheck="false"
         autocorrect="off"
         autocapitalize="off"

@@ -4864,6 +4864,7 @@ name = "studio-4t"
 version = "0.1.0"
 dependencies = [
  "boa_engine",
+ "boa_gc",
  "keyring",
  "mongodb",
  "serde",
