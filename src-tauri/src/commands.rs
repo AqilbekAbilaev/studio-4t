@@ -90,18 +90,16 @@ pub async fn save_connection(
         };
     }
 
-    let built_uri = uri::build_uri(&config, pw_ref);
-    match storage.add(config) {
+    match storage.add(config.clone()) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
 
     // Create and cache the client immediately so the first expand is instant.
-    let client = match Client::with_uri_str(&uri::with_timeout(&built_uri)).await {
-        Ok(val) => val,
-        Err(e) => return Err(AppError::Mongo(e)),
+    match pool.connect(&config, pw_ref).await {
+        Ok(_) => {}
+        Err(e) => return Err(e),
     };
-    pool.insert(id.clone(), client).await;
 
     Ok(id)
 }
@@ -458,8 +456,7 @@ pub async fn find_documents(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -567,8 +564,7 @@ pub async fn list_databases(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -612,8 +608,7 @@ pub async fn create_collection(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -635,8 +630,7 @@ pub async fn drop_database(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -659,8 +653,7 @@ pub async fn drop_collection(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -687,8 +680,7 @@ pub async fn rename_collection(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -719,8 +711,7 @@ pub async fn create_database(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -750,8 +741,7 @@ pub async fn insert_document(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -784,8 +774,7 @@ pub async fn replace_document(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -823,8 +812,7 @@ pub async fn delete_document(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -859,8 +847,7 @@ pub async fn explain_query(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -921,8 +908,7 @@ pub async fn list_indexes(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -964,8 +950,7 @@ pub async fn create_index(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -1009,8 +994,7 @@ pub async fn drop_index(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -1037,8 +1021,7 @@ pub async fn run_aggregate(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -1086,8 +1069,7 @@ pub async fn export_collection(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -1164,8 +1146,7 @@ pub async fn import_collection(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -1375,8 +1356,7 @@ pub async fn run_shell_command(
         None => return Err(AppError::UnknownConnection(id)),
     };
     let password = crate::keychain::get(&id);
-    let built_uri = uri::build_uri(&config, password.as_deref());
-    let client = match pool.get_or_create(&id, &uri::with_timeout(&built_uri)).await {
+    let client = match pool.connect(&config, password.as_deref()).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
