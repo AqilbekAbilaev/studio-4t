@@ -71,6 +71,13 @@
   (`default_queries.rs`, persisted) that auto-loads when the collection is opened
 - **Copy / paste query between tabs** — copy a tab's full query state and paste it into another tab
 - **Tab persistence** — open tabs (and their query state) are saved and restored across app restarts
+- **IntelliShell** — an embedded, mongosh-style JavaScript shell (a shell tab opened from a
+  database/connection node). A pure-Rust `boa_engine` runs on a dedicated worker thread (one
+  persistent JS context per session, so variables survive across submissions); native calls bridge
+  `db.<coll>.<method>(…)` to the driver. Supports CRUD, `aggregate`, `runCommand`, a chainable
+  cursor (`limit/skip/sort/projection` + `toArray/forEach/map/…`), index/admin helpers, and EJSON
+  constructors (`ObjectId`, `ISODate`, `NumberLong/Int/Decimal`). Output is pretty-printed +
+  syntax-highlighted; command history persists per connection (`shell_history.json`)
 
 ### Collection & database
 - Create a collection (`create_collection`) and drop a database (`drop_database`, confirm dialog)
@@ -101,7 +108,6 @@ Most of these already have a button or menu item in the UI, currently disabled o
 - [ ] **Last-page** paging button (currently disabled)
 - [ ] **Server status** panel (host, version, uptime, connections, memory)
 - [ ] **Preferences** window (theme, default query limit, shortcuts list)
-- [ ] **IntelliShell** — embedded `db.<coll>.<method>(…)` console
 
 ### P2 — Later — advanced / nice-to-have
 - [ ] **GridFS** — browse buckets, upload / download files
