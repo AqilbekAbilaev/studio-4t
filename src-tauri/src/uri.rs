@@ -29,6 +29,49 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
         "mongodb"
     };
 
+    let (creds, has_user) = build_credentials(config, password);
+
+    let host_part = if config.connection_type == "srv" {
+        config.host.clone()
+    } else {
+        format!("{}:{}", config.host, config.port)
+    };
+
+    let mut query: Vec<String> = Vec::new();
+    push_auth_query(config, has_user, &mut query);
+
+    if let Some(rs) = config.replica_set_name.as_deref().filter(|s| !s.is_empty()) {
+        query.push(format!("replicaSet={}", rs));
+    }
+
+    push_tls_query(config, &mut query);
+
+    assemble(scheme, &creds, &host_part, &query)
+}
+
+/// Like `build_uri` but targets an explicit `host:port` (used for an SSH tunnel's
+/// local forwarded port). Forces a standard `mongodb://` direct connection — no
+/// SRV, no replica-set discovery (which would bypass the tunnel) — while keeping
+/// the same credentials, auth, and TLS options.
+pub fn build_uri_to(
+    config: &ConnectionConfig,
+    password: Option<&str>,
+    host: &str,
+    port: u16,
+) -> String {
+    let (creds, has_user) = build_credentials(config, password);
+    let host_part = format!("{}:{}", host, port);
+
+    let mut query: Vec<String> = Vec::new();
+    push_auth_query(config, has_user, &mut query);
+    query.push(String::from("directConnection=true"));
+    push_tls_query(config, &mut query);
+
+    assemble("mongodb", &creds, &host_part, &query)
+}
+
+/// Returns the `user:pass@` prefix (empty when no auth) and whether a user is set.
+fn build_credentials(config: &ConnectionConfig, password: Option<&str>) -> (String, bool) {
     // "none" auth mechanism means no credentials in the URI at all.
     let is_no_auth = config.auth_mechanism.as_deref() == Some("none");
     let has_user = !is_no_auth
@@ -44,31 +87,23 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
     } else {
         String::new()
     };
+    (creds, has_user)
+}
 
-    let host_part = if config.connection_type == "srv" {
-        config.host.clone()
-    } else {
-        format!("{}:{}", config.host, config.port)
-    };
-
-    let mut query: Vec<String> = Vec::new();
-
+fn push_auth_query(config: &ConnectionConfig, has_user: bool, query: &mut Vec<String>) {
     if has_user {
         let auth_db = config.auth_db.as_deref().filter(|s| !s.is_empty()).unwrap_or("admin");
         query.push(format!("authSource={}", auth_db));
     }
-
-    // Append explicit auth mechanism for any mode other than "none" and the
-    // implicit default (None / empty = let the driver negotiate).
+    // Explicit mechanism for any mode other than "none" and the implicit default
+    // (None / empty = let the driver negotiate).
     if let Some(mech) = config.auth_mechanism.as_deref().filter(|s| !s.is_empty() && *s != "none") {
         query.push(format!("authMechanism={}", mech));
     }
+}
 
-    if let Some(rs) = config.replica_set_name.as_deref().filter(|s| !s.is_empty()) {
-        query.push(format!("replicaSet={}", rs));
-    }
-
-    // TLS. File paths are percent-encoded; the driver decodes query values.
+fn push_tls_query(config: &ConnectionConfig, query: &mut Vec<String>) {
+    // File paths are percent-encoded; the driver decodes query values.
     if config.tls {
         query.push(String::from("tls=true"));
         if let Some(ca) = config.tls_ca_file.as_deref().filter(|s| !s.is_empty()) {
@@ -81,7 +116,9 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
             query.push(String::from("tlsAllowInvalidCertificates=true"));
         }
     }
+}
 
+fn assemble(scheme: &str, creds: &str, host_part: &str, query: &[String]) -> String {
     if query.is_empty() {
         format!("{scheme}://{creds}{host_part}/")
     } else {
@@ -201,6 +238,12 @@ mod tests {
             tls_ca_file: None,
             tls_cert_key_file: None,
             tls_allow_invalid_certificates: false,
+            ssh_enabled: false,
+            ssh_host: None,
+            ssh_port: 22,
+            ssh_user: None,
+            ssh_auth: None,
+            ssh_key_file: None,
             tag: None,
             last_accessed: None,
             open: false,

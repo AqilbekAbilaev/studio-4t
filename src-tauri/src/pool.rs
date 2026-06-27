@@ -1,20 +1,25 @@
 use crate::error::AppError;
+use crate::ssh::{self, SshAuth, SshParams, SshTunnel};
 use crate::storage::ConnectionConfig;
 use crate::uri;
 use mongodb::Client;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// Holds one MongoDB Client per saved connection, keyed by connection ID.
 /// Client is cheap to clone (Arc-backed) and manages its own connection pool internally.
+/// For SSH-tunnelled connections it also owns the live tunnel, keyed by the same id.
 pub struct ConnectionPool {
     clients: Mutex<HashMap<String, Client>>,
+    tunnels: Mutex<HashMap<String, Arc<SshTunnel>>>,
 }
 
 impl ConnectionPool {
     pub fn new() -> Self {
         Self {
             clients: Mutex::new(HashMap::new()),
+            tunnels: Mutex::new(HashMap::new()),
         }
     }
 
@@ -24,6 +29,8 @@ impl ConnectionPool {
 
     pub async fn remove(&self, id: &str) {
         self.clients.lock().await.remove(id);
+        // Dropping the last Arc tears the tunnel (accept loop + session) down.
+        self.tunnels.lock().await.remove(id);
     }
 
     /// Returns a cached client, or creates and caches a new one from `uri`.
@@ -55,9 +62,58 @@ impl ConnectionPool {
         config: &ConnectionConfig,
         password: Option<&str>,
     ) -> Result<Client, AppError> {
+        // SSH: ensure the tunnel and point the driver at the local forwarded port.
+        if config.ssh_enabled {
+            let tunnel = match self.ensure_tunnel(config).await {
+                Ok(value) => value,
+                Err(e) => return Err(e),
+            };
+            let host = String::from("127.0.0.1");
+            let port = tunnel.local_addr.port();
+            let built_uri = uri::build_uri_to(config, password, &host, port);
+            return self
+                .get_or_create(&config.id, &uri::with_timeout(&built_uri))
+                .await;
+        }
+
         let built_uri = uri::build_uri(config, password);
         self.get_or_create(&config.id, &uri::with_timeout(&built_uri))
             .await
+    }
+
+    /// Returns the cached SSH tunnel for `config`, establishing one if needed.
+    /// SSH secrets are read from the keychain under composite keys.
+    async fn ensure_tunnel(&self, config: &ConnectionConfig) -> Result<Arc<SshTunnel>, AppError> {
+        if let Some(existing) = self.tunnels.lock().await.get(&config.id).cloned() {
+            return Ok(existing);
+        }
+
+        let auth = match config.ssh_auth.as_deref() {
+            Some("key") => SshAuth::Key {
+                path: config.ssh_key_file.clone().unwrap_or_default(),
+                passphrase: crate::keychain::get(&format!("{}::ssh-key-pass", config.id)),
+            },
+            _ => SshAuth::Password(
+                crate::keychain::get(&format!("{}::ssh-pass", config.id)).unwrap_or_default(),
+            ),
+        };
+        let params = SshParams {
+            ssh_host: config.ssh_host.clone().unwrap_or_default(),
+            ssh_port: config.ssh_port,
+            ssh_user: config.ssh_user.clone().unwrap_or_default(),
+            auth: auth,
+            mongo_host: config.host.clone(),
+            mongo_port: config.port,
+        };
+        let tunnel = match ssh::establish(params).await {
+            Ok(value) => Arc::new(value),
+            Err(e) => return Err(e),
+        };
+        self.tunnels
+            .lock()
+            .await
+            .insert(config.id.clone(), Arc::clone(&tunnel));
+        Ok(tunnel)
     }
 }
 

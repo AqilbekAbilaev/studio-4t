@@ -28,6 +28,10 @@
 - **TLS / SSL** — enable TLS with a custom CA file, a client certificate (`tlsCAFile` /
   `tlsCertificateKeyFile`), and an "allow invalid certificates" option for self-signed deployments;
   configured in the connection dialog's SSL tab and applied on Test Connection + connect
+- **SSH tunnel** — connect through a bastion: password or private-key auth (+ passphrase), a local
+  port forwarded to the remote MongoDB host (pure-Rust `russh`), torn down on disconnect; configured
+  in the SSH Tunnel tab. Standalone host only for now (no replica-set/SRV over SSH); host-key
+  verification is accept-all pending a known-hosts flow
 - **Structured connection storage** — `ConnectionConfig` holds individual fields, not a raw URI
 - Color-tagging (red/blue/green/purple/none), honored through the tree subtree
 - **Open-connection persistence** — the sidebar shows only the *open* connections (the full saved

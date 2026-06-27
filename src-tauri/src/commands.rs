@@ -41,6 +41,89 @@ pub async fn test_connection(uri: String) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Test a connection that goes through an SSH tunnel: open a temporary tunnel,
+/// connect to the forwarded local port, ping, then tear the tunnel down (it
+/// drops at the end of this function). TLS-over-SSH is not exercised here.
+#[tauri::command]
+pub async fn test_ssh_connection(
+    ssh_host: String,
+    ssh_port: u16,
+    ssh_user: String,
+    ssh_auth: String,
+    ssh_password: Option<String>,
+    ssh_key_file: Option<String>,
+    ssh_passphrase: Option<String>,
+    mongo_host: String,
+    mongo_port: u16,
+    username: Option<String>,
+    password: Option<String>,
+    auth_db: Option<String>,
+    auth_mechanism: Option<String>,
+) -> Result<(), AppError> {
+    let auth = if ssh_auth == "key" {
+        crate::ssh::SshAuth::Key {
+            path: ssh_key_file.unwrap_or_default(),
+            passphrase: ssh_passphrase,
+        }
+    } else {
+        crate::ssh::SshAuth::Password(ssh_password.unwrap_or_default())
+    };
+    let params = crate::ssh::SshParams {
+        ssh_host: ssh_host,
+        ssh_port: ssh_port,
+        ssh_user: ssh_user,
+        auth: auth,
+        mongo_host: mongo_host.clone(),
+        mongo_port: mongo_port,
+    };
+    let tunnel = match crate::ssh::establish(params).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    // Minimal config carrying just the Mongo auth fields, pointed at the tunnel.
+    let cfg = ConnectionConfig {
+        id: String::new(),
+        name: String::new(),
+        host: mongo_host,
+        port: mongo_port,
+        connection_type: String::from("standalone"),
+        replica_set_name: None,
+        username: username,
+        auth_db: auth_db,
+        auth_mechanism: auth_mechanism,
+        tls: false,
+        tls_ca_file: None,
+        tls_cert_key_file: None,
+        tls_allow_invalid_certificates: false,
+        ssh_enabled: false,
+        ssh_host: None,
+        ssh_port: 22,
+        ssh_user: None,
+        ssh_auth: None,
+        ssh_key_file: None,
+        tag: None,
+        last_accessed: None,
+        open: false,
+    };
+    let local_port = tunnel.local_addr.port();
+    let uri = uri::with_timeout(&uri::build_uri_to(
+        &cfg,
+        password.as_deref(),
+        "127.0.0.1",
+        local_port,
+    ));
+    let client = match Client::with_uri_str(&uri).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    match client.list_database_names().await {
+        Ok(_) => {}
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn save_connection(
     storage: State<'_, Storage>,
@@ -58,6 +141,14 @@ pub async fn save_connection(
     tls_ca_file: Option<String>,
     tls_cert_key_file: Option<String>,
     tls_allow_invalid_certificates: bool,
+    ssh_enabled: bool,
+    ssh_host: Option<String>,
+    ssh_port: u16,
+    ssh_user: Option<String>,
+    ssh_auth: Option<String>,
+    ssh_key_file: Option<String>,
+    ssh_password: Option<String>,
+    ssh_passphrase: Option<String>,
     tag: Option<String>,
 ) -> Result<String, AppError> {
     let id = Uuid::new_v4().to_string();
@@ -75,6 +166,12 @@ pub async fn save_connection(
         tls_ca_file: tls_ca_file,
         tls_cert_key_file: tls_cert_key_file,
         tls_allow_invalid_certificates: tls_allow_invalid_certificates,
+        ssh_enabled: ssh_enabled,
+        ssh_host: ssh_host,
+        ssh_port: ssh_port,
+        ssh_user: ssh_user,
+        ssh_auth: ssh_auth,
+        ssh_key_file: ssh_key_file,
         tag: tag,
         last_accessed: None,
         // A newly saved connection is opened in the sidebar.
@@ -85,6 +182,19 @@ pub async fn save_connection(
     let pw_ref = password.as_deref().filter(|s| !s.is_empty());
     if let Some(pw) = pw_ref {
         match crate::keychain::set(&id, pw) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+    }
+    // SSH secrets live under composite keychain keys.
+    if let Some(sp) = ssh_password.as_deref().filter(|s| !s.is_empty()) {
+        match crate::keychain::set(&format!("{}::ssh-pass", id), sp) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+    }
+    if let Some(pp) = ssh_passphrase.as_deref().filter(|s| !s.is_empty()) {
+        match crate::keychain::set(&format!("{}::ssh-key-pass", id), pp) {
             Ok(val) => val,
             Err(e) => return Err(e),
         };
@@ -127,6 +237,14 @@ pub async fn update_connection(
     tls_ca_file: Option<String>,
     tls_cert_key_file: Option<String>,
     tls_allow_invalid_certificates: bool,
+    ssh_enabled: bool,
+    ssh_host: Option<String>,
+    ssh_port: u16,
+    ssh_user: Option<String>,
+    ssh_auth: Option<String>,
+    ssh_key_file: Option<String>,
+    ssh_password: Option<String>,
+    ssh_passphrase: Option<String>,
     tag: Option<String>,
 ) -> Result<(), AppError> {
     // Preserve last_accessed and the open state from the existing record.
@@ -148,15 +266,33 @@ pub async fn update_connection(
         tls_ca_file: tls_ca_file,
         tls_cert_key_file: tls_cert_key_file,
         tls_allow_invalid_certificates: tls_allow_invalid_certificates,
+        ssh_enabled: ssh_enabled,
+        ssh_host: ssh_host,
+        ssh_port: ssh_port,
+        ssh_user: ssh_user,
+        ssh_auth: ssh_auth,
+        ssh_key_file: ssh_key_file,
         tag: tag,
         last_accessed: last_accessed,
         open: open,
     };
 
-    // Update keychain only when a new password is supplied; empty = keep existing.
+    // Update keychain only when a new secret is supplied; empty = keep existing.
     let pw_ref = password.as_deref().filter(|s| !s.is_empty());
     if let Some(pw) = pw_ref {
         match crate::keychain::set(&id, pw) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+    }
+    if let Some(sp) = ssh_password.as_deref().filter(|s| !s.is_empty()) {
+        match crate::keychain::set(&format!("{}::ssh-pass", id), sp) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+    }
+    if let Some(pp) = ssh_passphrase.as_deref().filter(|s| !s.is_empty()) {
+        match crate::keychain::set(&format!("{}::ssh-key-pass", id), pp) {
             Ok(val) => val,
             Err(e) => return Err(e),
         };
@@ -185,6 +321,8 @@ pub async fn delete_connection(
     };
     pool.remove(&id).await;
     crate::keychain::delete(&id);
+    crate::keychain::delete(&format!("{}::ssh-pass", id));
+    crate::keychain::delete(&format!("{}::ssh-key-pass", id));
     Ok(())
 }
 

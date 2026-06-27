@@ -5,6 +5,7 @@ use std::path::PathBuf;
 fn default_host() -> String { String::from("localhost") }
 fn default_port() -> u16 { 27017 }
 fn default_connection_type() -> String { String::from("standalone") }
+fn default_ssh_port() -> u16 { 22 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ConnectionConfig {
@@ -34,6 +35,20 @@ pub struct ConnectionConfig {
     pub tls_cert_key_file: Option<String>,
     #[serde(default)]
     pub tls_allow_invalid_certificates: bool,
+    // SSH tunnel. When enabled, the driver connects through a local forwarded
+    // port (see ssh.rs / pool::connect). Secrets live in the keychain, not here.
+    #[serde(default)]
+    pub ssh_enabled: bool,
+    #[serde(default)]
+    pub ssh_host: Option<String>,
+    #[serde(default = "default_ssh_port")]
+    pub ssh_port: u16,
+    #[serde(default)]
+    pub ssh_user: Option<String>,
+    #[serde(default)]
+    pub ssh_auth: Option<String>,
+    #[serde(default)]
+    pub ssh_key_file: Option<String>,
     #[serde(default)]
     pub tag: Option<String>,
     #[serde(default)]
@@ -127,6 +142,12 @@ mod tests {
             tls_ca_file: None,
             tls_cert_key_file: None,
             tls_allow_invalid_certificates: false,
+            ssh_enabled: false,
+            ssh_host: None,
+            ssh_port: 22,
+            ssh_user: None,
+            ssh_auth: None,
+            ssh_key_file: None,
             tag: None,
             last_accessed: None,
             open: false,

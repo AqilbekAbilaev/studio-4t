@@ -25,6 +25,9 @@ pub enum AppError {
 
     #[error("Shell error: {0}")]
     Shell(String),
+
+    #[error("SSH tunnel error: {0}")]
+    Ssh(String),
 }
 
 // Tauri commands return Result<T, E> where E must implement serde::Serialize.
