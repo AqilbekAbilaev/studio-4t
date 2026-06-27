@@ -5,6 +5,7 @@ import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
 import VisualQueryBuilder from './VisualQueryBuilder.vue'
 import ResultTable from './ResultTable.vue'
+import TreeView from './TreeView.vue'
 
 const props = defineProps({
   activeTab:   { type: Object,  required: true },
@@ -389,6 +390,27 @@ const queryCode = computed(() => {
       <div v-else class="json-doc" v-for="(doc, i) in activeTab.results" :key="i" v-html="syntaxHighlight(mongoStringify(doc))"></div>
     </div>
 
+    <!-- Tree view -->
+    <div v-else-if="rtab === 'Result' && viewMode === 'tree'" class="tree-view">
+      <div v-if="!activeTab.results?.length" style="padding:32px;color:var(--text-faint);font-size:12px">No documents</div>
+      <template v-else>
+        <div class="tree-head">
+          <span class="th-key">Key</span>
+          <span class="th-val">Value</span>
+          <span class="th-type">Type</span>
+        </div>
+        <div class="tree-body">
+          <TreeView
+            v-for="(doc, i) in activeTab.results"
+            :key="i"
+            :label="`(${i + 1})`"
+            :value="doc"
+            :depth="0"
+          />
+        </div>
+      </template>
+    </div>
+
     <!-- Query Code sub-tab -->
     <div v-else-if="rtab === 'Query Code'" class="qcode-view">
       <pre class="qcode-pre"><span class="qcode-prompt">&gt;</span> {{ queryCode }}</pre>
@@ -606,6 +628,25 @@ const queryCode = computed(() => {
 
 /* JSON view */
 .json-view { flex: 1; overflow: auto; padding: 12px 16px; }
+
+/* Tree view */
+.tree-view { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--bg-window); }
+.tree-head {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 2fr) 110px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 26px;
+  align-items: center;
+  background: var(--bg-toolbar);
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+}
+.tree-head span { padding: 0 8px; border-right: 1px solid var(--border); height: 100%; display: flex; align-items: center; }
+.tree-head .th-type { border-right: none; }
 .json-doc {
   font-family: var(--mono);
   font-size: 12.5px;
@@ -615,6 +656,7 @@ const queryCode = computed(() => {
   border-left: 2px solid var(--border-soft);
   padding: 8px 0 8px 14px;
   margin-bottom: 10px;
+  cursor: text;
   -webkit-user-select: text;
   user-select: text;
 }
