@@ -4,6 +4,7 @@
 // local port. Pure-Rust (russh), runs on the existing tokio runtime.
 
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use russh::client;
@@ -39,6 +40,15 @@ pub struct SshTunnel {
     // Keeps the SSH session alive for the channels' lifetime.
     _session: Arc<client::Handle<ClientHandler>>,
     accept_task: tokio::task::JoinHandle<()>,
+    // Cleared when the listener or a forward fails — the pool re-establishes a
+    // dead tunnel on next use instead of failing forever.
+    alive: Arc<AtomicBool>,
+}
+
+impl SshTunnel {
+    pub fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::Relaxed)
+    }
 }
 
 impl Drop for SshTunnel {
@@ -62,7 +72,10 @@ impl client::Handler for ClientHandler {
 /// Open an SSH session, authenticate, and start forwarding a fresh local port to
 /// `mongo_host:mongo_port` through the tunnel.
 pub async fn establish(params: SshParams) -> Result<SshTunnel, AppError> {
-    let config = Arc::new(client::Config::default());
+    let mut config = client::Config::default();
+    // Send keepalives so a dropped session is detected instead of hanging.
+    config.keepalive_interval = Some(std::time::Duration::from_secs(30));
+    let config = Arc::new(config);
     let mut session = match client::connect(
         config,
         (params.ssh_host.as_str(), params.ssh_port),
@@ -113,6 +126,8 @@ pub async fn establish(params: SshParams) -> Result<SshTunnel, AppError> {
 
     let session = Arc::new(session);
     let forward_session = Arc::clone(&session);
+    let alive = Arc::new(AtomicBool::new(true));
+    let accept_alive = Arc::clone(&alive);
     let mongo_host = params.mongo_host;
     let mongo_port = params.mongo_port as u32;
     let local_port = local_addr.port() as u32;
@@ -121,9 +136,13 @@ pub async fn establish(params: SshParams) -> Result<SshTunnel, AppError> {
         loop {
             let (mut socket, _peer) = match listener.accept().await {
                 Ok(value) => value,
-                Err(_) => break,
+                Err(_) => {
+                    accept_alive.store(false, Ordering::Relaxed);
+                    break;
+                }
             };
             let session = Arc::clone(&forward_session);
+            let forward_alive = Arc::clone(&accept_alive);
             let host = mongo_host.clone();
             tokio::spawn(async move {
                 let channel = match session
@@ -131,7 +150,11 @@ pub async fn establish(params: SshParams) -> Result<SshTunnel, AppError> {
                     .await
                 {
                     Ok(value) => value,
-                    Err(_) => return,
+                    // A failed channel open usually means the SSH session died.
+                    Err(_) => {
+                        forward_alive.store(false, Ordering::Relaxed);
+                        return;
+                    }
                 };
                 let mut stream = channel.into_stream();
                 let _ = tokio::io::copy_bidirectional(&mut socket, &mut stream).await;
@@ -143,5 +166,6 @@ pub async fn establish(params: SshParams) -> Result<SshTunnel, AppError> {
         local_addr: local_addr,
         _session: session,
         accept_task: accept_task,
+        alive: alive,
     })
 }
