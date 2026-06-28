@@ -89,6 +89,10 @@ impl ConnectionPool {
                 return Ok(existing);
             }
             // Dead tunnel: drop it and the stale client so we re-establish below.
+            eprintln!(
+                "[studio-4t] ssh tunnel for {} is dead; re-establishing",
+                config.id
+            );
             self.clients.lock().await.remove(&config.id);
             self.tunnels.lock().await.remove(&config.id);
         }
@@ -114,6 +118,11 @@ impl ConnectionPool {
             Ok(value) => Arc::new(value),
             Err(e) => return Err(e),
         };
+        eprintln!(
+            "[studio-4t] ssh tunnel established for {} on 127.0.0.1:{}",
+            config.id,
+            tunnel.local_addr.port()
+        );
         self.tunnels
             .lock()
             .await
