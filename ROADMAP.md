@@ -10,8 +10,14 @@
 - Fast TCP probe — instant "connection refused" feedback before the MongoDB handshake
 - Connection URI assembled in Rust from stored config (`uri::build_uri`) — the backend is the
   source of truth; the frontend never passes credentials
-- Rust backend modules: `error`, `storage`, `pool`, `uri`, `keychain`, `commands`, `menu`
-- Unit tests — 32 covering storage, URI building, and pool state
+- Rust backend modules: `error`, `storage`, `pool`, `uri`, `keychain`, `commands`, `menu`,
+  `persist`, `shell`, `ssh`
+- Unit tests — 50 covering storage, URI building, pool state, and the shell arg→BSON converter
+- **Backend hardening** — atomic JSON writes (temp-file + rename) and per-store read-modify-write
+  locking so a crash mid-write can't corrupt a file and concurrent commands can't lose updates;
+  one IntelliShell worker thread per session (a slow eval can't stall other shells); a `maxTimeMS`
+  cap on find/aggregate/count so a runaway query aborts server-side instead of hanging the UI;
+  central error logging with error categories (`AppError::code`)
 - Stable rendering on Linux/WebKitGTK — DMABUF renderer disabled + repaint-on-refocus so the
   result grid doesn't go blank / freeze scroll after switching windows
 - Working text-editing shortcuts on Linux/WebKitGTK — the native Edit menu is left empty on Linux
@@ -126,6 +132,16 @@ Most of these already have a button or menu item in the UI, currently disabled o
 - [ ] **SQL Migration** — generate CREATE TABLE + INSERT from a collection
 - [ ] **Dark / light theme** toggle
 - [ ] **Keyboard shortcuts** reference / customization
+
+### Hardening follow-ups (deferred from the backend pass)
+- [ ] **Cancel running query** — a real Cancel button (op tracking + `killOp`); today a `maxTimeMS`
+  cap aborts runaway queries server-side, but there's no user-driven cancel
+- [ ] **Structured errors to the frontend** — `AppError` already carries a `code`; expose
+  `{ code, message }` so the UI can branch on error type (auth vs network vs TLS). Deferred because
+  it changes the error wire format (~80 `String(e)` call sites) and there's no UI consumer yet
+- [ ] **SSH known-hosts / trust-on-first-use** — host-key verification is currently accept-all
+- [ ] **Integration tests** against a live MongoDB for the pool / command / driver paths (only pure
+  logic is unit-tested today)
 
 ---
 
