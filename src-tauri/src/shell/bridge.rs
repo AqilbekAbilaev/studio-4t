@@ -11,6 +11,7 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use boa_engine::{js_string, Context, JsError, JsString, JsValue, NativeFunction, Source};
 use boa_gc::{Finalize, Trace};
@@ -23,6 +24,9 @@ use tokio::runtime::Handle;
 /// `find()` without an explicit `.limit()` returns at most this many documents,
 /// so a bare `db.coll.find({})` on a large collection can't hang the shell
 /// fetching everything (mongosh shows a small batch for the same reason).
+/// Server-side time cap so a slow shell query aborts instead of pinning the
+/// session's worker thread.
+const MAX_QUERY_TIME: Duration = Duration::from_secs(60);
 const DEFAULT_FIND_LIMIT: i64 = 20;
 /// Hard ceiling on documents materialized by a single find/aggregate, so an
 /// explicit large `.limit()` or a huge pipeline can't exhaust memory.
@@ -316,7 +320,7 @@ async fn exec_find(
     } else {
         requested.min(MAX_DOCS as i64)
     };
-    query = query.limit(effective_limit);
+    query = query.limit(effective_limit).max_time(MAX_QUERY_TIME);
 
     let mut cursor = match query.await {
         Ok(value) => value,
@@ -497,7 +501,7 @@ async fn exec_count(
         Ok(value) => value,
         Err(e) => return Err(e),
     };
-    match collection.count_documents(filter).await {
+    match collection.count_documents(filter).max_time(MAX_QUERY_TIME).await {
         Ok(value) => Ok(serde_json::Value::from(value)),
         Err(e) => Err(e.to_string()),
     }
@@ -518,7 +522,7 @@ async fn exec_aggregate(
             Err(e) => return Err(e),
         }
     }
-    let mut cursor = match collection.aggregate(stages).await {
+    let mut cursor = match collection.aggregate(stages).max_time(MAX_QUERY_TIME).await {
         Ok(value) => value,
         Err(e) => return Err(e.to_string()),
     };

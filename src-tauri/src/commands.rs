@@ -13,8 +13,13 @@ use mongodb::options::IndexOptions;
 use mongodb::Client;
 use mongodb::IndexModel;
 use serde::Serialize;
+use std::time::Duration;
 use tauri::State;
 use uuid::Uuid;
+
+// Server-side time cap on user queries so a runaway find/aggregate aborts on the
+// server instead of hanging the UI (Tauri commands can't be cancelled in-flight).
+const MAX_QUERY_TIME: Duration = Duration::from_secs(60);
 
 #[derive(Serialize)]
 pub struct DatabaseInfo {
@@ -615,7 +620,11 @@ pub async fn find_documents(
         Err(e) => return Err(e),
     };
 
-    let mut query = col.find(filter_doc).limit(limit).skip(skip as u64);
+    let mut query = col
+        .find(filter_doc)
+        .limit(limit)
+        .skip(skip as u64)
+        .max_time(MAX_QUERY_TIME);
     if !projection_doc.is_empty() {
         query = query.projection(projection_doc);
     }
@@ -1170,7 +1179,7 @@ pub async fn run_aggregate(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let mut cursor = match col.aggregate(stages).await {
+    let mut cursor = match col.aggregate(stages).max_time(MAX_QUERY_TIME).await {
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };

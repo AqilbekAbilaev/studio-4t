@@ -1,9 +1,9 @@
 // Embedded JavaScript shell ("IntelliShell").
 //
 // `boa_engine::Context` is `!Send`, so it cannot live in Tauri managed state or
-// cross an `.await`. We confine every JS context to a single owned worker thread
-// and talk to it over a channel. Each shell tab gets its own `Context` (keyed by
-// session id) so that variables declared in one submission survive into the next.
+// cross an `.await`. Each shell session gets its **own** worker thread that owns
+// its `Context`, so variables persist across submissions *and* a slow/blocking
+// eval in one session can't stall the others. Sessions are addressed by id.
 //
 // Each evaluation carries the live MongoDB connection (client + database +
 // runtime handle); the worker rebinds it into the session's shared slot so the
@@ -14,6 +14,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Mutex;
 
 use boa_engine::{js_string, Context, JsValue, Source};
 use mongodb::Client;
@@ -38,19 +39,13 @@ pub struct ShellResult {
     pub error: Option<String>,
 }
 
-/// Messages sent from Tauri commands to the worker thread.
-enum ShellRequest {
-    Eval {
-        session_id: String,
-        code: String,
-        client: Client,
-        default_db: String,
-        handle: Handle,
-        reply: oneshot::Sender<ShellResult>,
-    },
-    Close {
-        session_id: String,
-    },
+/// One evaluation queued to a session's worker thread.
+struct EvalMsg {
+    code: String,
+    client: Client,
+    default_db: String,
+    handle: Handle,
+    reply: oneshot::Sender<ShellResult>,
 }
 
 /// A live shell session: its JS context plus the shared slot the `db` bridge
@@ -60,26 +55,22 @@ struct Session {
     db_slot: Rc<RefCell<Option<DbInner>>>,
 }
 
-/// Managed-state handle to the shell worker thread. Holds only the channel
-/// sender, so it is `Send + Sync` and safe to `app.manage()`.
+/// Managed state: one channel sender per live session, each backed by a
+/// dedicated worker thread. Holds only `Send + Sync` senders behind a `Mutex`,
+/// so it is safe to `app.manage()`.
 pub struct ShellEngine {
-    sender: UnboundedSender<ShellRequest>,
+    sessions: Mutex<HashMap<String, UnboundedSender<EvalMsg>>>,
 }
 
 impl ShellEngine {
     pub fn new() -> Self {
-        let (sender, receiver) = unbounded_channel::<ShellRequest>();
-        std::thread::Builder::new()
-            .name(String::from("intellishell"))
-            .spawn(move || worker(receiver))
-            .expect("failed to spawn IntelliShell worker thread");
-        ShellEngine { sender: sender }
+        ShellEngine {
+            sessions: Mutex::new(HashMap::new()),
+        }
     }
 
-    /// Queue `code` for evaluation in `session_id`'s context and return a
-    /// receiver the async command can await for the transcript. `client` and
-    /// `default_db` bind the `db` global for this evaluation; `handle` lets the
-    /// worker thread block on async driver calls.
+    /// Queue `code` for evaluation in `session_id`'s worker (spawning it on first
+    /// use) and return a receiver the async command can await for the transcript.
     pub fn submit_eval(
         &self,
         session_id: String,
@@ -89,66 +80,64 @@ impl ShellEngine {
         handle: Handle,
     ) -> oneshot::Receiver<ShellResult> {
         let (reply, reply_rx) = oneshot::channel::<ShellResult>();
-        let request = ShellRequest::Eval {
-            session_id: session_id,
+        let message = EvalMsg {
             code: code,
             client: client,
             default_db: default_db,
             handle: handle,
             reply: reply,
         };
-        // If the worker is gone the request (and its reply sender) is dropped,
-        // so the awaited receiver resolves to an error — handled by the caller.
-        let _ = self.sender.send(request);
+
+        let mut sessions = match self.sessions.lock() {
+            Ok(value) => value,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let sender = sessions
+            .entry(session_id)
+            .or_insert_with(spawn_session_worker);
+        // If the worker died, its sender errors; the dropped reply makes the
+        // awaited receiver resolve to an error, handled by the caller.
+        let _ = sender.send(message);
         reply_rx
     }
 
-    /// Drop a session's context (e.g. when its shell tab is closed).
+    /// Drop a session's worker (and its JS context) when its tab is closed.
+    /// Removing the sender closes the channel, so the worker thread exits.
     pub fn close(&self, session_id: String) {
-        let request = ShellRequest::Close {
-            session_id: session_id,
+        let mut sessions = match self.sessions.lock() {
+            Ok(value) => value,
+            Err(poisoned) => poisoned.into_inner(),
         };
-        let _ = self.sender.send(request);
+        sessions.remove(&session_id);
     }
 }
 
-/// The worker thread: owns all JS contexts and serves requests one at a time.
-/// Runs on a dedicated `std::thread` (not a runtime worker), so `blocking_recv`
-/// is safe here.
-fn worker(mut receiver: UnboundedReceiver<ShellRequest>) {
-    let mut sessions: HashMap<String, Session> = HashMap::new();
+/// Spawn a dedicated worker thread owning one JS context. Runs on a plain
+/// `std::thread` (not a runtime worker), so `blocking_recv` is safe.
+fn spawn_session_worker() -> UnboundedSender<EvalMsg> {
+    let (sender, receiver) = unbounded_channel::<EvalMsg>();
+    std::thread::Builder::new()
+        .name(String::from("intellishell"))
+        .spawn(move || session_loop(receiver))
+        .expect("failed to spawn IntelliShell worker thread");
+    sender
+}
 
+fn session_loop(mut receiver: UnboundedReceiver<EvalMsg>) {
+    let mut session = new_session();
     loop {
-        let request = match receiver.blocking_recv() {
+        let message = match receiver.blocking_recv() {
             Some(value) => value,
-            None => break, // all senders dropped — app is shutting down
+            None => break, // sender dropped (session closed / app shutdown)
         };
-
-        match request {
-            ShellRequest::Eval {
-                session_id,
-                code,
-                client,
-                default_db,
-                handle,
-                reply,
-            } => {
-                let session = sessions
-                    .entry(session_id)
-                    .or_insert_with(new_session);
-                // Bind the `db` global to this evaluation's connection.
-                *session.db_slot.borrow_mut() = Some(DbInner {
-                    client: client,
-                    db_name: default_db,
-                    handle: handle,
-                });
-                let result = eval_in(&mut session.context, &code);
-                let _ = reply.send(result);
-            }
-            ShellRequest::Close { session_id } => {
-                sessions.remove(&session_id);
-            }
-        }
+        // Bind the `db` global to this evaluation's connection.
+        *session.db_slot.borrow_mut() = Some(DbInner {
+            client: message.client,
+            db_name: message.default_db,
+            handle: message.handle,
+        });
+        let result = eval_in(&mut session.context, &message.code);
+        let _ = message.reply.send(result);
     }
 }
 

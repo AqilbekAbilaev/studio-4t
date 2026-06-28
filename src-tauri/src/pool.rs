@@ -85,7 +85,12 @@ impl ConnectionPool {
     /// SSH secrets are read from the keychain under composite keys.
     async fn ensure_tunnel(&self, config: &ConnectionConfig) -> Result<Arc<SshTunnel>, AppError> {
         if let Some(existing) = self.tunnels.lock().await.get(&config.id).cloned() {
-            return Ok(existing);
+            if existing.is_alive() {
+                return Ok(existing);
+            }
+            // Dead tunnel: drop it and the stale client so we re-establish below.
+            self.clients.lock().await.remove(&config.id);
+            self.tunnels.lock().await.remove(&config.id);
         }
 
         let auth = match config.ssh_auth.as_deref() {
