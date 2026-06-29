@@ -97,11 +97,18 @@ impl client::Handler for ClientHandler {
         {
             Ok(()) => Ok(true),
             Err(e) => {
+                // Store the bare message: `establish` re-wraps the reason in
+                // AppError::Ssh, so using `e.to_string()` (which already carries
+                // the "SSH tunnel error:" Display prefix) would double it.
+                let reason = match e {
+                    AppError::Ssh(message) => message,
+                    other => other.to_string(),
+                };
                 let mut guard = match self.reject_reason.lock() {
                     Ok(g) => g,
                     Err(p) => p.into_inner(),
                 };
-                *guard = Some(e.to_string());
+                *guard = Some(reason);
                 Ok(false)
             }
         }
