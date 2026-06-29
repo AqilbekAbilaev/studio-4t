@@ -17,7 +17,7 @@ const props = defineProps({
   vqbOpen:        { type: Boolean, default: false },
   clipboardQuery: { type: Object,  default: null },
 })
-const emit = defineEmits(['activate-tab', 'close-tab', 'run-query', 'run-aggregate', 'toggle-vqb', 'open-vqb', 'close-vqb', 'toast', 'copy-query', 'paste-query'])
+const emit = defineEmits(['activate-tab', 'close-tab', 'tab-context', 'run-query', 'run-aggregate', 'toggle-vqb', 'open-vqb', 'close-vqb', 'toast', 'copy-query', 'paste-query'])
 
 const showQueryBrowser = ref(false)
 
@@ -187,6 +187,7 @@ async function applyFromBrowser(entry) {
       :active-tab-id="activeTabId"
       @activate-tab="emit('activate-tab', $event)"
       @close-tab="emit('close-tab', $event)"
+      @tab-context="emit('tab-context', $event)"
     />
 
     <!-- Quickstart pane -->

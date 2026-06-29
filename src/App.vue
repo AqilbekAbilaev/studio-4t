@@ -33,12 +33,12 @@ function projectSession() {
       .filter(t => t.kind === 'collection' || t.kind === 'shell')
       .map(t => t.kind === 'shell'
         ? {
-            id: t.id, kind: 'shell', title: t.title,
+            id: t.id, kind: 'shell', title: t.title, color: t.color,
             connectionId: t.connectionId, connectionName: t.connectionName,
             dbName: t.dbName, code: t.code,
           }
         : {
-            id: t.id, kind: 'collection', title: t.title,
+            id: t.id, kind: 'collection', title: t.title, color: t.color,
             connectionId: t.connectionId, connectionName: t.connectionName,
             dbName: t.dbName, collectionName: t.collectionName,
             filter: t.filter, sort: t.sort, projection: t.projection,
@@ -77,7 +77,7 @@ onMounted(async () => {
           ? {
               // Rebuild a shell tab with a fresh backend session (JS contexts are
               // ephemeral); the editor text is restored, history loads on mount.
-              id: t.id, kind: 'shell', title: t.title,
+              id: t.id, kind: 'shell', title: t.title, color: t.color,
               connectionId: t.connectionId, connectionName: t.connectionName,
               dbName: t.dbName,
               sessionId: (crypto.randomUUID ? crypto.randomUUID() : t.id),
@@ -263,6 +263,12 @@ function onManagerConnect(id) {
 async function handleContextAction(action) {
   const saved = contextMenu.value
   contextMenu.value = null
+
+  // Tab context menu (right-click on a tab) routes to its own handler.
+  if (saved.type === 'tab') {
+    handleTabAction(action, saved.nodeData.tabId)
+    return
+  }
 
   if (action === 'Open Collection') {
     openCollectionTab({
@@ -825,6 +831,99 @@ function closeTab(id) {
   }
 }
 
+// ── tab context menu ───────────────────────────────────────
+function onTabContext({ id, x, y }) {
+  contextMenu.value = { type: 'tab', x: x, y: y, nodeData: { tabId: id } }
+}
+
+function handleTabAction(action, tabId) {
+  if (action.startsWith('Choose Color:')) {
+    const color = action.split(':')[1]
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab) tab.color = color === 'none' ? null : color
+    return
+  }
+  switch (action) {
+    case 'Close Tab':               closeTab(tabId); break
+    case 'Close Other Tabs':        closeTabsExcept(tabId); break
+    case 'Close Tabs to the Left':  closeTabsToSide(tabId, 'left'); break
+    case 'Close Tabs to the Right': closeTabsToSide(tabId, 'right'); break
+    case 'Close All Tabs':          closeAllTabs(); break
+    case 'Duplicate Tab':           duplicateTab(tabId); break
+    case 'Move Tab to the Front':   moveTabToFront(tabId); break
+    case 'Rename Tab…':             openRenameTab(tabId); break
+  }
+}
+
+// closeTab reindexes each call, so iterate over a snapshot of the target ids.
+function closeTabsExcept(tabId) {
+  tabs.value.filter(t => t.id !== tabId).map(t => t.id).forEach(closeTab)
+}
+function closeTabsToSide(tabId, side) {
+  const idx = tabs.value.findIndex(t => t.id === tabId)
+  if (idx < 0) return
+  const victims = side === 'left' ? tabs.value.slice(0, idx) : tabs.value.slice(idx + 1)
+  victims.map(t => t.id).forEach(closeTab)
+}
+function closeAllTabs() {
+  tabs.value.map(t => t.id).forEach(closeTab)
+}
+function moveTabToFront(tabId) {
+  const idx = tabs.value.findIndex(t => t.id === tabId)
+  if (idx <= 0) return
+  const [tab] = tabs.value.splice(idx, 1)
+  tabs.value.unshift(tab)
+}
+function duplicateTab(tabId) {
+  const src = tabs.value.find(t => t.id === tabId)
+  if (!src) return
+  const id = 't' + Date.now()
+  if (src.kind === 'shell') {
+    tabs.value.push({
+      id: id, kind: 'shell', title: src.title,
+      connectionId: src.connectionId, connectionName: src.connectionName,
+      dbName: src.dbName,
+      sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
+      code: src.code || '', history: [], isRunning: false,
+      results: [], resultView: 'table', resultTab: 'Console',
+      runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
+      logs: [], scalar: undefined, hasScalar: false,
+      color: src.color ?? null,
+    })
+    activeTabId.value = id
+    return
+  }
+  const dup = {
+    id: id, kind: 'collection', title: src.title,
+    connectionId: src.connectionId, connectionName: src.connectionName,
+    dbName: src.dbName, collectionName: src.collectionName,
+    filter: src.filter, projection: src.projection, sort: src.sort,
+    skip: src.skip, limit: src.limit, mode: src.mode, pipeline: src.pipeline,
+    color: src.color ?? null,
+    results: [], hasRun: false, isRunning: false, runError: null,
+    selectedRow: -1, elapsedMs: null,
+  }
+  tabs.value.push(dup)
+  activeTabId.value = id
+  runRestoredTab(dup)   // re-run from the cloned query state (find mode only)
+}
+
+// ── rename tab dialog ──────────────────────────────────────
+const renameTabTarget = ref(null)   // id of the tab being renamed
+const renameTabValue = ref('')
+function openRenameTab(tabId) {
+  const tab = tabs.value.find(t => t.id === tabId)
+  if (!tab) return
+  renameTabTarget.value = tabId
+  renameTabValue.value = tab.title || ''
+}
+function confirmRenameTab() {
+  const tab = tabs.value.find(t => t.id === renameTabTarget.value)
+  const name = renameTabValue.value.trim()
+  if (tab && name) tab.title = name
+  renameTabTarget.value = null
+}
+
 // ── query execution ────────────────────────────────────────
 async function runQuery(tabId, params) {
   const tab = tabs.value.find(t => t.id === tabId)
@@ -949,6 +1048,7 @@ async function runAggregate(tabId, params) {
         :clipboard-query="clipboardQuery"
         @activate-tab="activateTab"
         @close-tab="closeTab"
+        @tab-context="onTabContext"
         @run-query="runQuery"
         @run-aggregate="runAggregate"
         @toggle-vqb="vqbOpen = !vqbOpen"
@@ -1012,6 +1112,35 @@ async function runAggregate(tabId, params) {
           <button class="btn primary" :disabled="!newCollectionName.trim() || addCollectionSaving" @click="confirmAddCollection">
             {{ addCollectionSaving ? 'Creating…' : 'Create' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rename Tab modal -->
+    <div v-if="renameTabTarget" class="del-overlay" @mousedown.self="renameTabTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Rename Tab</div>
+          <button class="close-btn" @click="renameTabTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <input
+            v-model="renameTabValue"
+            class="prompt-input"
+            placeholder="Tab name"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.enter="confirmRenameTab"
+            @keydown.escape="renameTabTarget = null"
+          />
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="renameTabTarget = null">Cancel</button>
+          <button class="btn primary" :disabled="!renameTabValue.trim()" @click="confirmRenameTab">Rename</button>
         </div>
       </div>
     </div>
