@@ -37,9 +37,10 @@
 - **SSH tunnel** — connect through a bastion: password or private-key auth (+ passphrase), a local
   port forwarded to the remote MongoDB host (pure-Rust `russh`), torn down on disconnect; configured
   in the SSH Tunnel tab. Standalone host only for now (no replica-set/SRV over SSH). Host-key
-  **trust-on-first-use** — the bastion's key is recorded on first contact (`known_hosts.json`) and
-  verified on every later connect; a changed key is hard-rejected as a possible MITM. An interactive
-  fingerprint prompt on first contact is the planned follow-up
+  verification with an **interactive trust-on-first-use** flow — on first contact the user is shown
+  the bastion's `SHA256` fingerprint and must approve it before the key is recorded
+  (`known_hosts.json`); the key is verified on every later connect; a changed key is hard-rejected
+  with a warning and a "forget saved key" action to re-trust after a legitimate key rotation
 - **Structured connection storage** — `ConnectionConfig` holds individual fields, not a raw URI
 - Color-tagging (red/blue/green/purple/none), honored through the tree subtree
 - **Open-connection persistence** — the sidebar shows only the *open* connections (the full saved
@@ -141,9 +142,10 @@ Most of these already have a button or menu item in the UI, currently disabled o
 - [ ] **Structured errors to the frontend** — `AppError` already carries a `code`; expose
   `{ code, message }` so the UI can branch on error type (auth vs network vs TLS). Deferred because
   it changes the error wire format (~80 `String(e)` call sites) and there's no UI consumer yet
-- [x] **SSH known-hosts / trust-on-first-use** — keys recorded on first contact and verified
-  thereafter; changed keys hard-rejected. *Follow-up:* interactive fingerprint prompt on first
-  contact + a "forget host" action to re-trust after a legitimate key rotation
+- [x] **SSH known-hosts / trust-on-first-use** — interactive fingerprint prompt on first contact
+  (user approves before the key is recorded); verified thereafter; changed keys hard-rejected with a
+  warning + a "forget saved key" recovery action. *Remaining gap:* no full known-hosts manager
+  screen (forget is per-incident, from the changed-key dialog)
 - [ ] **Integration tests** against a live MongoDB for the pool / command / driver paths (only pure
   logic is unit-tested today)
 
