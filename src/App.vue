@@ -642,18 +642,8 @@ async function importCollection(nodeData) {
 
 // ── tab management ─────────────────────────────────────────
 async function openCollectionTab({ connectionId, connectionName, dbName, collectionName }, startMode = 'find') {
-  const existing = tabs.value.find(t =>
-    t.kind === 'collection' &&
-    t.connectionId === connectionId &&
-    t.dbName === dbName &&
-    t.collectionName === collectionName
-  )
-  if (existing) {
-    activeTabId.value = existing.id
-    if (startMode === 'aggregate') existing.mode = 'aggregate'
-    return
-  }
-
+  // Every open creates a new tab — the same collection may be opened in several
+  // tabs (Studio-3T behavior). No dedup/focus-existing here by design.
   const id = 't' + Date.now()
   tabs.value.push({
     id: id, kind: 'collection',
