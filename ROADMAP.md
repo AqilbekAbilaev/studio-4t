@@ -50,6 +50,13 @@
 
 ### Query workspace
 - Multiple tabs, each bound to a collection with its own query state; auto-run on open
+- **Double-click to open** a collection (single click only selects/highlights, Studio-3T style);
+  the same collection can be opened in **several tabs** at once
+- **Tab overflow** — when tabs exceed the strip width they collapse into a "+N" button with a
+  dropdown of the hidden tabs (no scrollbar); the active tab is always kept visible
+- **Tab right-click menu** — Close (Tab / Others / Left / Right / All), Duplicate Tab (clones the
+  collection + full query state), Move Tab to the Front, Rename Tab, and Choose Color (per-tab
+  color tag); custom titles and colors persist across restarts
 - Query bar: filter / sort / projection / skip / limit with syntax-colored JSON; Ctrl/Cmd+Enter to run
 - **ObjectId helpers** — accepts shell-style `ObjectId("…")`, and pasting a bare 24-hex id
   auto-builds `{ _id: ObjectId("…") }`
