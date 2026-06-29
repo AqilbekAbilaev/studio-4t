@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { errMessage } from '../utils/errors'
 import { listen } from '@tauri-apps/api/event'
 import BaseIcon from './BaseIcon.vue'
 
@@ -49,7 +50,7 @@ async function toggleConnection(conn) {
     try {
       connDatabases.value[id] = await invoke('list_databases', { id: id })
     } catch (e) {
-      connErrors.value[id] = String(e)
+      connErrors.value[id] = errMessage(e)
       expandedConns.value[id] = false
     } finally {
       loadingConns.value[id] = false
@@ -141,7 +142,7 @@ async function refreshConn(connId) {
   try {
     connDatabases.value[connId] = await invoke('list_databases', { id: connId })
   } catch (e) {
-    connErrors.value[connId] = String(e)
+    connErrors.value[connId] = errMessage(e)
     expandedConns.value[connId] = false
   } finally {
     loadingConns.value[connId] = false
@@ -197,12 +198,14 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
 
         <!-- Loading indicator -->
         <div v-if="loadingConns[conn.id]" class="tnode" style="padding-left: 36px">
+          <span class="mini-spin"></span>
           <span class="tt" style="color:var(--text-faint);font-size:11.5px">Loading…</span>
         </div>
 
         <!-- Error -->
         <div v-if="connErrors[conn.id]" class="tnode err-node" style="padding-left: 36px">
           <span class="err-msg">{{ connErrors[conn.id] }}</span>
+          <span class="err-retry" @click.stop="toggleConnection(conn)">Retry</span>
         </div>
 
         <!-- Databases -->
@@ -352,8 +355,21 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
 
 .cnt { color: var(--text-faint); font-size: 11.5px; margin-left: 4px; }
 
-.err-node { align-items: flex-start; cursor: default; }
+.err-node { align-items: flex-start; cursor: default; flex-direction: column; gap: 2px; }
 .err-msg { color: #e07070; font-size: 11.5px; white-space: pre-wrap; word-break: break-word; line-height: 1.5; padding: 2px 0; }
+.err-retry { color: var(--accent); font-size: 11.5px; cursor: pointer; }
+.err-retry:hover { text-decoration: underline; }
+.mini-spin {
+  width: 11px;
+  height: 11px;
+  margin-right: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--accent);
+  animation: tree-spin 0.7s linear infinite;
+  flex: none;
+}
+@keyframes tree-spin { to { transform: rotate(360deg); } }
 
 .tnode.prod .tt,
 .tnode.prod .ti { color: var(--prod); }

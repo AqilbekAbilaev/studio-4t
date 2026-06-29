@@ -31,10 +31,20 @@ pub enum AppError {
 }
 
 impl AppError {
-    /// Stable category for logging (and a future structured-error wire format).
+    /// Stable category for logging and the structured-error wire format. The
+    /// frontend branches on this (e.g. to show an auth vs network hint), so
+    /// Mongo errors are classified into actionable sub-categories.
     pub fn code(&self) -> &'static str {
         match self {
-            AppError::Mongo(_) => "mongo",
+            AppError::Mongo(e) => match e.kind.as_ref() {
+                mongodb::error::ErrorKind::Authentication { .. } => "auth",
+                mongodb::error::ErrorKind::InvalidTlsConfig { .. } => "tls",
+                mongodb::error::ErrorKind::ServerSelection { .. }
+                | mongodb::error::ErrorKind::DnsResolve { .. }
+                | mongodb::error::ErrorKind::ConnectionPoolCleared { .. }
+                | mongodb::error::ErrorKind::Io(_) => "network",
+                _ => "mongo",
+            },
             AppError::Io(_) => "io",
             AppError::Serde(_) => "serde",
             AppError::Unreachable { .. } => "unreachable",
@@ -48,13 +58,23 @@ impl AppError {
 }
 
 // Tauri commands return Result<T, E> where E must implement serde::Serialize.
-// We serialize as a plain string so the frontend receives the human-readable
-// message (unchanged contract). This is also the single funnel through which
-// every error returned to the frontend passes, so we log it here (with its
-// category) for diagnosis.
+// We serialize as { code, message } so the frontend gets both a stable category
+// to branch on and a human-readable message. This is also the single funnel
+// through which every error returned to the frontend passes, so we log it here
+// (with its category) for diagnosis.
+#[derive(serde::Serialize)]
+struct WireError<'a> {
+    code: &'a str,
+    message: String,
+}
+
 impl serde::Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         eprintln!("[studio-4t] error [{}]: {}", self.code(), self);
-        s.serialize_str(&self.to_string())
+        let wire = WireError {
+            code: self.code(),
+            message: self.to_string(),
+        };
+        wire.serialize(s)
     }
 }

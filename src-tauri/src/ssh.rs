@@ -12,7 +12,7 @@ use russh::client;
 use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKey};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 
 use crate::error::AppError;
@@ -21,6 +21,10 @@ use crate::known_hosts::{HostKeyCheck, KnownHostsStore};
 /// How long to wait for the user to answer a first-contact host-key prompt
 /// before giving up and refusing the connection.
 const PROMPT_TIMEOUT_SECS: u64 = 120;
+
+/// How long to wait for the bastion TCP connect and for SSH authentication
+/// before failing — otherwise an unreachable/slow host hangs the whole query.
+const SSH_CONNECT_TIMEOUT_SECS: u64 = 15;
 
 /// How to authenticate to the SSH server.
 pub enum SshAuth {
@@ -287,13 +291,31 @@ pub async fn establish(
         port: params.ssh_port,
         reject_reason: Arc::clone(&reject_reason),
     };
-    let mut session = match client::connect(
-        config,
-        (params.ssh_host.as_str(), params.ssh_port),
-        handler,
+    // Bound the TCP connect ourselves (russh's `connect` has no timeout, so an
+    // unreachable bastion would hang the query forever). The SSH handshake then
+    // runs on the connected stream — its host-key step keeps its own prompt
+    // timeout, so we don't wrap the handshake here.
+    let stream = match tokio::time::timeout(
+        std::time::Duration::from_secs(SSH_CONNECT_TIMEOUT_SECS),
+        TcpStream::connect((params.ssh_host.as_str(), params.ssh_port)),
     )
     .await
     {
+        Ok(Ok(value)) => value,
+        Ok(Err(e)) => {
+            return Err(AppError::Ssh(format!(
+                "could not connect to {}:{}: {}",
+                params.ssh_host, params.ssh_port, e
+            )))
+        }
+        Err(_) => {
+            return Err(AppError::Ssh(format!(
+                "timed out connecting to {}:{} — is the host reachable?",
+                params.ssh_host, params.ssh_port
+            )))
+        }
+    };
+    let mut session = match client::connect_stream(config, stream, handler).await {
         Ok(value) => value,
         Err(e) => {
             // A host-key rejection surfaces here as a generic handshake error;
@@ -304,29 +326,37 @@ pub async fn establish(
             };
             match guard.take() {
                 Some(reason) => return Err(AppError::Ssh(reason)),
-                None => return Err(AppError::Ssh(format!("connect failed: {}", e))),
+                None => return Err(AppError::Ssh(format!("SSH handshake failed: {}", e))),
             }
         }
     };
 
-    let auth = match params.auth {
+    let auth_future = match params.auth {
         SshAuth::Password(password) => {
-            session
-                .authenticate_password(params.ssh_user.clone(), password)
-                .await
+            // Box the two differently-typed futures so they share one timeout below.
+            let future = session.authenticate_password(params.ssh_user.clone(), password);
+            Box::pin(future) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<russh::client::AuthResult, russh::Error>> + Send>>
         }
         SshAuth::Key { path, passphrase } => {
             let key = match load_secret_key(&path, passphrase.as_deref()) {
                 Ok(value) => value,
                 Err(e) => return Err(AppError::Ssh(format!("could not load key: {}", e))),
             };
-            session
-                .authenticate_publickey(
-                    params.ssh_user.clone(),
-                    PrivateKeyWithHashAlg::new(Arc::new(key), None),
-                )
-                .await
+            let future = session.authenticate_publickey(
+                params.ssh_user.clone(),
+                PrivateKeyWithHashAlg::new(Arc::new(key), None),
+            );
+            Box::pin(future) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<russh::client::AuthResult, russh::Error>> + Send>>
         }
+    };
+    let auth = match tokio::time::timeout(
+        std::time::Duration::from_secs(SSH_CONNECT_TIMEOUT_SECS),
+        auth_future,
+    )
+    .await
+    {
+        Ok(value) => value,
+        Err(_) => return Err(AppError::Ssh(String::from("timed out during SSH authentication"))),
     };
     match auth {
         Ok(result) => {
