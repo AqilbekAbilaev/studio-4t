@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { errMessage } from '../utils/errors'
 import BaseIcon from './BaseIcon.vue'
 
 const props = defineProps({
@@ -440,7 +441,7 @@ async function commitInlineEdit() {
       tab.results.splice(edit.rowIdx, 1)
     }
   } catch (e) {
-    emit('crud-error', String(e))
+    emit('crud-error', errMessage(e))
   }
 }
 

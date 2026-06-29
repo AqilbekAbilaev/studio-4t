@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { errMessage } from '../utils/errors'
 import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
 import VisualQueryBuilder from './VisualQueryBuilder.vue'
 import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
+import StateMessage from './StateMessage.vue'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
 
 const props = defineProps({
@@ -174,7 +176,7 @@ async function onDocSave(jsonStr) {
     showDocModal.value = false
     emit('requery', true)
   } catch (e) {
-    crudError.value = String(e)
+    crudError.value = errMessage(e)
   } finally {
     crudSaving.value = false
   }
@@ -195,7 +197,7 @@ async function onDeleteConfirm() {
     tab.selectedRow = -1
     emit('requery', true)
   } catch (e) {
-    crudError.value = String(e)
+    crudError.value = errMessage(e)
   }
 }
 
@@ -322,8 +324,24 @@ const queryCode = computed(() => {
       </div>
     </div>
 
-    <!-- Error state -->
-    <div v-if="activeTab.runError" class="run-error">{{ activeTab.runError }}</div>
+    <!-- Result-tab states: error / loading / empty (shared placeholder) -->
+    <StateMessage
+      v-if="rtab === 'Result' && activeTab.runError"
+      mode="error"
+      :message="activeTab.runError"
+      :code="activeTab.runErrorCode"
+      retryable
+      @retry="emit('run')"
+    />
+    <StateMessage
+      v-else-if="rtab === 'Result' && activeTab.isRunning"
+      mode="loading"
+      label="Running query…"
+    />
+    <StateMessage
+      v-else-if="rtab === 'Result' && activeTab.hasRun && !activeTab.results?.length"
+      mode="empty"
+    />
 
     <!-- Table view -->
     <ResultTable

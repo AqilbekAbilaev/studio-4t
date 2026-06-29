@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
+import { errMessage, errCode } from './utils/errors'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -452,7 +453,7 @@ async function confirmAddCollection() {
     showToast(`Collection "${name}" created`)
     addCollectionTarget.value = null
   } catch (e) {
-    addCollectionError.value = String(e)
+    addCollectionError.value = errMessage(e)
   } finally {
     addCollectionSaving.value = false
   }
@@ -473,7 +474,7 @@ async function confirmDropDatabase() {
     showToast(`Database "${target.dbName}" dropped`)
     dropDatabaseTarget.value = null
   } catch (e) {
-    dropDatabaseError.value = String(e)
+    dropDatabaseError.value = errMessage(e)
   } finally {
     dropDatabaseDeleting.value = false
   }
@@ -494,7 +495,7 @@ async function confirmDropCollection() {
     showToast(`Collection "${target.collName}" dropped`)
     dropCollectionTarget.value = null
   } catch (e) {
-    dropCollectionError.value = String(e)
+    dropCollectionError.value = errMessage(e)
   } finally {
     dropCollectionDeleting.value = false
   }
@@ -517,7 +518,7 @@ async function confirmRenameCollection() {
     showToast(`Collection renamed to "${newName}"`)
     renameCollectionTarget.value = null
   } catch (e) {
-    renameCollectionError.value = String(e)
+    renameCollectionError.value = errMessage(e)
   } finally {
     renameCollectionSaving.value = false
   }
@@ -536,7 +537,7 @@ async function confirmAddDatabase() {
     showToast(`Database "${dbName}" created`)
     addDatabaseTarget.value = null
   } catch (e) {
-    addDatabaseError.value = String(e)
+    addDatabaseError.value = errMessage(e)
   } finally {
     addDatabaseSaving.value = false
   }
@@ -554,7 +555,7 @@ async function loadIndexes() {
       collection: target.collName,
     })
   } catch (e) {
-    indexesError.value = String(e)
+    indexesError.value = errMessage(e)
     indexesList.value = []
   } finally {
     indexesLoading.value = false
@@ -582,7 +583,7 @@ async function confirmCreateIndex() {
     await loadIndexes()
     showToast('Index created')
   } catch (e) {
-    indexesError.value = String(e)
+    indexesError.value = errMessage(e)
   } finally {
     indexCreating.value = false
   }
@@ -608,7 +609,7 @@ async function dropIndex(name) {
     await loadIndexes()
     showToast(`Index "${name}" dropped`)
   } catch (e) {
-    indexesError.value = String(e)
+    indexesError.value = errMessage(e)
     pendingDropIndex.value = null
   }
 }
@@ -629,7 +630,7 @@ async function exportCollection(nodeData) {
       ],
     })
   } catch (e) {
-    showToast('Export failed: ' + String(e))
+    showToast('Export failed: ' + errMessage(e))
     return
   }
   if (!path) return  // user cancelled
@@ -644,7 +645,7 @@ async function exportCollection(nodeData) {
     })
     showToast(`Exported ${count} document${count !== 1 ? 's' : ''} to ${format.toUpperCase()}`)
   } catch (e) {
-    showToast('Export failed: ' + String(e))
+    showToast('Export failed: ' + errMessage(e))
   }
 }
 
@@ -656,7 +657,7 @@ async function importCollection(nodeData) {
       filters: [{ name: 'JSON or CSV', extensions: ['json', 'csv'] }],
     })
   } catch (e) {
-    showToast('Import failed: ' + String(e))
+    showToast('Import failed: ' + errMessage(e))
     return
   }
   if (!path) return  // user cancelled
@@ -672,7 +673,7 @@ async function importCollection(nodeData) {
     await connectionTreeRef.value.refreshConn(nodeData.connId)
     showToast(`Imported ${count} document${count !== 1 ? 's' : ''}`)
   } catch (e) {
-    showToast('Import failed: ' + String(e))
+    showToast('Import failed: ' + errMessage(e))
   }
 }
 
@@ -930,6 +931,7 @@ async function runQuery(tabId, params) {
   if (!tab) return
   tab.isRunning = true
   tab.runError = null
+  tab.runErrorCode = null
   const t0 = Date.now()
   const { addToHistory = true, ...queryParams } = params
   try {
@@ -957,7 +959,8 @@ async function runQuery(tabId, params) {
       }).catch(() => {})
     }
   } catch (e) {
-    tab.runError = String(e)
+    tab.runError = errMessage(e)
+    tab.runErrorCode = errCode(e)
   } finally {
     tab.isRunning = false
   }
@@ -968,6 +971,7 @@ async function runAggregate(tabId, params) {
   if (!tab) return
   tab.isRunning = true
   tab.runError = null
+  tab.runErrorCode = null
   const t0 = Date.now()
   try {
     tab.results = await invoke('run_aggregate', {
@@ -992,7 +996,8 @@ async function runAggregate(tabId, params) {
       pipeline:     tab.pipeline || '',
     }).catch(() => {})
   } catch (e) {
-    tab.runError = String(e)
+    tab.runError = errMessage(e)
+    tab.runErrorCode = errCode(e)
   } finally {
     tab.isRunning = false
   }

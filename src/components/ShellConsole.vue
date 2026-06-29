@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { errMessage } from '../utils/errors'
 import BaseIcon from './BaseIcon.vue'
 import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
@@ -102,7 +103,7 @@ async function run() {
     }
   } catch (e) {
     tab.elapsedMs = Date.now() - t0
-    tab.runError = String(e)
+    tab.runError = errMessage(e)
     tab.results = []
     tab.hasScalar = false
     tab.resultTab = 'Console'
