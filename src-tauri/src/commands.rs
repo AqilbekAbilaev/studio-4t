@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::history::{now_ms, HistoryStorage, QueryHistoryEntry};
 use crate::known_hosts::KnownHostsStore;
+use crate::ssh::HostKeyPrompts;
 use crate::default_queries::{DefaultQuery, DefaultQueryStorage};
 use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
 use crate::tabs::TabStorage;
@@ -53,7 +54,9 @@ pub async fn test_connection(uri: String) -> Result<(), AppError> {
 /// drops at the end of this function). TLS-over-SSH is not exercised here.
 #[tauri::command]
 pub async fn test_ssh_connection(
+    app: tauri::AppHandle,
     known_hosts: State<'_, Arc<KnownHostsStore>>,
+    prompts: State<'_, Arc<HostKeyPrompts>>,
     ssh_host: String,
     ssh_port: u16,
     ssh_user: String,
@@ -84,7 +87,14 @@ pub async fn test_ssh_connection(
         mongo_host: mongo_host.clone(),
         mongo_port: mongo_port,
     };
-    let tunnel = match crate::ssh::establish(params, Arc::clone(known_hosts.inner())).await {
+    let tunnel = match crate::ssh::establish(
+        params,
+        Arc::clone(known_hosts.inner()),
+        Arc::clone(prompts.inner()),
+        app,
+    )
+    .await
+    {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -130,6 +140,24 @@ pub async fn test_ssh_connection(
         Err(e) => return Err(AppError::Mongo(e)),
     };
     Ok(())
+}
+
+/// The frontend's answer to a first-contact SSH host-key prompt: deliver the
+/// user's trust decision to the SSH handshake that is waiting on it.
+#[tauri::command]
+pub fn respond_ssh_host_key(prompts: State<'_, Arc<HostKeyPrompts>>, request_id: u64, trust: bool) {
+    prompts.resolve(request_id, trust);
+}
+
+/// Forget a host's trusted SSH key so the next connection re-prompts as a fresh
+/// first contact. The recovery path after a legitimate server key rotation.
+#[tauri::command]
+pub fn forget_ssh_host(
+    known_hosts: State<'_, Arc<KnownHostsStore>>,
+    host: String,
+    port: u16,
+) -> Result<(), AppError> {
+    known_hosts.remove(&host, port)
 }
 
 #[tauri::command]

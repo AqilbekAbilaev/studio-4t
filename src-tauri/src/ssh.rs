@@ -3,16 +3,24 @@
 // through an SSH `direct-tcpip` channel. The MongoDB driver then connects to the
 // local port. Pure-Rust (russh), runs on the existing tokio runtime.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use russh::client;
-use russh::keys::{load_secret_key, PrivateKeyWithHashAlg, PublicKey};
+use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKey};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 use tokio::net::TcpListener;
+use tokio::sync::oneshot;
 
 use crate::error::AppError;
-use crate::known_hosts::KnownHostsStore;
+use crate::known_hosts::{HostKeyCheck, KnownHostsStore};
+
+/// How long to wait for the user to answer a first-contact host-key prompt
+/// before giving up and refusing the connection.
+const PROMPT_TIMEOUT_SECS: u64 = 120;
 
 /// How to authenticate to the SSH server.
 pub enum SshAuth {
@@ -58,17 +66,99 @@ impl Drop for SshTunnel {
     }
 }
 
-/// Trust-on-first-use host-key policy. The presented key is checked against the
-/// `KnownHostsStore`: a match or a brand-new host is accepted (and recorded), a
-/// changed key is rejected.
+/// Pending first-contact host-key prompts awaiting a user decision. The handler
+/// registers a prompt and awaits its receiver; the `respond_ssh_host_key`
+/// command resolves it with the user's choice.
+pub struct HostKeyPrompts {
+    pending: Mutex<HashMap<u64, oneshot::Sender<bool>>>,
+    next_id: AtomicU64,
+}
+
+impl HostKeyPrompts {
+    pub fn new() -> Self {
+        Self {
+            pending: Mutex::new(HashMap::new()),
+            next_id: AtomicU64::new(1),
+        }
+    }
+
+    /// Register a new pending prompt, returning its id and the receiver the
+    /// handler awaits.
+    fn register(&self) -> (u64, oneshot::Receiver<bool>) {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let (sender, receiver) = oneshot::channel();
+        let mut map = match self.pending.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        map.insert(id, sender);
+        (id, receiver)
+    }
+
+    /// Deliver the user's decision to the waiting handler (called by the
+    /// `respond_ssh_host_key` command).
+    pub fn resolve(&self, request_id: u64, trust: bool) {
+        let mut map = match self.pending.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        if let Some(sender) = map.remove(&request_id) {
+            // The receiver may be gone if the handler already timed out; ignore.
+            let _ = sender.send(trust);
+        }
+    }
+
+    /// Drop a pending prompt without resolving it (timeout or emit failure).
+    fn cancel(&self, request_id: u64) {
+        let mut map = match self.pending.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        map.remove(&request_id);
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HostKeyPromptEvent {
+    request_id: u64,
+    host: String,
+    port: u16,
+    fingerprint: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HostKeyChangedEvent {
+    host: String,
+    port: u16,
+    stored_fingerprint: String,
+    presented_fingerprint: String,
+}
+
+/// Trust-on-first-use host-key policy. A matching key is accepted silently; a
+/// brand-new host prompts the user (and is recorded only on approval); a changed
+/// key is refused (and the UI is told, so it can warn + offer "forget host").
 pub struct ClientHandler {
     known_hosts: Arc<KnownHostsStore>,
+    prompts: Arc<HostKeyPrompts>,
+    app: AppHandle,
     host: String,
     port: u16,
     // `check_server_key` can only signal accept/reject via a bool, which loses
     // our descriptive message. We stash the reason here so `establish` can turn
     // the resulting handshake failure into a useful AppError.
     reject_reason: Arc<Mutex<Option<String>>>,
+}
+
+impl ClientHandler {
+    fn set_reason(&self, reason: String) {
+        let mut guard = match self.reject_reason.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        *guard = Some(reason);
+    }
 }
 
 impl client::Handler for ClientHandler {
@@ -81,34 +171,95 @@ impl client::Handler for ClientHandler {
         let presented = match server_public_key.to_openssh() {
             Ok(value) => value,
             Err(e) => {
-                let mut guard = match self.reject_reason.lock() {
-                    Ok(g) => g,
-                    Err(p) => p.into_inner(),
-                };
-                *guard = Some(format!("could not read the server's host key: {}", e));
+                self.set_reason(format!("could not read the server's host key: {}", e));
                 return Ok(false);
             }
         };
-        // Small, infrequent file I/O (only on first contact); acceptable to run
-        // inline here, consistent with the app's other JSON stores.
-        match self
-            .known_hosts
-            .verify_or_record(&self.host, self.port, &presented)
-        {
-            Ok(()) => Ok(true),
-            Err(e) => {
-                // Store the bare message: `establish` re-wraps the reason in
-                // AppError::Ssh, so using `e.to_string()` (which already carries
-                // the "SSH tunnel error:" Display prefix) would double it.
-                let reason = match e {
-                    AppError::Ssh(message) => message,
-                    other => other.to_string(),
+        let fingerprint = server_public_key.fingerprint(HashAlg::Sha256).to_string();
+
+        match self.known_hosts.check(&self.host, self.port, &presented) {
+            // Known and unchanged — accept silently.
+            HostKeyCheck::Match => Ok(true),
+
+            // First contact — ask the user before trusting (and recording) it.
+            HostKeyCheck::Unknown => {
+                let (request_id, receiver) = self.prompts.register();
+                let event = HostKeyPromptEvent {
+                    request_id: request_id,
+                    host: self.host.clone(),
+                    port: self.port,
+                    fingerprint: fingerprint,
                 };
-                let mut guard = match self.reject_reason.lock() {
-                    Ok(g) => g,
-                    Err(p) => p.into_inner(),
+                match self.app.emit("ssh-host-key-prompt", event) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        self.prompts.cancel(request_id);
+                        self.set_reason(format!("could not show the host-key prompt: {}", e));
+                        return Ok(false);
+                    }
+                }
+                // Wait for the user's choice; a closed/ignored dialog must not
+                // hang the connection task, so bound the wait.
+                let trust = match tokio::time::timeout(
+                    std::time::Duration::from_secs(PROMPT_TIMEOUT_SECS),
+                    receiver,
+                )
+                .await
+                {
+                    Ok(Ok(decision)) => decision,
+                    // Sender dropped without a decision — treat as cancel.
+                    Ok(Err(_)) => false,
+                    // Timed out — clean up the pending entry and refuse.
+                    Err(_) => {
+                        self.prompts.cancel(request_id);
+                        false
+                    }
                 };
-                *guard = Some(reason);
+                if trust {
+                    match self.known_hosts.record(&self.host, self.port, &presented) {
+                        Ok(()) => Ok(true),
+                        Err(e) => {
+                            let reason = match e {
+                                AppError::Ssh(message) => message,
+                                other => other.to_string(),
+                            };
+                            self.set_reason(reason);
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    self.set_reason(format!(
+                        "host key for {}:{} was not trusted — connection cancelled.",
+                        self.host, self.port
+                    ));
+                    Ok(false)
+                }
+            }
+
+            // The stored key no longer matches — refuse, and tell the UI so it
+            // can warn the user and offer to forget the saved key.
+            HostKeyCheck::Changed => {
+                let stored_fingerprint = match self.known_hosts.stored_key(&self.host, self.port) {
+                    Some(stored) => match PublicKey::from_openssh(&stored) {
+                        Ok(key) => key.fingerprint(HashAlg::Sha256).to_string(),
+                        Err(_) => String::from("unknown"),
+                    },
+                    None => String::from("unknown"),
+                };
+                let event = HostKeyChangedEvent {
+                    host: self.host.clone(),
+                    port: self.port,
+                    stored_fingerprint: stored_fingerprint,
+                    presented_fingerprint: fingerprint,
+                };
+                // Best-effort notify; we refuse regardless of whether it lands.
+                let _ = self.app.emit("ssh-host-key-changed", event);
+                self.set_reason(format!(
+                    "host key verification failed for {}:{} — the server's key does not match the \
+                     previously trusted key. This may indicate a man-in-the-middle attack, or the \
+                     server's key was rotated. Connection refused.",
+                    self.host, self.port
+                ));
                 Ok(false)
             }
         }
@@ -120,6 +271,8 @@ impl client::Handler for ClientHandler {
 pub async fn establish(
     params: SshParams,
     known_hosts: Arc<KnownHostsStore>,
+    prompts: Arc<HostKeyPrompts>,
+    app: AppHandle,
 ) -> Result<SshTunnel, AppError> {
     let mut config = client::Config::default();
     // Send keepalives so a dropped session is detected instead of hanging.
@@ -128,6 +281,8 @@ pub async fn establish(
     let reject_reason = Arc::new(Mutex::new(None));
     let handler = ClientHandler {
         known_hosts: known_hosts,
+        prompts: prompts,
+        app: app,
         host: params.ssh_host.clone(),
         port: params.ssh_port,
         reject_reason: Arc::clone(&reject_reason),
