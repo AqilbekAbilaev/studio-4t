@@ -81,6 +81,19 @@ const MENUS = {
     { label: 'Refresh', shortcut: '⌘R' },
     { label: 'Drop Collection…', danger: true },
   ],
+  tab: [
+    { label: 'Close Tab' },
+    { label: 'Close Other Tabs' },
+    { label: 'Close Tabs to the Left' },
+    { label: 'Close Tabs to the Right' },
+    { label: 'Close All Tabs' },
+    { sep: true },
+    { label: 'Duplicate Tab', icon: 'copy' },
+    { label: 'Move Tab to the Front' },
+    { label: 'Rename Tab…', icon: 'edit' },
+    { sep: true },
+    { label: 'Choose Color', icon: 'brush', sub: 'color' },
+  ],
 }
 
 onMounted(() => {
