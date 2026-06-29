@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::known_hosts::KnownHostsStore;
 use crate::ssh::{self, SshAuth, SshParams, SshTunnel};
 use crate::storage::ConnectionConfig;
 use crate::uri;
@@ -13,13 +14,17 @@ use tokio::sync::Mutex;
 pub struct ConnectionPool {
     clients: Mutex<HashMap<String, Client>>,
     tunnels: Mutex<HashMap<String, Arc<SshTunnel>>>,
+    // Shared with the rest of the app so a tunnel established here verifies the
+    // bastion's host key against the same trust store the dialog's Test uses.
+    known_hosts: Arc<KnownHostsStore>,
 }
 
 impl ConnectionPool {
-    pub fn new() -> Self {
+    pub fn new(known_hosts: Arc<KnownHostsStore>) -> Self {
         Self {
             clients: Mutex::new(HashMap::new()),
             tunnels: Mutex::new(HashMap::new()),
+            known_hosts: known_hosts,
         }
     }
 
@@ -114,7 +119,7 @@ impl ConnectionPool {
             mongo_host: config.host.clone(),
             mongo_port: config.port,
         };
-        let tunnel = match ssh::establish(params).await {
+        let tunnel = match ssh::establish(params, Arc::clone(&self.known_hosts)).await {
             Ok(value) => Arc::new(value),
             Err(e) => return Err(e),
         };
@@ -139,15 +144,20 @@ mod tests {
     // logic directly. Real Client construction requires a running MongoDB server
     // so those paths are covered by integration tests instead.
 
+    fn test_pool() -> ConnectionPool {
+        let dir = std::env::temp_dir().join(format!("studio4t-pool-test-{}", std::process::id()));
+        ConnectionPool::new(Arc::new(KnownHostsStore::new(dir.join("known_hosts.json"))))
+    }
+
     #[tokio::test]
     async fn get_returns_none_when_empty() {
-        let pool = ConnectionPool::new();
+        let pool = test_pool();
         assert!(pool.get("any-id").await.is_none());
     }
 
     #[tokio::test]
     async fn remove_nonexistent_is_noop() {
-        let pool = ConnectionPool::new();
+        let pool = test_pool();
         pool.remove("ghost").await; // must not panic
     }
 

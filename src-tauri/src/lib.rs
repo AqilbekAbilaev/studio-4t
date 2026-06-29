@@ -3,6 +3,7 @@ mod default_queries;
 mod error;
 mod history;
 mod keychain;
+mod known_hosts;
 mod menu;
 mod persist;
 mod pool;
@@ -17,7 +18,9 @@ mod uri;
 use commands::*;
 use default_queries::DefaultQueryStorage;
 use history::HistoryStorage;
+use known_hosts::KnownHostsStore;
 use pool::ConnectionPool;
+use std::sync::Arc;
 use saved_queries::SavedQueryStorage;
 use shell::ShellEngine;
 use shell_history::ShellHistoryStorage;
@@ -38,7 +41,12 @@ pub fn run() {
             app.manage(SavedQueryStorage::new(data_dir.join("saved_queries.json")));
             app.manage(DefaultQueryStorage::new(data_dir.join("default_queries.json")));
             app.manage(TabStorage::new(data_dir.join("tabs.json")));
-            app.manage(ConnectionPool::new());
+            // The host-key trust store is shared between the pool (real connect)
+            // and the test_ssh_connection command, so both honor the same TOFU
+            // record. Managed as an Arc so the pool can own a clone.
+            let known_hosts = Arc::new(KnownHostsStore::new(data_dir.join("known_hosts.json")));
+            app.manage(Arc::clone(&known_hosts));
+            app.manage(ConnectionPool::new(Arc::clone(&known_hosts)));
             app.manage(ShellEngine::new());
             app.manage(ShellHistoryStorage::new(
                 data_dir.join("shell_history.json"),

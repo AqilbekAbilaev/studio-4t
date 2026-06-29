@@ -5,13 +5,14 @@
 
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use russh::client;
 use russh::keys::{load_secret_key, PrivateKeyWithHashAlg, PublicKey};
 use tokio::net::TcpListener;
 
 use crate::error::AppError;
+use crate::known_hosts::KnownHostsStore;
 
 /// How to authenticate to the SSH server.
 pub enum SshAuth {
@@ -57,34 +58,93 @@ impl Drop for SshTunnel {
     }
 }
 
-/// Accept-all host-key policy (beta). A known_hosts / trust-on-first-use flow is
-/// a planned follow-up.
-pub struct ClientHandler;
+/// Trust-on-first-use host-key policy. The presented key is checked against the
+/// `KnownHostsStore`: a match or a brand-new host is accepted (and recorded), a
+/// changed key is rejected.
+pub struct ClientHandler {
+    known_hosts: Arc<KnownHostsStore>,
+    host: String,
+    port: u16,
+    // `check_server_key` can only signal accept/reject via a bool, which loses
+    // our descriptive message. We stash the reason here so `establish` can turn
+    // the resulting handshake failure into a useful AppError.
+    reject_reason: Arc<Mutex<Option<String>>>,
+}
 
 impl client::Handler for ClientHandler {
     type Error = russh::Error;
 
-    async fn check_server_key(&mut self, _server_public_key: &PublicKey) -> Result<bool, Self::Error> {
-        Ok(true)
+    async fn check_server_key(&mut self, server_public_key: &PublicKey) -> Result<bool, Self::Error> {
+        // OpenSSH authorized_keys form ("<algo> <base64>"); both the stored and
+        // the presented key are serialized the same way, so string equality is
+        // a reliable comparison.
+        let presented = match server_public_key.to_openssh() {
+            Ok(value) => value,
+            Err(e) => {
+                let mut guard = match self.reject_reason.lock() {
+                    Ok(g) => g,
+                    Err(p) => p.into_inner(),
+                };
+                *guard = Some(format!("could not read the server's host key: {}", e));
+                return Ok(false);
+            }
+        };
+        // Small, infrequent file I/O (only on first contact); acceptable to run
+        // inline here, consistent with the app's other JSON stores.
+        match self
+            .known_hosts
+            .verify_or_record(&self.host, self.port, &presented)
+        {
+            Ok(()) => Ok(true),
+            Err(e) => {
+                let mut guard = match self.reject_reason.lock() {
+                    Ok(g) => g,
+                    Err(p) => p.into_inner(),
+                };
+                *guard = Some(e.to_string());
+                Ok(false)
+            }
+        }
     }
 }
 
 /// Open an SSH session, authenticate, and start forwarding a fresh local port to
 /// `mongo_host:mongo_port` through the tunnel.
-pub async fn establish(params: SshParams) -> Result<SshTunnel, AppError> {
+pub async fn establish(
+    params: SshParams,
+    known_hosts: Arc<KnownHostsStore>,
+) -> Result<SshTunnel, AppError> {
     let mut config = client::Config::default();
     // Send keepalives so a dropped session is detected instead of hanging.
     config.keepalive_interval = Some(std::time::Duration::from_secs(30));
     let config = Arc::new(config);
+    let reject_reason = Arc::new(Mutex::new(None));
+    let handler = ClientHandler {
+        known_hosts: known_hosts,
+        host: params.ssh_host.clone(),
+        port: params.ssh_port,
+        reject_reason: Arc::clone(&reject_reason),
+    };
     let mut session = match client::connect(
         config,
         (params.ssh_host.as_str(), params.ssh_port),
-        ClientHandler,
+        handler,
     )
     .await
     {
         Ok(value) => value,
-        Err(e) => return Err(AppError::Ssh(format!("connect failed: {}", e))),
+        Err(e) => {
+            // A host-key rejection surfaces here as a generic handshake error;
+            // prefer our specific reason when we recorded one.
+            let mut guard = match reject_reason.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            match guard.take() {
+                Some(reason) => return Err(AppError::Ssh(reason)),
+                None => return Err(AppError::Ssh(format!("connect failed: {}", e))),
+            }
+        }
     };
 
     let auth = match params.auth {
