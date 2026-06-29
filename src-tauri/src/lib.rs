@@ -46,7 +46,15 @@ pub fn run() {
             // record. Managed as an Arc so the pool can own a clone.
             let known_hosts = Arc::new(KnownHostsStore::new(data_dir.join("known_hosts.json")));
             app.manage(Arc::clone(&known_hosts));
-            app.manage(ConnectionPool::new(Arc::clone(&known_hosts)));
+            // Broker for interactive first-contact host-key prompts; shared with
+            // the pool so a tunnel established on connect can raise the prompt.
+            let host_key_prompts = Arc::new(ssh::HostKeyPrompts::new());
+            app.manage(Arc::clone(&host_key_prompts));
+            app.manage(ConnectionPool::new(
+                Arc::clone(&known_hosts),
+                Arc::clone(&host_key_prompts),
+                app.handle().clone(),
+            ));
             app.manage(ShellEngine::new());
             app.manage(ShellHistoryStorage::new(
                 data_dir.join("shell_history.json"),
@@ -69,6 +77,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             test_connection,
             test_ssh_connection,
+            respond_ssh_host_key,
+            forget_ssh_host,
             save_connection,
             update_connection,
             list_connections,

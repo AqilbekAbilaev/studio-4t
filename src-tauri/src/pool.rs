@@ -1,11 +1,12 @@
 use crate::error::AppError;
 use crate::known_hosts::KnownHostsStore;
-use crate::ssh::{self, SshAuth, SshParams, SshTunnel};
+use crate::ssh::{self, HostKeyPrompts, SshAuth, SshParams, SshTunnel};
 use crate::storage::ConnectionConfig;
 use crate::uri;
 use mongodb::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tauri::AppHandle;
 use tokio::sync::Mutex;
 
 /// Holds one MongoDB Client per saved connection, keyed by connection ID.
@@ -17,14 +18,24 @@ pub struct ConnectionPool {
     // Shared with the rest of the app so a tunnel established here verifies the
     // bastion's host key against the same trust store the dialog's Test uses.
     known_hosts: Arc<KnownHostsStore>,
+    // The host-key prompt broker + app handle let an SSH handshake started here
+    // raise the first-contact trust prompt in the UI (see ssh::ClientHandler).
+    prompts: Arc<HostKeyPrompts>,
+    app: AppHandle,
 }
 
 impl ConnectionPool {
-    pub fn new(known_hosts: Arc<KnownHostsStore>) -> Self {
+    pub fn new(
+        known_hosts: Arc<KnownHostsStore>,
+        prompts: Arc<HostKeyPrompts>,
+        app: AppHandle,
+    ) -> Self {
         Self {
             clients: Mutex::new(HashMap::new()),
             tunnels: Mutex::new(HashMap::new()),
             known_hosts: known_hosts,
+            prompts: prompts,
+            app: app,
         }
     }
 
@@ -119,7 +130,14 @@ impl ConnectionPool {
             mongo_host: config.host.clone(),
             mongo_port: config.port,
         };
-        let tunnel = match ssh::establish(params, Arc::clone(&self.known_hosts)).await {
+        let tunnel = match ssh::establish(
+            params,
+            Arc::clone(&self.known_hosts),
+            Arc::clone(&self.prompts),
+            self.app.clone(),
+        )
+        .await
+        {
             Ok(value) => Arc::new(value),
             Err(e) => return Err(e),
         };
@@ -136,29 +154,10 @@ impl ConnectionPool {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // The pool itself is a pure data structure — we test its state management
-    // logic directly. Real Client construction requires a running MongoDB server
-    // so those paths are covered by integration tests instead.
-
-    fn test_pool() -> ConnectionPool {
-        let dir = std::env::temp_dir().join(format!("studio4t-pool-test-{}", std::process::id()));
-        ConnectionPool::new(Arc::new(KnownHostsStore::new(dir.join("known_hosts.json"))))
-    }
-
-    #[tokio::test]
-    async fn get_returns_none_when_empty() {
-        let pool = test_pool();
-        assert!(pool.get("any-id").await.is_none());
-    }
-
-    #[tokio::test]
-    async fn remove_nonexistent_is_noop() {
-        let pool = test_pool();
-        pool.remove("ghost").await; // must not panic
-    }
-
-}
+// NOTE: the pool previously had two trivial unit tests (empty `get` returns
+// None; `remove` of an absent id is a no-op). Constructing a pool now requires a
+// real Tauri AppHandle (for the SSH host-key prompt), which a plain unit test
+// can't build, and making the pool generic over the runtime purely to keep two
+// HashMap-wrapper assertions would be over-engineering. The pool's real paths
+// (client creation, tunnels) need a live MongoDB/SSH server and are covered by
+// manual/integration testing instead.

@@ -1,10 +1,10 @@
 // Trust-on-first-use (TOFU) store for SSH host keys.
 //
-// The first time we connect to a bastion we record its public key here; on every
-// later connection we compare the presented key against the stored one. A match
-// is accepted, a brand-new host is recorded and accepted, and a *changed* key is
-// rejected (possible man-in-the-middle, or a rotated server key). This replaces
-// the previous accept-all policy in ssh.rs.
+// We compare the key a bastion presents against what we have on file: a match is
+// accepted, a brand-new host triggers a first-contact prompt (and is recorded
+// only once the user approves — see ssh.rs), and a *changed* key is rejected
+// (possible man-in-the-middle, or a rotated server key). This replaces the
+// previous accept-all policy in ssh.rs.
 //
 // Keyed by `host:port`, not by connection id, because several connections can
 // share one bastion and should trust the same key.
@@ -78,37 +78,57 @@ impl KnownHostsStore {
         crate::persist::atomic_write(&self.path, &content)
     }
 
-    /// TOFU check. Returns `Ok(())` when the key matches a stored entry or is
-    /// recorded as a new first-contact host. Returns `Err` when a *different*
-    /// key is already on file for this host — the caller must refuse to connect.
-    pub fn verify_or_record(&self, host: &str, port: u16, key: &str) -> Result<(), AppError> {
+    /// Read-only TOFU comparison — does the presented key match, is this a new
+    /// host, or has its key changed? Writes nothing; the caller decides what to
+    /// do (prompt, accept, reject) based on the verdict.
+    pub fn check(&self, host: &str, port: u16, presented: &str) -> HostKeyCheck {
+        let hosts = self.load_all();
+        let stored = hosts
+            .iter()
+            .find(|h| h.host == host && h.port == port)
+            .map(|h| h.key.as_str());
+        classify(stored, presented)
+    }
+
+    /// The OpenSSH-form key currently trusted for this host, if any. Used to
+    /// show the previously-trusted fingerprint when a key has changed.
+    pub fn stored_key(&self, host: &str, port: u16) -> Option<String> {
+        self.load_all()
+            .into_iter()
+            .find(|h| h.host == host && h.port == port)
+            .map(|h| h.key)
+    }
+
+    /// Trust a host's key — called after the user approves a first-contact
+    /// prompt. Replaces any existing entry for this host:port so a deliberate
+    /// re-trust (after a `remove`) can't leave a duplicate.
+    pub fn record(&self, host: &str, port: u16, key: &str) -> Result<(), AppError> {
         let _guard = match self.lock.lock() {
             Ok(g) => g,
             Err(p) => p.into_inner(),
         };
         let mut hosts = self.load_all();
-        let stored = hosts
-            .iter()
-            .find(|h| h.host == host && h.port == port)
-            .map(|h| h.key.as_str());
-        match classify(stored, key) {
-            HostKeyCheck::Match => Ok(()),
-            HostKeyCheck::Unknown => {
-                hosts.push(KnownHost {
-                    host: host.to_string(),
-                    port: port,
-                    key: key.to_string(),
-                    added: now_ms(),
-                });
-                self.save_all(&hosts)
-            }
-            HostKeyCheck::Changed => Err(AppError::Ssh(format!(
-                "host key verification failed for {}:{} — the server's key does not match the \
-                 previously trusted key. This may indicate a man-in-the-middle attack, or the \
-                 server's key was rotated. Connection refused.",
-                host, port
-            ))),
-        }
+        hosts.retain(|h| !(h.host == host && h.port == port));
+        hosts.push(KnownHost {
+            host: host.to_string(),
+            port: port,
+            key: key.to_string(),
+            added: now_ms(),
+        });
+        self.save_all(&hosts)
+    }
+
+    /// Drop a host's trusted key ("forget host"), so the next connection is
+    /// treated as a fresh first contact. The recovery path after a legitimate
+    /// key rotation.
+    pub fn remove(&self, host: &str, port: u16) -> Result<(), AppError> {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let mut hosts = self.load_all();
+        hosts.retain(|h| !(h.host == host && h.port == port));
+        self.save_all(&hosts)
     }
 }
 
@@ -153,49 +173,70 @@ mod tests {
     }
 
     #[test]
-    fn first_contact_is_recorded_and_accepted() {
+    fn check_is_unknown_then_match_after_record() {
         let (store, _dir) = store_in_tempdir();
-        let result = store.verify_or_record("bastion.example.com", 22, "ssh-ed25519 AAAA");
-        assert!(result.is_ok());
+        assert_eq!(
+            store.check("bastion.example.com", 22, "ssh-ed25519 AAAA"),
+            HostKeyCheck::Unknown
+        );
+        store
+            .record("bastion.example.com", 22, "ssh-ed25519 AAAA")
+            .unwrap();
+        assert_eq!(
+            store.check("bastion.example.com", 22, "ssh-ed25519 AAAA"),
+            HostKeyCheck::Match
+        );
+    }
+
+    #[test]
+    fn check_is_changed_when_key_differs() {
+        let (store, _dir) = store_in_tempdir();
+        store
+            .record("bastion.example.com", 22, "ssh-ed25519 AAAA")
+            .unwrap();
+        assert_eq!(
+            store.check("bastion.example.com", 22, "ssh-ed25519 BBBB"),
+            HostKeyCheck::Changed
+        );
+    }
+
+    #[test]
+    fn record_does_not_duplicate_on_retrust() {
+        let (store, _dir) = store_in_tempdir();
+        store
+            .record("bastion.example.com", 22, "ssh-ed25519 AAAA")
+            .unwrap();
+        // Re-trust with a new key (e.g. after a remove) replaces, not appends.
+        store
+            .record("bastion.example.com", 22, "ssh-ed25519 BBBB")
+            .unwrap();
         let hosts = store.load_all();
         assert_eq!(hosts.len(), 1);
-        assert_eq!(hosts[0].host, "bastion.example.com");
-        assert_eq!(hosts[0].key, "ssh-ed25519 AAAA");
+        assert_eq!(hosts[0].key, "ssh-ed25519 BBBB");
     }
 
     #[test]
-    fn same_key_on_reconnect_is_accepted() {
+    fn remove_forgets_only_the_named_host() {
         let (store, _dir) = store_in_tempdir();
-        store
-            .verify_or_record("bastion.example.com", 22, "ssh-ed25519 AAAA")
-            .unwrap();
-        let result = store.verify_or_record("bastion.example.com", 22, "ssh-ed25519 AAAA");
-        assert!(result.is_ok());
-        // No duplicate entry recorded.
-        assert_eq!(store.load_all().len(), 1);
-    }
-
-    #[test]
-    fn changed_key_is_rejected() {
-        let (store, _dir) = store_in_tempdir();
-        store
-            .verify_or_record("bastion.example.com", 22, "ssh-ed25519 AAAA")
-            .unwrap();
-        let result = store.verify_or_record("bastion.example.com", 22, "ssh-ed25519 BBBB");
-        assert!(result.is_err());
-        // The trusted key is left untouched.
-        assert_eq!(store.load_all()[0].key, "ssh-ed25519 AAAA");
+        store.record("a.example.com", 22, "ssh-ed25519 AAAA").unwrap();
+        store.record("b.example.com", 22, "ssh-ed25519 BBBB").unwrap();
+        store.remove("a.example.com", 22).unwrap();
+        let hosts = store.load_all();
+        assert_eq!(hosts.len(), 1);
+        assert_eq!(hosts[0].host, "b.example.com");
+        // After forgetting, the host reads as a fresh first contact again.
+        assert_eq!(
+            store.check("a.example.com", 22, "ssh-ed25519 AAAA"),
+            HostKeyCheck::Unknown
+        );
     }
 
     #[test]
     fn different_port_is_a_separate_host() {
         let (store, _dir) = store_in_tempdir();
-        store
-            .verify_or_record("bastion.example.com", 22, "ssh-ed25519 AAAA")
-            .unwrap();
-        // Same host name, different port → unknown, recorded independently.
-        let result = store.verify_or_record("bastion.example.com", 2222, "ssh-ed25519 BBBB");
-        assert!(result.is_ok());
+        store.record("bastion.example.com", 22, "ssh-ed25519 AAAA").unwrap();
+        // Same host name, different port → recorded independently.
+        store.record("bastion.example.com", 2222, "ssh-ed25519 BBBB").unwrap();
         assert_eq!(store.load_all().len(), 2);
     }
 }

@@ -9,8 +9,10 @@ import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
 import ConnectionManager from './components/ConnectionManager.vue'
 import ContextMenu from './components/ContextMenu.vue'
+import SshHostKeyModal from './components/SshHostKeyModal.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { listen } from '@tauri-apps/api/event';
 
 const appWindow = getCurrentWindow();
 
@@ -56,6 +58,10 @@ function scheduleSaveTabs() {
 onMounted(async () => {
   // WebKitGTK has no native undo/redo for text fields — install our own so Ctrl+Z works.
   installInputUndo()
+
+  // Backend-raised SSH host-key prompts (global emits, so use the app-wide listen).
+  listen('ssh-host-key-prompt', (e) => { sshHostKeyPrompt.value = e.payload })
+  listen('ssh-host-key-changed', (e) => { sshHostKeyChanged.value = e.payload })
 
   // Restore the previous session's tabs before wiring up the save watcher, so the
   // empty default never overwrites tabs.json first.
@@ -130,6 +136,30 @@ const toast = ref(null)
 let toastTimer = null
 const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
+
+// SSH host-key prompts raised by the backend during a tunnel handshake. At most
+// one of each is active at a time; the modal shows the prompt first.
+const sshHostKeyPrompt = ref(null)   // { requestId, host, port, fingerprint }
+const sshHostKeyChanged = ref(null)  // { host, port, storedFingerprint, presentedFingerprint }
+
+function onHostKeyTrust() {
+  if (sshHostKeyPrompt.value) {
+    invoke('respond_ssh_host_key', { requestId: sshHostKeyPrompt.value.requestId, trust: true })
+    sshHostKeyPrompt.value = null
+  }
+}
+function onHostKeyCancel() {
+  if (sshHostKeyPrompt.value) {
+    invoke('respond_ssh_host_key', { requestId: sshHostKeyPrompt.value.requestId, trust: false })
+    sshHostKeyPrompt.value = null
+  }
+}
+async function onHostKeyForget() {
+  if (sshHostKeyChanged.value) {
+    await invoke('forget_ssh_host', { host: sshHostKeyChanged.value.host, port: sshHostKeyChanged.value.port })
+    sshHostKeyChanged.value = null
+  }
+}
 const expandConnectionId = ref(null)
 const vqbOpen        = ref(false)
 const clipboardQuery = ref(null)
@@ -943,6 +973,16 @@ async function runAggregate(tabId, params) {
       v-if="showConnectionManager"
       @close="showConnectionManager = false"
       @connect="onManagerConnect"
+    />
+
+    <!-- SSH host-key trust prompt / changed-key warning -->
+    <SshHostKeyModal
+      :prompt="sshHostKeyPrompt"
+      :changed="sshHostKeyChanged"
+      @trust="onHostKeyTrust"
+      @cancel="onHostKeyCancel"
+      @forget="onHostKeyForget"
+      @dismiss="sshHostKeyChanged = null"
     />
 
     <!-- Add Collection modal -->
