@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::history::{now_ms, HistoryStorage, QueryHistoryEntry};
+use crate::known_hosts::KnownHostsStore;
 use crate::default_queries::{DefaultQuery, DefaultQueryStorage};
 use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
 use crate::tabs::TabStorage;
@@ -14,6 +15,7 @@ use mongodb::Client;
 use mongodb::IndexModel;
 use serde::Serialize;
 use std::time::Duration;
+use std::sync::Arc;
 use tauri::State;
 use uuid::Uuid;
 
@@ -51,6 +53,7 @@ pub async fn test_connection(uri: String) -> Result<(), AppError> {
 /// drops at the end of this function). TLS-over-SSH is not exercised here.
 #[tauri::command]
 pub async fn test_ssh_connection(
+    known_hosts: State<'_, Arc<KnownHostsStore>>,
     ssh_host: String,
     ssh_port: u16,
     ssh_user: String,
@@ -81,7 +84,7 @@ pub async fn test_ssh_connection(
         mongo_host: mongo_host.clone(),
         mongo_port: mongo_port,
     };
-    let tunnel = match crate::ssh::establish(params).await {
+    let tunnel = match crate::ssh::establish(params, Arc::clone(known_hosts.inner())).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
