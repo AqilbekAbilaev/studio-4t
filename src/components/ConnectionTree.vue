@@ -19,6 +19,7 @@ const loadingConns = ref({})       // connId → boolean
 const connDatabases = ref({})      // connId → DatabaseInfo[]
 const connErrors = ref({})         // connId → string
 const expandedDbs = ref({})        // "connId/dbName" → boolean
+const selectedKey = ref(null)      // collection row highlighted by a single click
 const searchText = ref('')
 
 onMounted(async () => {
@@ -61,7 +62,13 @@ function toggleDatabase(connId, dbName) {
   expandedDbs.value[key] = !expandedDbs.value[key]
 }
 
-function selectCollection(conn, db, collName) {
+// Single click only selects (highlights) the row; double click opens it. This
+// mirrors Studio-3T and lets the same collection be opened in several tabs.
+function highlightCollection(conn, db, collName) {
+  selectedKey.value = collectionKey(conn.id, db.name, collName)
+}
+
+function openCollection(conn, db, collName) {
   emit('select-collection', {
     connectionId: conn.id,
     connectionName: conn.name,
@@ -229,12 +236,14 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
                 :key="coll"
                 class="tnode"
                 :class="{
-                  sel: activeCollectionKey === collectionKey(conn.id, db.name, coll),
+                  sel: activeCollectionKey === collectionKey(conn.id, db.name, coll)
+                    || selectedKey === collectionKey(conn.id, db.name, coll),
                   'ctx-sel': props.contextActiveNodeKey === collectionKey(conn.id, db.name, coll),
                   prod: effectiveTag(conn) === 'red',
                 }"
                 style="padding-left: 51px"
-                @click="selectCollection(conn, db, coll)"
+                @click="highlightCollection(conn, db, coll)"
+                @dblclick="openCollection(conn, db, coll)"
                 @contextmenu.prevent="onNodeContext($event, 'collection', coll, { connId: conn.id, connName: conn.name, dbName: db.name, collName: coll })"
               >
                 <span class="tw empty"><BaseIcon name="caret" :size="12" /></span>
