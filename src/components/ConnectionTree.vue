@@ -70,6 +70,11 @@ function highlightCollection(conn, db, collName) {
 }
 
 function openCollection(conn, db, collName) {
+  // Opening makes the row the active collection, so its highlight comes from
+  // `activeCollectionKey`. Clear the single-click selection set by the click
+  // that preceded this double-click, otherwise it lingers as a stale highlight
+  // after the active tab moves to another collection.
+  selectedKey.value = null
   emit('select-collection', {
     connectionId: conn.id,
     connectionName: conn.name,
@@ -99,6 +104,27 @@ watch(() => props.expandId, async (id) => {
     toggleConnection(conn)
   }
   emit('expanded')
+})
+
+// When a collection becomes the active one (e.g. switching tabs in the
+// workspace), expand the sidebar down to it so the highlighted row is visible.
+// Only the connId and dbName are needed; a collection name may contain slashes,
+// so split on the first two separators only.
+watch(() => props.activeCollectionKey, async (key) => {
+  if (!key) return
+  const slash1 = key.indexOf('/')
+  const slash2 = key.indexOf('/', slash1 + 1)
+  if (slash1 === -1 || slash2 === -1) return
+  const connId = key.slice(0, slash1)
+  const dbName = key.slice(slash1 + 1, slash2)
+
+  const conn = connections.value.find(c => c.id === connId)
+  if (!conn) return  // not a connection the sidebar currently shows
+
+  if (!expandedConns.value[connId]) {
+    await toggleConnection(conn)
+  }
+  expandedDbs.value[`${connId}/${dbName}`] = true
 })
 
 import { computed } from 'vue'
