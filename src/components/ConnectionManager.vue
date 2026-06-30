@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errMessage } from '../utils/errors'
 import BaseIcon from './BaseIcon.vue'
 import NewConnection from './NewConnection.vue'
@@ -123,6 +124,47 @@ async function copyUri() {
   }
 }
 
+async function exportConnections() {
+  let path
+  try {
+    path = await saveDialog({
+      defaultPath: 'connections.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+  } catch (e) {
+    emit('toast', 'Export failed: ' + errMessage(e))
+    return
+  }
+  if (!path) return  // user cancelled
+  try {
+    const count = await invoke('export_connections', { path: path })
+    emit('toast', `Exported ${count} connection${count !== 1 ? 's' : ''} (passwords excluded)`)
+  } catch (e) {
+    emit('toast', 'Export failed: ' + errMessage(e))
+  }
+}
+
+async function importConnections() {
+  let path
+  try {
+    path = await openDialog({
+      multiple: false,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+  } catch (e) {
+    emit('toast', 'Import failed: ' + errMessage(e))
+    return
+  }
+  if (!path) return  // user cancelled
+  try {
+    const count = await invoke('import_connections', { path: String(path) })
+    connections.value = await invoke('list_connections')
+    emit('toast', `Imported ${count} connection${count !== 1 ? 's' : ''} — re-enter passwords to connect`)
+  } catch (e) {
+    emit('toast', 'Import failed: ' + errMessage(e))
+  }
+}
+
 const CM_TOOLS = [
   { name: 'newConn',   label: 'New Connection', action: newConnection },
   { name: 'folder',    label: 'New Folder' },
@@ -131,8 +173,8 @@ const CM_TOOLS = [
   { name: 'trash',     label: 'Delete', action: deleteSelected, needsSel: true },
   { name: 'duplicate', label: 'Duplicate', action: duplicateSelected, needsSel: true },
   { sep: true },
-  { name: 'import',    label: 'Import' },
-  { name: 'export',    label: 'Export' },
+  { name: 'import',    label: 'Import', action: importConnections },
+  { name: 'export',    label: 'Export', action: exportConnections },
   { name: 'uri',       label: 'To URI', action: copyUri, needsSel: true },
 ]
 </script>

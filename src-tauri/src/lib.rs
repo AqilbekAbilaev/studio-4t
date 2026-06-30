@@ -99,6 +99,8 @@ pub fn run() {
             server_status,
             connection_uri,
             duplicate_connection,
+            export_connections,
+            import_connections,
             insert_document,
             replace_document,
             delete_document,

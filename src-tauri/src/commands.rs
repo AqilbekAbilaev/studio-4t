@@ -313,6 +313,51 @@ pub fn duplicate_connection(
     Ok(copy)
 }
 
+/// Export all saved connections to a JSON file (a backup). Configs hold no
+/// secrets — passwords and SSH secrets live in the OS keychain, not in the
+/// config — so the exported file is inherently credential-free. Returns the count.
+#[tauri::command]
+pub fn export_connections(storage: State<'_, Storage>, path: String) -> Result<usize, AppError> {
+    let connections = storage.load();
+    let contents = match serde_json::to_string_pretty(&connections) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Serde(e)),
+    };
+    match std::fs::write(&path, contents) {
+        Ok(_) => Ok(connections.len()),
+        Err(e) => return Err(AppError::Io(e)),
+    }
+}
+
+/// Import connections from a JSON file produced by `export_connections`. Each
+/// imported connection is added with a fresh id (purely additive — never
+/// overwrites an existing one) and starts closed. Imported connections carry no
+/// password (none was exported), so credentials must be re-entered. Returns the
+/// number imported.
+#[tauri::command]
+pub fn import_connections(storage: State<'_, Storage>, path: String) -> Result<usize, AppError> {
+    let contents = match std::fs::read_to_string(&path) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Io(e)),
+    };
+    let imported: Vec<ConnectionConfig> = match serde_json::from_str(&contents) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Serde(e)),
+    };
+    let mut count = 0;
+    for connection in imported {
+        let mut fresh = connection;
+        fresh.id = Uuid::new_v4().to_string();
+        fresh.last_accessed = None;
+        fresh.open = false;
+        match storage.add(fresh) {
+            Ok(_) => count += 1,
+            Err(e) => return Err(e),
+        };
+    }
+    Ok(count)
+}
+
 #[tauri::command]
 pub async fn update_connection(
     storage: State<'_, Storage>,
