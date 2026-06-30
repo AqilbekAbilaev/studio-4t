@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import { listen } from '@tauri-apps/api/event'
@@ -22,6 +22,16 @@ const connErrors = ref({})         // connId → string
 const expandedDbs = ref({})        // "connId/dbName" → boolean
 const selectedKey = ref(null)      // collection row highlighted by a single click
 const searchText = ref('')
+const sidebarEl = ref(null)        // root element, used to detect outside clicks
+
+// A single click anywhere outside the sidebar (e.g. in the QueryWorkspace) clears
+// the single-click collection highlight. Clicks inside the sidebar are handled by
+// the per-row handlers, so they're ignored here.
+function clearSelectionOnOutsideClick(e) {
+  if (sidebarEl.value && !sidebarEl.value.contains(e.target)) {
+    selectedKey.value = null
+  }
+}
 
 onMounted(async () => {
   // The sidebar shows only the connections that are open; the full saved list
@@ -37,9 +47,16 @@ onMounted(async () => {
   await listen('connection-deleted', (e) => {
     disconnectConn(e.payload.id, { persist: false })
   })
+  document.addEventListener('click', clearSelectionOnOutsideClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', clearSelectionOnOutsideClick)
 })
 
 async function toggleConnection(conn) {
+  // Clicking any other row clears a lingering single-click collection highlight.
+  selectedKey.value = null
   const id = conn.id
   const wasOpen = expandedConns.value[id]
   expandedConns.value[id] = !wasOpen
@@ -59,6 +76,8 @@ async function toggleConnection(conn) {
 }
 
 function toggleDatabase(connId, dbName) {
+  // Clicking any other row clears a lingering single-click collection highlight.
+  selectedKey.value = null
   const key = `${connId}/${dbName}`
   expandedDbs.value[key] = !expandedDbs.value[key]
 }
@@ -203,7 +222,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
 </script>
 
 <template>
-  <div class="sidebar" :style="{ width: props.width + 'px' }">
+  <div class="sidebar" ref="sidebarEl" :style="{ width: props.width + 'px' }">
     <!-- Search row -->
     <div class="side-search">
       <div class="search-box">
@@ -216,7 +235,8 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
     </div>
 
     <!-- Tree -->
-    <div class="tree">
+    <!-- Clicking empty space in the tree clears a single-click collection highlight. -->
+    <div class="tree" @click.self="selectedKey = null">
       <div v-if="filtered.length === 0" class="tree-empty">
         No connections. Use File → Connect.
       </div>
@@ -271,7 +291,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
                 'ctx-sel': props.contextActiveNodeKey === conn.id + '/' + db.name,
               }"
               style="padding-left: 21px"
-              @click="db.accessible && toggleDatabase(conn.id, db.name)"
+              @click="db.accessible ? toggleDatabase(conn.id, db.name) : (selectedKey = null)"
               @contextmenu.prevent="onNodeContext($event, 'database', db.name, { connId: conn.id, dbName: db.name })"
             >
               <span class="tw">
