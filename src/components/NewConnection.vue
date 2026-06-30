@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { emit as tauriEmit } from '@tauri-apps/api/event'
 import { errMessage } from '../utils/errors'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import BaseIcon from './BaseIcon.vue'
+import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../data/connectionOptions.js'
 
 const props = defineProps({
   editConn: { type: Object, default: null },
@@ -34,8 +35,32 @@ const hosts = ref(
 const connType       = ref(isEditMode ? props.editConn.connection_type : 'standalone')
 const replicaSetName = ref(isEditMode ? (props.editConn.replica_set_name ?? '') : '')
 
+// Read preference lives on the Server tab (not Advanced) because it only makes
+// sense for replica sets / sharded / SRV. '' means unset → driver default
+// (primary). Stored in the connection's `options` map like other URI params.
+const readPreference = ref(
+  (isEditMode && props.editConn.options) ? (props.editConn.options.readPreference ?? '') : ''
+)
+
+// Only replica sets and sharded clusters use a multi-host seed list; standalone
+// and SRV are single-host.
+const isMultiHost = computed(() => connType.value === 'replica' || connType.value === 'sharded')
+
 function addHost() { hosts.value.push({ host: '', port: 27017 }) }
 function removeHost(index) { if (hosts.value.length > 1) hosts.value.splice(index, 1) }
+
+// Switching to a single-host type drops any extra seed-list entries so the
+// built URI doesn't carry hosts the type can't use. Standalone has no read
+// preference, so clear it too (keeps it out of the URI and disables the
+// Advanced fields that depend on it).
+watch(connType, (type) => {
+  if (!isMultiHost.value && hosts.value.length > 1) {
+    hosts.value = [hosts.value[0]]
+  }
+  if (type === 'standalone') {
+    readPreference.value = ''
+  }
+})
 
 // auth tab
 const authMode  = ref(isEditMode ? (props.editConn.auth_mechanism ?? 'SCRAM-SHA-256') : 'SCRAM-SHA-256')
@@ -98,6 +123,90 @@ async function pickSshKey() {
 // advanced tab
 const selectedTag = ref(isEditMode ? (props.editConn.tag ?? 'none') : 'none')
 
+// Connection-string options (the Advanced tab). Each catalog key maps to a
+// string value; '' means "unset", so the driver default applies. Values come
+// from the stored config in edit mode.
+const storedOptions = (isEditMode && props.editConn.options) ? props.editConn.options : {}
+const advancedOptions = ref(
+  Object.fromEntries(
+    KNOWN_OPTION_KEYS.map(key => [
+      key,
+      storedOptions[key] != null ? String(storedOptions[key]) : '',
+    ])
+  )
+)
+// Options managed by dedicated fields outside the catalog (so they aren't
+// treated as "unknown" passthrough below).
+const DEDICATED_OPTION_KEYS = ['readPreference']
+
+// Any stored option without a dedicated field (e.g. a key added by a future
+// driver, or hand-edited JSON) is preserved verbatim so saving never drops it.
+const extraOptions = Object.fromEntries(
+  Object.entries(storedOptions).filter(
+    ([key]) => !KNOWN_OPTION_KEYS.includes(key) && !DEDICATED_OPTION_KEYS.includes(key)
+  )
+)
+
+// maxStalenessSeconds / readPreferenceTags are only valid alongside a
+// non-primary read preference; the driver rejects the whole URI otherwise.
+// Standalone has no read preference at all.
+const readPrefActive = computed(() => connType.value !== 'standalone' && !!readPreference.value)
+
+// Whether a field is shown at all (SRV-only options are hidden for non-SRV).
+function optionVisible(opt) {
+  if (opt.srvOnly && connType.value !== 'srv') return false
+  return true
+}
+
+// Whether a visible field is greyed out because its dependency isn't met.
+function optionDisabled(opt) {
+  if (opt.needsReadPref && !readPrefActive.value) return true
+  return false
+}
+
+// Assembles the options map sent to the backend: every set, visible, enabled
+// field plus any preserved unknown options. Disabled/hidden/empty are omitted
+// so the built URI only ever carries valid, driver-accepted parameters.
+function buildOptions() {
+  const out = { ...extraOptions }
+  for (const group of OPTION_GROUPS) {
+    for (const opt of group.options) {
+      if (!optionVisible(opt) || optionDisabled(opt)) continue
+      const value = advancedOptions.value[opt.key]
+      if (value === '' || value == null) continue
+      out[opt.key] = String(value)
+    }
+  }
+  // Read preference (Server tab) rides in the same options map.
+  if (readPrefActive.value) {
+    out.readPreference = readPreference.value
+  }
+  return out
+}
+
+// The Advanced tab has many options, so each category is a collapsible section.
+// `groupSetCount` powers the "n set" badge and the auto-expand default below.
+function groupSetCount(group) {
+  let count = 0
+  for (const opt of group.options) {
+    if (!optionVisible(opt) || optionDisabled(opt)) continue
+    const value = advancedOptions.value[opt.key]
+    if (value !== '' && value != null) count++
+  }
+  return count
+}
+
+// A group starts expanded only if it already holds a set value, so existing
+// configuration is visible without the user expanding everything by hand.
+const openGroups = ref({
+  ...Object.fromEntries(OPTION_GROUPS.map(group => [group.title, groupSetCount(group) > 0])),
+  Appearance: selectedTag.value !== 'none',
+})
+
+function toggleGroup(title) {
+  openGroups.value[title] = !openGroups.value[title]
+}
+
 // status
 const status    = ref(null)
 const isTesting = ref(false)
@@ -139,6 +248,10 @@ function buildUriForTest() {
     if (tlsCaFile.value) params.push(`tlsCAFile=${encodeURIComponent(tlsCaFile.value)}`)
     if (tlsCertKeyFile.value) params.push(`tlsCertificateKeyFile=${encodeURIComponent(tlsCertKeyFile.value)}`)
     if (tlsAllowInvalidCerts.value) params.push('tlsAllowInvalidCertificates=true')
+  }
+  // Advanced-tab options, appended verbatim to mirror the backend's passthrough.
+  for (const [key, value] of Object.entries(buildOptions())) {
+    params.push(`${key}=${value}`)
   }
   if (params.length) uri += `?${params.join('&')}`
   return uri
@@ -304,6 +417,7 @@ async function save() {
       hosts:           hosts.value.map(h => ({ host: h.host, port: Number(h.port) || 27017 })),
       connectionType:  connType.value,
       replicaSetName:  replicaSetName.value || null,
+      options:         buildOptions(),
       username:        authMode.value !== 'none' ? (username.value || null) : null,
       password:        authMode.value !== 'none' ? (password.value || null) : null,
       authDb:          authMode.value !== 'none' ? (authDb.value || null) : null,
@@ -331,6 +445,7 @@ async function save() {
         hosts:           fields.hosts,
         connection_type: fields.connectionType,
         replica_set_name: fields.replicaSetName,
+        options:         fields.options,
         username:        fields.username,
         auth_db:         fields.authDb,
         auth_mechanism:  fields.authMechanism,
@@ -354,6 +469,7 @@ async function save() {
         name:            fields.name,
         hosts:           fields.hosts,
         connection_type: fields.connectionType,
+        options:         fields.options,
         tag:             fields.tag,
         last_accessed:   null,
       }
@@ -461,18 +577,18 @@ async function save() {
             </div>
           </div>
           <div class="nc-field">
-            <label>{{ connType === 'srv' ? 'Server (SRV hostname)' : 'Server(s)' }}</label>
+            <label>{{ connType === 'srv' ? 'Server (SRV hostname)' : (isMultiHost ? 'Server(s)' : 'Server') }}</label>
             <input v-if="connType === 'srv'" class="nc-input" v-model="hosts[0].host" placeholder="cluster.example.com" />
             <template v-else>
               <div v-for="(h, i) in hosts" :key="i" class="nc-inline nc-host-row">
                 <input class="nc-input" v-model="h.host" style="flex:3" placeholder="localhost" />
                 <span class="nc-colon">:</span>
                 <input class="nc-input" v-model.number="h.port" type="number" style="flex:1" />
-                <button v-if="hosts.length > 1" class="nc-host-rm" title="Remove host" @click="removeHost(i)">
+                <button v-if="isMultiHost && hosts.length > 1" class="nc-host-rm" title="Remove host" @click="removeHost(i)">
                   <BaseIcon name="close" :size="12" />
                 </button>
               </div>
-              <button class="nc-host-add" @click="addHost">
+              <button v-if="isMultiHost" class="nc-host-add" @click="addHost">
                 <BaseIcon name="plus" :size="12" /> Add host
               </button>
             </template>
@@ -481,9 +597,15 @@ async function save() {
             <label>Replica set name</label>
             <input class="nc-input" v-model="replicaSetName" placeholder="myReplicaSet" />
           </div>
-          <div class="nc-field">
+          <div v-if="connType !== 'standalone'" class="nc-field">
             <label>Read preference</label>
-            <div class="nc-select"><span>Primary</span><BaseIcon name="caretDown" :size="13" /></div>
+            <select class="nc-input nc-native" v-model="readPreference">
+              <option value="">Primary (default)</option>
+              <option value="primaryPreferred">Primary preferred</option>
+              <option value="secondary">Secondary</option>
+              <option value="secondaryPreferred">Secondary preferred</option>
+              <option value="nearest">Nearest</option>
+            </select>
           </div>
           <div class="nc-hint">
             Studio-4T currently targets MongoDB.
@@ -629,21 +751,76 @@ async function save() {
 
         <!-- Advanced -->
         <div v-else-if="activeTab === 'advanced'" class="nc-form">
-          <div class="nc-inline2">
-            <div class="nc-field">
-              <label>Connect timeout (ms)</label>
-              <input class="nc-input" value="20000" />
-            </div>
-            <div class="nc-field">
-              <label>Socket timeout (ms)</label>
-              <input class="nc-input" value="0" />
-            </div>
+          <div class="nc-hint nc-adv-intro">
+            Optional MongoDB driver parameters. Leave a field empty to use the driver default.
           </div>
-          <div class="nc-field">
-            <label>App name</label>
-            <input class="nc-input" value="Studio-4T" />
-          </div>
-          <div class="nc-field">
+
+          <template v-for="group in OPTION_GROUPS" :key="group.title">
+            <button
+              type="button"
+              class="nc-adv-group"
+              :class="{ open: openGroups[group.title] }"
+              @click="toggleGroup(group.title)"
+            >
+              <BaseIcon :name="openGroups[group.title] ? 'caretDown' : 'caret'" :size="12" />
+              <span class="nc-adv-group-t">{{ group.title }}</span>
+              <span v-if="groupSetCount(group)" class="nc-adv-badge">{{ groupSetCount(group) }} set</span>
+            </button>
+            <template v-if="openGroups[group.title]">
+              <template v-for="opt in group.options" :key="opt.key">
+              <div v-if="optionVisible(opt)" class="nc-field">
+                <label>
+                  {{ opt.label }}
+                  <span class="nc-adv-key">{{ opt.key }}</span>
+                </label>
+
+                <select
+                  v-if="opt.type === 'bool'"
+                  class="nc-input nc-native"
+                  v-model="advancedOptions[opt.key]"
+                  :disabled="optionDisabled(opt)"
+                >
+                  <option value="">(default)</option>
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+
+                <select
+                  v-else-if="opt.type === 'enum'"
+                  class="nc-input nc-native"
+                  v-model="advancedOptions[opt.key]"
+                  :disabled="optionDisabled(opt)"
+                >
+                  <option value="">(default)</option>
+                  <option v-for="val in opt.values" :key="val" :value="val">{{ val }}</option>
+                </select>
+
+                <input
+                  v-else
+                  class="nc-input"
+                  :type="opt.type === 'int' ? 'number' : 'text'"
+                  v-model="advancedOptions[opt.key]"
+                  :placeholder="opt.placeholder || ''"
+                  :disabled="optionDisabled(opt)"
+                />
+
+                <div v-if="opt.hint" class="nc-opt-hint">{{ opt.hint }}</div>
+              </div>
+              </template>
+            </template>
+          </template>
+
+          <button
+            type="button"
+            class="nc-adv-group"
+            :class="{ open: openGroups.Appearance }"
+            @click="toggleGroup('Appearance')"
+          >
+            <BaseIcon :name="openGroups.Appearance ? 'caretDown' : 'caret'" :size="12" />
+            <span class="nc-adv-group-t">Appearance</span>
+            <span v-if="selectedTag !== 'none'" class="nc-adv-badge">1 set</span>
+          </button>
+          <div v-if="openGroups.Appearance" class="nc-field">
             <label>Color tag</label>
             <div class="tag-row">
               <span
@@ -834,6 +1011,37 @@ async function save() {
   background: var(--bg-panel-2); border: 1px solid var(--border-soft);
   border-radius: 7px; padding: 11px 13px;
 }
+
+/* Advanced tab — option groups rendered from the catalog */
+.nc-adv-intro { margin-bottom: 4px; }
+.nc-adv-group {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  background: none; border: none; border-top: 1px solid var(--border-soft);
+  padding: 11px 0 10px; cursor: pointer; text-align: left;
+  font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.nc-adv-group:first-of-type { border-top: none; }
+.nc-adv-group:hover { color: var(--text); }
+.nc-adv-group-t { flex: 1; }
+.nc-adv-badge {
+  text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 10.5px;
+  color: var(--accent); background: var(--bg-panel-2);
+  border: 1px solid var(--border-soft); border-radius: 10px; padding: 1px 8px;
+}
+.nc-adv-key {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px; font-weight: 400; color: var(--text-faint); margin-left: 6px;
+}
+.nc-opt-hint { font-size: 11.5px; color: var(--text-faint); line-height: 1.45; }
+/* Native <select> styled to match .nc-input, with a chevron affordance */
+.nc-native {
+  appearance: none; cursor: pointer; padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a94' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+}
+.nc-input:disabled { opacity: .5; cursor: not-allowed; }
 
 /* segmented control */
 .seg {
