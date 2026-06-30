@@ -40,6 +40,7 @@ fn test_config() -> Option<ConnectionConfig> {
         username: None,
         auth_db: None,
         auth_mechanism: None,
+        options: std::collections::BTreeMap::new(),
         tls: false,
         tls_ca_file: None,
         tls_cert_key_file: None,
