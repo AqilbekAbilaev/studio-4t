@@ -9,7 +9,7 @@
 //! Run them with, e.g.:
 //!   STUDIO4T_TEST_MONGODB=127.0.0.1:27017 cargo test integration
 
-use crate::storage::ConnectionConfig;
+use crate::storage::{ConnectionConfig, HostEntry};
 use crate::uri;
 use mongodb::bson::{doc, Document};
 use mongodb::Client;
@@ -34,9 +34,8 @@ fn test_config() -> Option<ConnectionConfig> {
     Some(ConnectionConfig {
         id: String::from("it-test"),
         name: String::from("integration-test"),
-        host: host,
-        port: port,
-        connection_type: String::from("standard"),
+        hosts: vec![HostEntry { host: host, port: port }],
+        connection_type: String::from("standalone"),
         replica_set_name: None,
         username: None,
         auth_db: None,

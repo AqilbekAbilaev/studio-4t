@@ -151,13 +151,19 @@ impl ConnectionPool {
                 crate::keychain::get(&format!("{}::ssh-pass", config.id)).unwrap_or_default(),
             ),
         };
+        // SSH tunnels forward a single host; multi-host seed lists over SSH are
+        // not supported, so the tunnel targets the first host of the list.
+        let (mongo_host, mongo_port) = match config.hosts.first() {
+            Some(entry) => (entry.host.clone(), entry.port),
+            None => (String::from("localhost"), 27017),
+        };
         let params = SshParams {
             ssh_host: config.ssh_host.clone().unwrap_or_default(),
             ssh_port: config.ssh_port,
             ssh_user: config.ssh_user.clone().unwrap_or_default(),
             auth: auth,
-            mongo_host: config.host.clone(),
-            mongo_port: config.port,
+            mongo_host: mongo_host,
+            mongo_port: mongo_port,
         };
         let tunnel = match ssh::establish(
             params,

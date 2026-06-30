@@ -32,9 +32,20 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
     let (creds, has_user) = build_credentials(config, password);
 
     let host_part = if config.connection_type == "srv" {
-        config.host.clone()
+        // SRV uses a single hostname and no port; take the first host.
+        match config.hosts.first() {
+            Some(entry) => entry.host.clone(),
+            None => String::from("localhost"),
+        }
+    } else if config.hosts.is_empty() {
+        String::from("localhost:27017")
     } else {
-        format!("{}:{}", config.host, config.port)
+        config
+            .hosts
+            .iter()
+            .map(|entry| format!("{}:{}", entry.host, entry.port))
+            .collect::<Vec<String>>()
+            .join(",")
     };
 
     let mut query: Vec<String> = Vec::new();
@@ -159,8 +170,13 @@ pub fn extract_host_port(uri: &str) -> Option<String> {
     };
     // Drop credentials (user:pass@host → host)
     let rest = rest.find('@').map_or(rest, |i| &rest[i + 1..]);
-    // Take the first host before any '/' or '?'
-    let host_port = match rest.split(|c: char| c == '/' || c == '?').next() {
+    // Take the host section before any '/' or '?'
+    let hosts = match rest.split(|c: char| c == '/' || c == '?').next() {
+        Some(val) => val,
+        None => return None,
+    };
+    // A multi-host seed list — probe just the first host.
+    let host_port = match hosts.split(',').next() {
         Some(val) => val,
         None => return None,
     };
@@ -221,14 +237,13 @@ pub async fn tcp_probe(uri: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::ConnectionConfig;
+    use crate::storage::{ConnectionConfig, HostEntry};
 
     fn base_config() -> ConnectionConfig {
         ConnectionConfig {
             id: String::from("test"),
             name: String::from("Test"),
-            host: String::from("localhost"),
-            port: 27017,
+            hosts: vec![HostEntry { host: String::from("localhost"), port: 27017 }],
             connection_type: String::from("standalone"),
             replica_set_name: None,
             username: None,
@@ -285,11 +300,34 @@ mod tests {
     fn build_uri_srv_scheme() {
         let config = ConnectionConfig {
             connection_type: String::from("srv"),
-            host: String::from("cluster.example.com"),
+            hosts: vec![HostEntry { host: String::from("cluster.example.com"), port: 27017 }],
             ..base_config()
         };
         assert!(build_uri(&config, None).starts_with("mongodb+srv://"));
         assert!(!build_uri(&config, None).contains(":27017"));
+    }
+
+    #[test]
+    fn build_uri_multi_host_seed_list() {
+        let config = ConnectionConfig {
+            connection_type: String::from("replica"),
+            replica_set_name: Some(String::from("rs0")),
+            hosts: vec![
+                HostEntry { host: String::from("a.example.com"), port: 27017 },
+                HostEntry { host: String::from("b.example.com"), port: 27017 },
+                HostEntry { host: String::from("c.example.com"), port: 27018 },
+            ],
+            ..base_config()
+        };
+        let uri = build_uri(&config, None);
+        assert!(uri.contains("a.example.com:27017,b.example.com:27017,c.example.com:27018"));
+        assert!(uri.contains("replicaSet=rs0"));
+    }
+
+    #[test]
+    fn build_uri_empty_hosts_falls_back() {
+        let config = ConnectionConfig { hosts: vec![], ..base_config() };
+        assert_eq!(build_uri(&config, None), "mongodb://localhost:27017/");
     }
 
     #[test]
@@ -466,6 +504,14 @@ mod tests {
     #[test]
     fn extract_returns_none_for_empty_host() {
         assert_eq!(extract_host_port("mongodb://"), None);
+    }
+
+    #[test]
+    fn extract_takes_first_host_of_seed_list() {
+        assert_eq!(
+            extract_host_port("mongodb://a.example.com:27017,b.example.com:27017/admin"),
+            Some("a.example.com:27017".into())
+        );
     }
 
     #[test]
