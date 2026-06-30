@@ -8,6 +8,7 @@ use crate::tabs::TabStorage;
 use crate::pool::ConnectionPool;
 use crate::shell::{ShellEngine, ShellResult};
 use crate::shell_history::ShellHistoryStorage;
+use crate::settings::{Settings, SettingsStorage};
 use crate::storage::{ConnectionConfig, Storage};
 use crate::uri;
 use mongodb::bson;
@@ -253,6 +254,27 @@ pub async fn save_connection(
 #[tauri::command]
 pub fn list_connections(storage: State<'_, Storage>) -> Vec<ConnectionConfig> {
     storage.load()
+}
+
+#[tauri::command]
+pub fn get_settings(settings: State<'_, SettingsStorage>) -> Settings {
+    settings.load()
+}
+
+/// Persist app preferences. The default query limit is clamped to a sane range
+/// so a bad value can't break paging. Returns the saved settings.
+#[tauri::command]
+pub fn update_settings(
+    settings: State<'_, SettingsStorage>,
+    default_query_limit: i64,
+) -> Result<Settings, AppError> {
+    let new_settings = Settings {
+        default_query_limit: default_query_limit.clamp(1, 1000),
+    };
+    match settings.save(&new_settings) {
+        Ok(_) => Ok(new_settings),
+        Err(e) => return Err(e),
+    }
 }
 
 /// Assemble the MongoDB connection string for a saved connection. The password is

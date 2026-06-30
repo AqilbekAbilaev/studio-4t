@@ -18,11 +18,30 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
+    let preferences = match MenuItem::with_id(
+        app,
+        "file:preferences",
+        "Preferences...",
+        true,
+        None::<&str>,
+    ) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let separator_prefs = match PredefinedMenuItem::separator(app) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
     let quit = match PredefinedMenuItem::quit(app, Some("Exit")) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let file = match Submenu::with_items(app, "File", true, &[&connect, &separator_file, &quit]) {
+    let file = match Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[&connect, &separator_file, &preferences, &separator_prefs, &quit],
+    ) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -126,6 +145,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 pub fn handle_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         "file:connect" => open_connect_window(app),
+        "file:preferences" => {
+            let _ = app.emit("menu:preferences", ());
+        }
         "help:shortcuts" => {
             // The frontend owns the shortcuts modal; just nudge it open.
             let _ = app.emit("menu:shortcuts", ());

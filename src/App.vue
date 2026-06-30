@@ -13,6 +13,7 @@ import ContextMenu from './components/ContextMenu.vue'
 import SshHostKeyModal from './components/SshHostKeyModal.vue'
 import ServerStatusModal from './components/ServerStatusModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
+import PreferencesModal from './components/PreferencesModal.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -68,6 +69,16 @@ onMounted(async () => {
 
   // Help → Keyboard Shortcuts (native menu) opens the reference modal.
   listen('menu:shortcuts', () => { showShortcuts.value = true })
+  // File → Preferences (native menu) opens the preferences modal.
+  listen('menu:preferences', () => { showPreferences.value = true })
+
+  // Load persisted preferences so new tabs adopt the configured default limit.
+  try {
+    const settings = await invoke('get_settings')
+    if (settings && Number(settings.default_query_limit)) {
+      defaultQueryLimit.value = Number(settings.default_query_limit)
+    }
+  } catch (_) {}
 
   // Restore the previous session's tabs before wiring up the save watcher, so the
   // empty default never overwrites tabs.json first.
@@ -144,6 +155,8 @@ const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
+const showPreferences = ref(false)    // File → Preferences
+const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
 
 // SSH host-key prompts raised by the backend during a tunnel handshake. At most
 // one of each is active at a time; the modal shows the prompt first.
@@ -704,7 +717,7 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
     connectionName: connectionName,
     dbName: dbName,
     collectionName: collectionName,
-    filter: '', projection: '', sort: '', skip: 0, limit: 50,
+    filter: '', projection: '', sort: '', skip: 0, limit: defaultQueryLimit.value,
     mode: startMode, pipeline: '',
     results: [], hasRun: false, isRunning: false, runError: null,
     selectedRow: -1, elapsedMs: null,
@@ -743,7 +756,7 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
       limit:      Number(def.limit),
     })
   } else {
-    runQuery(id, { filter: '{}', projection: '{}', sort: '{}', skip: 0, limit: 50 })
+    runQuery(id, { filter: '{}', projection: '{}', sort: '{}', skip: 0, limit: defaultQueryLimit.value })
   }
 }
 
@@ -1107,6 +1120,15 @@ async function runAggregate(tabId, params) {
     <ShortcutsModal
       v-if="showShortcuts"
       @close="showShortcuts = false"
+    />
+
+    <!-- Preferences -->
+    <PreferencesModal
+      v-if="showPreferences"
+      :default-query-limit="defaultQueryLimit"
+      @close="showPreferences = false"
+      @saved="defaultQueryLimit = $event"
+      @open-shortcuts="showPreferences = false; showShortcuts = true"
     />
 
     <!-- SSH host-key trust prompt / changed-key warning -->
