@@ -47,6 +47,8 @@
   list lives in the Manager); the open set is persisted, so only those re-open after a restart
 - Connection tree — collapsible Connection → Database → Collection, live data on expand
 - Tree context menu: Open Collection, Copy Name, Disconnect / Others / All, Refresh / Refresh All
+- **Per-connection status indicator** — a status dot on each connection row in the tree
+  (connected / loading / error / idle), derived from the tree's own load state
 
 ### Query workspace
 - Multiple tabs, each bound to a collection with its own query state; auto-run on open
@@ -128,7 +130,6 @@ Most of these already have a button or menu item in the UI, currently disabled o
 ### P1 — Medium — productivity & polish
 - [ ] **IntelliShell editor** — live syntax highlighting + `db.`/method autocomplete, Run current
   line, Save / Open query (the shell ships; these editor niceties need an editor lib, e.g. CodeMirror)
-- [ ] **Per-connection status** indicator in the tree (connected / loading / error)
 - [ ] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar stubs)
 - [ ] **Last-page** paging button (currently disabled)
 - [ ] **Server status** panel (host, version, uptime, connections, memory)
