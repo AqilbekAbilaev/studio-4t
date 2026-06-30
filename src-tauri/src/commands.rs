@@ -687,6 +687,46 @@ pub async fn find_documents(
     Ok(docs)
 }
 
+/// Count the documents matching `filter` (the same filter shape `find_documents`
+/// accepts). Used for the "Count Documents" action and to jump to the last page.
+#[tauri::command]
+pub async fn count_documents(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    filter: String,
+) -> Result<i64, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+
+    let filter_doc = match parse_ejson_document(&filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    let count = match col
+        .count_documents(filter_doc)
+        .max_time(MAX_QUERY_TIME)
+        .await
+    {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(count as i64)
+}
+
 #[tauri::command]
 pub fn set_connection_tag(
     storage: State<'_, Storage>,
