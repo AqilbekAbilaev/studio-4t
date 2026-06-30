@@ -39,10 +39,12 @@ const filtered = computed(() => {
 function tagColor(tag) { return TAG_COLORS[tag] ?? null }
 
 function parseDbServer(conn) {
-  if (conn.host) {
-    return conn.connection_type === 'srv' ? conn.host : `${conn.host}:${conn.port}`
-  }
-  return '—'
+  const hosts = conn.hosts ?? []
+  if (!hosts.length) return '—'
+  const first = hosts[0]
+  if (conn.connection_type === 'srv') return first.host
+  const label = `${first.host}:${first.port}`
+  return hosts.length > 1 ? `${label} +${hosts.length - 1}` : label
 }
 
 function parseSecurity(conn) {

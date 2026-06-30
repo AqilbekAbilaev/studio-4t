@@ -17,16 +17,25 @@ const isEditMode = !!props.editConn
 const step     = ref(isEditMode ? 'form' : 'intro')
 const mode     = ref('uri')
 const pastedUri = ref('')
+const uriError  = ref('')
 
 // ── form state — pre-filled from editConn in edit mode
 const connName  = ref(isEditMode ? props.editConn.name : 'New Connection')
 const activeTab = ref('server')
 
 // server tab
-const host           = ref(isEditMode ? props.editConn.host           : 'localhost')
-const port           = ref(isEditMode ? props.editConn.port           : 27017)
+// Seed list — always at least one { host, port } row. In edit mode it comes
+// from the stored config (already a `hosts` array after backend migration).
+const hosts = ref(
+  isEditMode && Array.isArray(props.editConn.hosts) && props.editConn.hosts.length
+    ? props.editConn.hosts.map(h => ({ host: h.host, port: h.port }))
+    : [{ host: 'localhost', port: 27017 }]
+)
 const connType       = ref(isEditMode ? props.editConn.connection_type : 'standalone')
 const replicaSetName = ref(isEditMode ? (props.editConn.replica_set_name ?? '') : '')
+
+function addHost() { hosts.value.push({ host: '', port: 27017 }) }
+function removeHost(index) { if (hosts.value.length > 1) hosts.value.splice(index, 1) }
 
 // auth tab
 const authMode  = ref(isEditMode ? (props.editConn.auth_mechanism ?? 'SCRAM-SHA-256') : 'SCRAM-SHA-256')
@@ -120,7 +129,9 @@ function buildUriForTest() {
   } else if (username.value) {
     uri += `${encodeURIComponent(username.value)}@`
   }
-  uri += isSrv ? host.value : `${host.value}:${port.value}`
+  uri += isSrv
+    ? hosts.value[0].host
+    : hosts.value.map(h => `${h.host}:${h.port}`).join(',')
   uri += `/${authDb.value || 'admin'}`
   const params = []
   if (useTls.value) {
@@ -133,32 +144,118 @@ function buildUriForTest() {
   return uri
 }
 
-// Parses a pasted MongoDB URI into the form fields so the user can review
-// and adjust before saving. Falls back gracefully on unrecognised formats.
+// Parses a pasted MongoDB URI into the form fields so the user can review and
+// adjust before saving. Hand-rolled rather than relying on the browser's URL
+// parser, which throws on a multi-host seed list (`host1,host2,…`) — the
+// standard replica-set / cluster format. Returns true if `raw` looked like a
+// MongoDB connection string.
 function parseUri(raw) {
-  try {
-    const isSrv = raw.startsWith('mongodb+srv://')
-    const normalised = raw.replace(/^mongodb(\+srv)?:\/\//, 'http://')
-    const url = new URL(normalised)
-    connType.value = isSrv ? 'srv' : 'standalone'
-    host.value = url.hostname || 'localhost'
-    port.value = url.port ? parseInt(url.port) : 27017
-    username.value = url.username ? decodeURIComponent(url.username) : ''
-    password.value = url.password ? decodeURIComponent(url.password) : ''
-    authDb.value = url.pathname.replace(/^\//, '') || 'admin'
-    const rsParam = url.searchParams.get('replicaSet')
-    if (rsParam) {
-      connType.value = 'replica'
-      replicaSetName.value = rsParam
+  const scheme = raw.match(/^mongodb(\+srv)?:\/\//)
+  if (!scheme) return false
+  const isSrv = !!scheme[1]
+  let rest = raw.slice(scheme[0].length)
+
+  // Peel off the query string (everything after the first '?').
+  let queryStr = ''
+  const qIdx = rest.indexOf('?')
+  if (qIdx !== -1) {
+    queryStr = rest.slice(qIdx + 1)
+    rest = rest.slice(0, qIdx)
+  }
+
+  // Peel off the optional /database path (first '/').
+  let dbPath = ''
+  const slashIdx = rest.indexOf('/')
+  if (slashIdx !== -1) {
+    dbPath = rest.slice(slashIdx + 1)
+    rest = rest.slice(0, slashIdx)
+  }
+
+  // Split userinfo from hosts at the LAST '@' so an unescaped '@' inside a
+  // password is tolerated — the host portion never contains '@'.
+  let userInfo = ''
+  let hostsPart = rest
+  const atIdx = rest.lastIndexOf('@')
+  if (atIdx !== -1) {
+    userInfo = rest.slice(0, atIdx)
+    hostsPart = rest.slice(atIdx + 1)
+  }
+
+  const decode = (s) => { try { return decodeURIComponent(s) } catch (_) { return s } }
+
+  if (userInfo) {
+    const cIdx = userInfo.indexOf(':')
+    if (cIdx === -1) {
+      username.value = decode(userInfo)
+      password.value = ''
+    } else {
+      username.value = decode(userInfo.slice(0, cIdx))
+      password.value = decode(userInfo.slice(cIdx + 1))
     }
-  } catch (_) {}
+  }
+
+  // Parse the comma-separated seed list. host:port splits at the last ':' to
+  // leave IPv6 brackets alone. SRV uses a single hostname with no port.
+  const list = hostsPart.split(',').filter(Boolean)
+  if (isSrv) {
+    hosts.value = [{ host: list[0] || 'localhost', port: 27017 }]
+  } else if (list.length) {
+    hosts.value = list.map((hp) => {
+      const colonIdx = hp.lastIndexOf(':')
+      if (colonIdx === -1 || hp.includes(']')) {
+        return { host: hp || 'localhost', port: 27017 }
+      }
+      return {
+        host: hp.slice(0, colonIdx) || 'localhost',
+        port: parseInt(hp.slice(colonIdx + 1)) || 27017,
+      }
+    })
+  } else {
+    hosts.value = [{ host: 'localhost', port: 27017 }]
+  }
+
+  connType.value = isSrv ? 'srv' : 'standalone'
+  authDb.value = decode(dbPath) || 'admin'
+
+  const params = new URLSearchParams(queryStr)
+  const rs = params.get('replicaSet')
+  if (rs) {
+    connType.value = 'replica'
+    replicaSetName.value = rs
+  }
+  const authSource = params.get('authSource')
+  if (authSource) authDb.value = authSource
+
+  const mech = params.get('authMechanism')
+  if (mech) {
+    const mechMap = { 'MONGODB-X509': 'X509', 'MONGODB-AWS': 'AWS' }
+    authMode.value = mechMap[mech] || mech
+  } else if (!username.value) {
+    authMode.value = 'none'
+  }
+
+  if (params.get('tls') === 'true' || params.get('ssl') === 'true') {
+    useTls.value = true
+    if (params.get('tlsAllowInvalidCertificates') === 'true') tlsAllowInvalidCerts.value = true
+  }
+
+  return true
 }
 
 function goNext() {
-  if (mode.value === 'uri' && pastedUri.value.trim()) {
-    parseUri(pastedUri.value.trim())
+  if (mode.value === 'uri') {
+    const raw = pastedUri.value.trim()
+    if (!raw) {
+      uriError.value = 'Paste a connection string, or choose "Manually configure" below.'
+      return
+    }
+    if (!parseUri(raw)) {
+      uriError.value = 'That doesn’t look like a MongoDB connection string (expected mongodb:// or mongodb+srv://).'
+      return
+    }
     connName.value = 'Imported from URI'
   }
+  uriError.value = ''
   step.value = 'form'
   activeTab.value = 'server'
 }
@@ -176,8 +273,8 @@ async function testConnection() {
         sshPassword:   sshPassword.value || null,
         sshKeyFile:    sshKeyFile.value || null,
         sshPassphrase: sshKeyPassphrase.value || null,
-        mongoHost:     host.value,
-        mongoPort:     Number(port.value) || 27017,
+        mongoHost:     hosts.value[0].host,
+        mongoPort:     Number(hosts.value[0].port) || 27017,
         username:      authMode.value !== 'none' ? (username.value || null) : null,
         password:      authMode.value !== 'none' ? (password.value || null) : null,
         authDb:        authMode.value !== 'none' ? (authDb.value || null) : null,
@@ -204,8 +301,7 @@ async function save() {
   try {
     const fields = {
       name:            connName.value.trim(),
-      host:            host.value,
-      port:            port.value,
+      hosts:           hosts.value.map(h => ({ host: h.host, port: Number(h.port) || 27017 })),
       connectionType:  connType.value,
       replicaSetName:  replicaSetName.value || null,
       username:        authMode.value !== 'none' ? (username.value || null) : null,
@@ -232,8 +328,7 @@ async function save() {
       const updated = {
         ...props.editConn,
         name:            fields.name,
-        host:            fields.host,
-        port:            fields.port,
+        hosts:           fields.hosts,
         connection_type: fields.connectionType,
         replica_set_name: fields.replicaSetName,
         username:        fields.username,
@@ -257,8 +352,7 @@ async function save() {
       const conn = {
         id:              id,
         name:            fields.name,
-        host:            fields.host,
-        port:            fields.port,
+        hosts:           fields.hosts,
         connection_type: fields.connectionType,
         tag:             fields.tag,
         last_accessed:   null,
@@ -306,7 +400,9 @@ async function save() {
           />
         </div>
 
-        <label class="nci-radio" @click="mode = 'manual'">
+        <p v-if="uriError" class="nci-error">{{ uriError }}</p>
+
+        <label class="nci-radio" @click="mode = 'manual'; uriError = ''">
           <span class="radio" :class="{ on: mode === 'manual' }"></span>
           <span class="nci-radio-lbl">Manually configure my connection settings</span>
         </label>
@@ -360,17 +456,26 @@ async function save() {
           <div class="nc-field">
             <label>Connection type</label>
             <div class="seg">
-              <button v-for="[v, l] in [['standalone','Standalone'],['replica','Replica Set'],['sharded','Sharded'],['dns','DNS Seedlist (SRV)']]"
+              <button v-for="[v, l] in [['standalone','Standalone'],['replica','Replica Set'],['sharded','Sharded'],['srv','DNS Seedlist (SRV)']]"
                 :key="v" class="seg-b" :class="{ on: connType === v }" @click="connType = v">{{ l }}</button>
             </div>
           </div>
           <div class="nc-field">
-            <label>Server</label>
-            <div class="nc-inline">
-              <input class="nc-input" v-model="host" style="flex:3" />
-              <span class="nc-colon">:</span>
-              <input class="nc-input" v-model.number="port" type="number" style="flex:1" />
-            </div>
+            <label>{{ connType === 'srv' ? 'Server (SRV hostname)' : 'Server(s)' }}</label>
+            <input v-if="connType === 'srv'" class="nc-input" v-model="hosts[0].host" placeholder="cluster.example.com" />
+            <template v-else>
+              <div v-for="(h, i) in hosts" :key="i" class="nc-inline nc-host-row">
+                <input class="nc-input" v-model="h.host" style="flex:3" placeholder="localhost" />
+                <span class="nc-colon">:</span>
+                <input class="nc-input" v-model.number="h.port" type="number" style="flex:1" />
+                <button v-if="hosts.length > 1" class="nc-host-rm" title="Remove host" @click="removeHost(i)">
+                  <BaseIcon name="close" :size="12" />
+                </button>
+              </div>
+              <button class="nc-host-add" @click="addHost">
+                <BaseIcon name="plus" :size="12" /> Add host
+              </button>
+            </template>
           </div>
           <div v-if="connType === 'replica'" class="nc-field">
             <label>Replica set name</label>
@@ -647,6 +752,7 @@ async function save() {
 }
 .nci-uri:focus   { border-color: var(--accent); }
 .nci-uri:disabled { opacity: .5; }
+.nci-error { margin: 12px 0 0; font-size: 12.5px; line-height: 1.5; color: #e07070; }
 
 /* ── Form top ── */
 .nc-top {
@@ -703,6 +809,20 @@ async function save() {
 .nc-inline2 { display: flex; gap: 14px; }
 .nc-inline2 .nc-field { flex: 1; }
 .nc-colon { color: var(--text-faint); }
+.nc-host-row { margin-bottom: 8px; }
+.nc-host-rm {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex: none;
+  background: none; border: 1px solid var(--border-soft); border-radius: 6px;
+  color: var(--text-dim);
+}
+.nc-host-rm:hover { background: var(--bg-hover); color: var(--text); }
+.nc-host-add {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; padding: 2px 0;
+  color: var(--accent); font-size: 12.5px; cursor: pointer;
+}
+.nc-host-add:hover { text-decoration: underline; }
 .nc-select {
   display: flex; align-items: center; justify-content: space-between;
   background: var(--bg-input); border: 1px solid var(--border-soft);
