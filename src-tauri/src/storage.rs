@@ -3,19 +3,25 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-fn default_host() -> String { String::from("localhost") }
-fn default_port() -> u16 { 27017 }
 fn default_connection_type() -> String { String::from("standalone") }
 fn default_ssh_port() -> u16 { 22 }
+
+/// One host of a (possibly multi-host) seed list. SRV connections use a single
+/// entry and ignore the port.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct HostEntry {
+    pub host: String,
+    pub port: u16,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ConnectionConfig {
     pub id: String,
     pub name: String,
-    #[serde(default = "default_host")]
-    pub host: String,
-    #[serde(default = "default_port")]
-    pub port: u16,
+    /// The seed list. Always holds at least one entry after `load()` migrates
+    /// legacy single-host configs (see `migrate_legacy_hosts`).
+    #[serde(default)]
+    pub hosts: Vec<HostEntry>,
     #[serde(default = "default_connection_type")]
     pub connection_type: String,
     #[serde(default)]
@@ -60,6 +66,50 @@ pub struct ConnectionConfig {
     pub open: bool,
 }
 
+/// Rewrites legacy pre-multi-host connection JSON so it parses into the current
+/// `ConnectionConfig`: a top-level `host`/`port` pair becomes a one-element
+/// `hosts` array, and the old `"dns"` SRV type tag becomes `"srv"`. Returns the
+/// input unchanged if it isn't the expected array-of-objects shape.
+fn migrate_legacy_hosts(content: &str) -> String {
+    let mut value: serde_json::Value = match serde_json::from_str(content) {
+        Ok(val) => val,
+        Err(_) => return content.to_string(),
+    };
+    let array = match value.as_array_mut() {
+        Some(arr) => arr,
+        None => return content.to_string(),
+    };
+    for item in array.iter_mut() {
+        let obj = match item.as_object_mut() {
+            Some(o) => o,
+            None => continue,
+        };
+        if obj.get("connection_type").and_then(|v| v.as_str()) == Some("dns") {
+            obj.insert(
+                String::from("connection_type"),
+                serde_json::Value::String(String::from("srv")),
+            );
+        }
+        if !obj.contains_key("hosts") {
+            let host = obj
+                .get("host")
+                .and_then(|v| v.as_str())
+                .unwrap_or("localhost")
+                .to_string();
+            let port = obj.get("port").and_then(|v| v.as_u64()).unwrap_or(27017);
+            let entry = serde_json::json!({ "host": host, "port": port });
+            obj.insert(
+                String::from("hosts"),
+                serde_json::Value::Array(vec![entry]),
+            );
+        }
+    }
+    match serde_json::to_string(&value) {
+        Ok(val) => val,
+        Err(_) => content.to_string(),
+    }
+}
+
 pub struct Storage {
     path: PathBuf,
     // Serializes read-modify-write sequences so concurrent commands can't lose
@@ -77,7 +127,8 @@ impl Storage {
             return vec![];
         }
         let content = std::fs::read_to_string(&self.path).unwrap_or_default();
-        serde_json::from_str(&content).unwrap_or_default()
+        let migrated = migrate_legacy_hosts(&content);
+        serde_json::from_str(&migrated).unwrap_or_default()
     }
 
     pub fn save(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
@@ -137,8 +188,7 @@ mod tests {
         ConnectionConfig {
             id: id.into(),
             name: name.into(),
-            host: String::from("localhost"),
-            port: 27017,
+            hosts: vec![HostEntry { host: String::from("localhost"), port: 27017 }],
             connection_type: String::from("standalone"),
             replica_set_name: None,
             username: None,
@@ -231,6 +281,51 @@ mod tests {
         storage.save(&[conn("1", "Local")]).unwrap();
         storage.remove("999").unwrap();
         assert_eq!(storage.load().len(), 1);
+    }
+
+    #[test]
+    fn load_migrates_legacy_single_host() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("connections.json");
+        // A pre-multi-host record: top-level host/port, no `hosts` array.
+        std::fs::write(
+            &path,
+            r#"[{"id":"1","name":"Old","host":"db.example.com","port":27018,"connection_type":"standalone"}]"#,
+        ).unwrap();
+        let storage = Storage::new(path);
+        let loaded = storage.load();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(
+            loaded[0].hosts,
+            vec![HostEntry { host: String::from("db.example.com"), port: 27018 }]
+        );
+    }
+
+    #[test]
+    fn load_migrates_legacy_dns_type_to_srv() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("connections.json");
+        std::fs::write(
+            &path,
+            r#"[{"id":"1","name":"Atlas","host":"cluster.example.com","port":27017,"connection_type":"dns"}]"#,
+        ).unwrap();
+        let storage = Storage::new(path);
+        let loaded = storage.load();
+        assert_eq!(loaded[0].connection_type, "srv");
+    }
+
+    #[test]
+    fn load_preserves_existing_hosts_array() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("connections.json");
+        std::fs::write(
+            &path,
+            r#"[{"id":"1","name":"RS","hosts":[{"host":"a","port":1},{"host":"b","port":2}],"connection_type":"replica"}]"#,
+        ).unwrap();
+        let storage = Storage::new(path);
+        let loaded = storage.load();
+        assert_eq!(loaded[0].hosts.len(), 2);
+        assert_eq!(loaded[0].hosts[1].host, "b");
     }
 
     #[test]

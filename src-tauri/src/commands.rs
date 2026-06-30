@@ -9,7 +9,7 @@ use crate::pool::ConnectionPool;
 use crate::shell::{ShellEngine, ShellResult};
 use crate::shell_history::ShellHistoryStorage;
 use crate::settings::{Settings, SettingsStorage};
-use crate::storage::{ConnectionConfig, Storage};
+use crate::storage::{ConnectionConfig, HostEntry, Storage};
 use crate::uri;
 use mongodb::bson;
 use mongodb::options::IndexOptions;
@@ -104,8 +104,7 @@ pub async fn test_ssh_connection(
     let cfg = ConnectionConfig {
         id: String::new(),
         name: String::new(),
-        host: mongo_host,
-        port: mongo_port,
+        hosts: vec![HostEntry { host: mongo_host, port: mongo_port }],
         connection_type: String::from("standalone"),
         replica_set_name: None,
         username: username,
@@ -166,8 +165,7 @@ pub async fn save_connection(
     storage: State<'_, Storage>,
     pool: State<'_, ConnectionPool>,
     name: String,
-    host: String,
-    port: u16,
+    hosts: Vec<HostEntry>,
     connection_type: String,
     replica_set_name: Option<String>,
     username: Option<String>,
@@ -192,8 +190,7 @@ pub async fn save_connection(
     let config = ConnectionConfig {
         id: id.clone(),
         name: name,
-        host: host,
-        port: port,
+        hosts: hosts,
         connection_type: connection_type,
         replica_set_name: replica_set_name,
         username: username,
@@ -447,8 +444,7 @@ pub async fn update_connection(
     pool: State<'_, ConnectionPool>,
     id: String,
     name: String,
-    host: String,
-    port: u16,
+    hosts: Vec<HostEntry>,
     connection_type: String,
     replica_set_name: Option<String>,
     username: Option<String>,
@@ -477,8 +473,7 @@ pub async fn update_connection(
     let config = ConnectionConfig {
         id: id.clone(),
         name: name,
-        host: host,
-        port: port,
+        hosts: hosts,
         connection_type: connection_type,
         replica_set_name: replica_set_name,
         username: username,
