@@ -23,7 +23,7 @@ const props = defineProps({
 // `run` re-runs the active tab in its current mode (the toolbar refresh button).
 // `requery` re-runs the find query with an explicit history flag (pagination, CRUD
 // refresh). Both delegate to the parent, which owns the parse + run pipeline.
-const emit = defineEmits(['run', 'requery', 'select-rtab', 'open-vqb', 'close-vqb', 'toast'])
+const emit = defineEmits(['run', 'requery', 'select-rtab', 'open-vqb', 'close-vqb', 'toast', 'cancel'])
 
 const viewMode     = ref('table')
 const viewMenu     = ref(false)
@@ -322,6 +322,9 @@ const queryCode = computed(() => {
       <button class="icon-btn" @click="emit('run')" :disabled="activeTab.isRunning || !runValid">
         <BaseIcon name="refresh" :size="16" />
       </button>
+      <button v-if="activeTab.isRunning" class="cancel-btn" @click="emit('cancel')" title="Cancel the running query">
+        <BaseIcon name="close" :size="13" /> Cancel
+      </button>
       <button class="icon-btn"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
         @click="goFirst"><BaseIcon name="first" :size="16" /></button>
@@ -602,6 +605,20 @@ const queryCode = computed(() => {
 }
 .icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
 .icon-btn:disabled { opacity: .4; }
+.cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-toolbar);
+  color: #e0857d;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cancel-btn:hover { background: var(--bg-hover); }
 .page-size {
   display: flex;
   align-items: center;
