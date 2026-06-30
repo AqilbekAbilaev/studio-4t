@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -32,6 +33,11 @@ pub struct ConnectionConfig {
     pub auth_db: Option<String>,
     #[serde(default)]
     pub auth_mechanism: Option<String>,
+    // Passthrough connection-string options the dedicated fields don't model
+    // (e.g. retryWrites, socketTimeoutMS, readPreference). Appended verbatim to
+    // the built URI so any driver-accepted parameter round-trips.
+    #[serde(default)]
+    pub options: BTreeMap<String, String>,
     // TLS / SSL. `tls` enables it; the file paths and allow-invalid flag are
     // applied as connection-string options (see uri::build_uri).
     #[serde(default)]
@@ -194,6 +200,7 @@ mod tests {
             username: None,
             auth_db: None,
             auth_mechanism: None,
+            options: BTreeMap::new(),
             tls: false,
             tls_ca_file: None,
             tls_cert_key_file: None,

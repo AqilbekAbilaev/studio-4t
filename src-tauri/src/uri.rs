@@ -56,6 +56,7 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
     }
 
     push_tls_query(config, &mut query);
+    push_options(config, &mut query);
 
     assemble(scheme, &creds, &host_part, &query)
 }
@@ -77,8 +78,21 @@ pub fn build_uri_to(
     push_auth_query(config, has_user, &mut query);
     query.push(String::from("directConnection=true"));
     push_tls_query(config, &mut query);
+    push_options(config, &mut query);
 
     assemble("mongodb", &creds, &host_part, &query)
+}
+
+/// Appends the passthrough `options` (any driver parameter the dedicated fields
+/// don't model) to the query string verbatim. Keys are emitted in sorted order
+/// (`BTreeMap`), so the built URI is deterministic.
+fn push_options(config: &ConnectionConfig, query: &mut Vec<String>) {
+    for (key, value) in config.options.iter() {
+        if key.is_empty() {
+            continue;
+        }
+        query.push(format!("{}={}", key, value));
+    }
 }
 
 /// Returns the `user:pass@` prefix (empty when no auth) and whether a user is set.
@@ -145,9 +159,19 @@ fn assemble(scheme: &str, creds: &str, host_part: &str, query: &[String]) -> Str
 ///   mongodb://host:27017/db       → mongodb://host:27017/db?params
 ///   mongodb://host:27017/?foo=1   → mongodb://host:27017/?foo=1&params
 pub fn with_timeout(uri: &str) -> String {
-    let params = format!(
-        "serverSelectionTimeoutMS={TIMEOUT_MS}&connectTimeoutMS={TIMEOUT_MS}"
-    );
+    // Only supply our defaults for timeouts the URI doesn't already set, so an
+    // explicit value carried over from a pasted URI (or the Advanced tab) wins.
+    let mut additions: Vec<String> = Vec::new();
+    if !uri.contains("serverSelectionTimeoutMS") {
+        additions.push(format!("serverSelectionTimeoutMS={TIMEOUT_MS}"));
+    }
+    if !uri.contains("connectTimeoutMS") {
+        additions.push(format!("connectTimeoutMS={TIMEOUT_MS}"));
+    }
+    if additions.is_empty() {
+        return uri.to_string();
+    }
+    let params = additions.join("&");
     if uri.contains('?') {
         format!("{uri}&{params}")
     } else {
@@ -249,6 +273,7 @@ mod tests {
             username: None,
             auth_db: None,
             auth_mechanism: None,
+            options: std::collections::BTreeMap::new(),
             tls: false,
             tls_ca_file: None,
             tls_cert_key_file: None,
@@ -328,6 +353,17 @@ mod tests {
     fn build_uri_empty_hosts_falls_back() {
         let config = ConnectionConfig { hosts: vec![], ..base_config() };
         assert_eq!(build_uri(&config, None), "mongodb://localhost:27017/");
+    }
+
+    #[test]
+    fn build_uri_appends_passthrough_options() {
+        let mut options = std::collections::BTreeMap::new();
+        options.insert(String::from("retryWrites"), String::from("true"));
+        options.insert(String::from("socketTimeoutMS"), String::from("600000"));
+        let config = ConnectionConfig { options: options, ..base_config() };
+        let uri = build_uri(&config, None);
+        assert!(uri.contains("retryWrites=true"));
+        assert!(uri.contains("socketTimeoutMS=600000"));
     }
 
     #[test]
@@ -453,6 +489,16 @@ mod tests {
     fn with_timeout_works_with_credentials() {
         let result = with_timeout("mongodb://user:pass@host:27017");
         assert!(result.contains("host:27017/?"));
+    }
+
+    #[test]
+    fn with_timeout_does_not_override_explicit_values() {
+        // An explicit connectTimeoutMS from the URI must not be duplicated.
+        let result = with_timeout("mongodb://localhost:27017/?connectTimeoutMS=10000");
+        assert!(result.contains("connectTimeoutMS=10000"));
+        assert!(!result.contains("connectTimeoutMS=5000"));
+        // The unset one still gets the default.
+        assert!(result.contains("serverSelectionTimeoutMS=5000"));
     }
 
     #[test]
