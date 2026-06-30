@@ -2,6 +2,8 @@ mod commands;
 mod default_queries;
 mod error;
 mod history;
+#[cfg(test)]
+mod integration_tests;
 mod keychain;
 mod known_hosts;
 mod menu;

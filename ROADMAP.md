@@ -170,8 +170,11 @@ Most of these already have a button or menu item in the UI, currently disabled o
   (user approves before the key is recorded); verified thereafter; changed keys hard-rejected with a
   warning + a "forget saved key" recovery action. *Remaining gap:* no full known-hosts manager
   screen (forget is per-incident, from the changed-key dialog)
-- [ ] **Integration tests** against a live MongoDB for the pool / command / driver paths (only pure
-  logic is unit-tested today)
+- [x] **Integration tests** against a live MongoDB — env-gated (`STUDIO4T_TEST_MONGODB=host[:port]`)
+  tests that build the URI the pool feeds the driver (`uri::build_uri` + `with_timeout`) and exercise
+  the real driver paths the commands wrap: paging `find` (sort/skip/limit), `count_documents`, and
+  `aggregate`, against a throwaway DB that's dropped after. They skip cleanly when the var is unset,
+  so default `cargo test` stays green. *(Broader command-level coverage can grow from here.)*
 
 ---
 
