@@ -15,6 +15,11 @@ use tokio::sync::Mutex;
 pub struct ConnectionPool {
     clients: Mutex<HashMap<String, Client>>,
     tunnels: Mutex<HashMap<String, Arc<SshTunnel>>>,
+    // One lock per connection id, held while a tunnel is established. Without it,
+    // two concurrent operations on the same SSH connection each build a tunnel on
+    // a different local port; the discarded one's listener is then dropped, and a
+    // client cached against that port fails with "connection refused".
+    setup_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
     // Shared with the rest of the app so a tunnel established here verifies the
     // bastion's host key against the same trust store the dialog's Test uses.
     known_hosts: Arc<KnownHostsStore>,
@@ -33,10 +38,21 @@ impl ConnectionPool {
         Self {
             clients: Mutex::new(HashMap::new()),
             tunnels: Mutex::new(HashMap::new()),
+            setup_locks: Mutex::new(HashMap::new()),
             known_hosts: known_hosts,
             prompts: prompts,
             app: app,
         }
+    }
+
+    /// The per-connection establishment lock, created on first use.
+    async fn setup_lock_for(&self, id: &str) -> Arc<Mutex<()>> {
+        let mut locks = self.setup_locks.lock().await;
+        Arc::clone(
+            locks
+                .entry(id.to_string())
+                .or_insert_with(|| Arc::new(Mutex::new(()))),
+        )
     }
 
     pub async fn get(&self, id: &str) -> Option<Client> {
@@ -100,6 +116,19 @@ impl ConnectionPool {
     /// Returns the cached SSH tunnel for `config`, establishing one if needed.
     /// SSH secrets are read from the keychain under composite keys.
     async fn ensure_tunnel(&self, config: &ConnectionConfig) -> Result<Arc<SshTunnel>, AppError> {
+        // Fast path: a live tunnel already exists — no need to serialize.
+        if let Some(existing) = self.tunnels.lock().await.get(&config.id).cloned() {
+            if existing.is_alive() {
+                return Ok(existing);
+            }
+        }
+
+        // Serialize establishment per connection so concurrent callers don't each
+        // build a tunnel on a different local port (see `setup_locks`).
+        let setup_lock = self.setup_lock_for(&config.id).await;
+        let _setup_guard = setup_lock.lock().await;
+
+        // Double-check under the lock: another caller may have just established one.
         if let Some(existing) = self.tunnels.lock().await.get(&config.id).cloned() {
             if existing.is_alive() {
                 return Ok(existing);
@@ -146,6 +175,9 @@ impl ConnectionPool {
             config.id,
             tunnel.local_addr.port()
         );
+        // A fresh tunnel has a new local port; drop any client cached against the
+        // old one so `get_or_create` rebuilds it for this tunnel's port.
+        self.clients.lock().await.remove(&config.id);
         self.tunnels
             .lock()
             .await
