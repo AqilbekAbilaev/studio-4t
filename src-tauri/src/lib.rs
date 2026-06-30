@@ -96,6 +96,7 @@ pub fn run() {
             create_database,
             find_documents,
             count_documents,
+            server_status,
             insert_document,
             replace_document,
             delete_document,

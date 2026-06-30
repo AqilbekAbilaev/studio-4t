@@ -727,6 +727,32 @@ pub async fn count_documents(
     Ok(count as i64)
 }
 
+/// Run admin `serverStatus` for a connection — host, version, uptime, current
+/// connections, memory, etc. Returned raw as JSON; the frontend surfaces the
+/// headline fields it cares about.
+#[tauri::command]
+pub async fn server_status(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+) -> Result<serde_json::Value, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let command = bson::doc! { "serverStatus": 1 };
+    let result = match client.database("admin").run_command(command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(serde_json::Value::from(bson::Bson::Document(result)))
+}
+
 #[tauri::command]
 pub fn set_connection_tag(
     storage: State<'_, Storage>,

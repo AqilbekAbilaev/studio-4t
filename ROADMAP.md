@@ -134,7 +134,9 @@ Most of these already have a button or menu item in the UI, currently disabled o
 - [ ] **IntelliShell editor** — live syntax highlighting + `db.`/method autocomplete, Run current
   line, Save / Open query (the shell ships; these editor niceties need an editor lib, e.g. CodeMirror)
 - [ ] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar stubs)
-- [ ] **Server status** panel (host, version, uptime, connections, memory)
+- [x] **Server status** panel (host, version, uptime, connections, memory) — admin `serverStatus`
+  via a `server_status` command, shown in a modal (stat-card grid + collapsible raw JSON), opened
+  from the connection tree's right-click *Server Info → Server Status*
 - [ ] **Preferences** window (theme, default query limit, shortcuts list)
 
 ### P2 — Later — advanced / nice-to-have
@@ -149,9 +151,10 @@ Most of these already have a button or menu item in the UI, currently disabled o
 ### Hardening follow-ups (deferred from the backend pass)
 - [ ] **Cancel running query** — a real Cancel button (op tracking + `killOp`); today a `maxTimeMS`
   cap aborts runaway queries server-side, but there's no user-driven cancel
-- [ ] **Structured errors to the frontend** — `AppError` already carries a `code`; expose
-  `{ code, message }` so the UI can branch on error type (auth vs network vs TLS). Deferred because
-  it changes the error wire format (~80 `String(e)` call sites) and there's no UI consumer yet
+- [x] **Structured errors to the frontend** — `AppError` now serializes as `{ code, message }`,
+  with Mongo errors classified into auth / tls / network sub-categories; the `errMessage` /
+  `errCode` helpers read that shape at every call site, and the shared `StateMessage` placeholder
+  branches on the code to show an actionable hint (auth vs network vs TLS) + Retry
 - [x] **SSH known-hosts / trust-on-first-use** — interactive fingerprint prompt on first contact
   (user approves before the key is recorded); verified thereafter; changed keys hard-rejected with a
   warning + a "forget saved key" recovery action. *Remaining gap:* no full known-hosts manager
