@@ -11,6 +11,7 @@ import QueryWorkspace from './components/QueryWorkspace.vue'
 import ConnectionManager from './components/ConnectionManager.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import SshHostKeyModal from './components/SshHostKeyModal.vue'
+import ServerStatusModal from './components/ServerStatusModal.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -137,6 +138,7 @@ const toast = ref(null)
 let toastTimer = null
 const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
+const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 
 // SSH host-key prompts raised by the backend during a tunnel handshake. At most
 // one of each is active at a time; the modal shows the prompt first.
@@ -435,6 +437,14 @@ async function handleContextAction(action) {
 
   if (action === 'Import…' && saved.type === 'collection') {
     await importCollection(saved.nodeData)
+    return
+  }
+
+  if (action === 'Server Status' && saved.type === 'connection') {
+    serverStatusTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+    }
     return
   }
 
@@ -1078,6 +1088,13 @@ async function runAggregate(tabId, params) {
       v-if="showConnectionManager"
       @close="showConnectionManager = false"
       @connect="onManagerConnect"
+    />
+
+    <!-- Server Status modal -->
+    <ServerStatusModal
+      v-if="serverStatusTarget"
+      :target="serverStatusTarget"
+      @close="serverStatusTarget = null"
     />
 
     <!-- SSH host-key trust prompt / changed-key warning -->
