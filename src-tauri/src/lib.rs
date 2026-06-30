@@ -99,6 +99,7 @@ pub fn run() {
             create_database,
             find_documents,
             count_documents,
+            kill_query,
             server_status,
             connection_uri,
             duplicate_connection,

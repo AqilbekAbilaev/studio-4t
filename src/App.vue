@@ -954,12 +954,37 @@ function confirmRenameTab() {
 }
 
 // ── query execution ────────────────────────────────────────
+// A unique tag stamped on each query op (as its `comment`) so a cancel can find
+// and kill exactly that operation server-side.
+function newRunId() {
+  return 'q' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)
+}
+
+// Best-effort cancel of a tab's in-flight query: ask the server to kill the op
+// tagged with this run's id. The awaited find/aggregate then rejects, which the
+// run handlers render as a calm "cancelled" state (because tab.cancelled is set).
+async function cancelQuery(tabId) {
+  const tab = tabs.value.find(t => t.id === tabId)
+  if (!tab || !tab.isRunning || !tab.runId) return
+  tab.cancelled = true
+  try {
+    const killed = await invoke('kill_query', { id: tab.connectionId, comment: tab.runId })
+    showToast(killed > 0 ? 'Query cancelled' : 'Query already finished')
+  } catch (e) {
+    tab.cancelled = false
+    showToast('Cancel not permitted on this server: ' + errMessage(e))
+  }
+}
+
 async function runQuery(tabId, params) {
   const tab = tabs.value.find(t => t.id === tabId)
   if (!tab) return
   tab.isRunning = true
   tab.runError = null
   tab.runErrorCode = null
+  tab.cancelled = false
+  const runId = newRunId()
+  tab.runId = runId
   const t0 = Date.now()
   const { addToHistory = true, ...queryParams } = params
   try {
@@ -968,6 +993,7 @@ async function runQuery(tabId, params) {
       database:   tab.dbName,
       collection: tab.collectionName,
       ...queryParams,
+      comment:    runId,
     })
     tab.hasRun = true
     tab.elapsedMs = Date.now() - t0
@@ -987,8 +1013,14 @@ async function runQuery(tabId, params) {
       }).catch(() => {})
     }
   } catch (e) {
-    tab.runError = errMessage(e)
-    tab.runErrorCode = errCode(e)
+    // A deliberate cancel makes the killed op error — show a calm state, not a scary one.
+    if (tab.cancelled) {
+      tab.runError = 'Query cancelled.'
+      tab.runErrorCode = null
+    } else {
+      tab.runError = errMessage(e)
+      tab.runErrorCode = errCode(e)
+    }
   } finally {
     tab.isRunning = false
   }
@@ -1000,6 +1032,9 @@ async function runAggregate(tabId, params) {
   tab.isRunning = true
   tab.runError = null
   tab.runErrorCode = null
+  tab.cancelled = false
+  const runId = newRunId()
+  tab.runId = runId
   const t0 = Date.now()
   try {
     tab.results = await invoke('run_aggregate', {
@@ -1007,6 +1042,7 @@ async function runAggregate(tabId, params) {
       database:   tab.dbName,
       collection: tab.collectionName,
       ...params,
+      comment:    runId,
     })
     tab.hasRun = true
     tab.elapsedMs = Date.now() - t0
@@ -1024,8 +1060,13 @@ async function runAggregate(tabId, params) {
       pipeline:     tab.pipeline || '',
     }).catch(() => {})
   } catch (e) {
-    tab.runError = errMessage(e)
-    tab.runErrorCode = errCode(e)
+    if (tab.cancelled) {
+      tab.runError = 'Query cancelled.'
+      tab.runErrorCode = null
+    } else {
+      tab.runError = errMessage(e)
+      tab.runErrorCode = errCode(e)
+    }
   } finally {
     tab.isRunning = false
   }
@@ -1084,6 +1125,7 @@ async function runAggregate(tabId, params) {
         @tab-context="onTabContext"
         @run-query="runQuery"
         @run-aggregate="runAggregate"
+        @cancel-query="cancelQuery"
         @toggle-vqb="vqbOpen = !vqbOpen"
         @open-vqb="vqbOpen = true"
         @close-vqb="vqbOpen = false"

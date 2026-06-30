@@ -251,6 +251,67 @@ pub async fn save_connection(
     Ok(id)
 }
 
+/// Best-effort cancel of a running find/aggregate identified by its `comment`
+/// tag (the run id `find_documents` / `run_aggregate` stamped on the op). Uses
+/// `$currentOp` (own ops only) to find the matching opid(s) and `killOp` to stop
+/// them. A user can kill their own operations without elevated privileges; on
+/// locked-down deployments this may still be denied, which surfaces as an error.
+/// Returns the number of operations killed (0 if it already finished).
+#[tauri::command]
+pub async fn kill_query(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    comment: String,
+) -> Result<usize, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let admin = client.database("admin");
+
+    // $currentOp defaults to the authenticated user's own ops, which is exactly
+    // the find/aggregate we tagged — and needs no inprog privilege.
+    let pipeline = vec![
+        bson::doc! { "$currentOp": {} },
+        bson::doc! { "$match": { "command.comment": &comment } },
+    ];
+    let mut cursor = match admin.aggregate(pipeline).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+
+    let mut killed = 0;
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let op: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        // `opid` is an integer on mongod or a "shard:opid" string on mongos; pass
+        // whichever straight back to killOp.
+        if let Some(opid) = op.get("opid") {
+            let kill_command = bson::doc! { "killOp": 1, "op": opid.clone() };
+            match admin.run_command(kill_command).await {
+                Ok(_) => killed += 1,
+                Err(e) => return Err(AppError::Mongo(e)),
+            };
+        }
+    }
+    Ok(killed)
+}
+
 #[tauri::command]
 pub fn list_connections(storage: State<'_, Storage>) -> Vec<ConnectionConfig> {
     storage.load()
@@ -749,6 +810,7 @@ pub async fn find_documents(
     sort: String,
     skip: i64,
     limit: i64,
+    comment: Option<String>,
 ) -> Result<Vec<serde_json::Value>, AppError> {
     let config = match storage.find(&id) {
         Some(val) => val,
@@ -781,6 +843,10 @@ pub async fn find_documents(
         .limit(limit)
         .skip(skip as u64)
         .max_time(MAX_QUERY_TIME);
+    // Tag the op with the run id so kill_query can find and cancel it.
+    if let Some(c) = comment.as_deref().filter(|s| !s.is_empty()) {
+        query = query.comment(c.to_string());
+    }
     if !projection_doc.is_empty() {
         query = query.projection(projection_doc);
     }
@@ -1384,6 +1450,7 @@ pub async fn run_aggregate(
     database: String,
     collection: String,
     pipeline: String,
+    comment: Option<String>,
 ) -> Result<Vec<serde_json::Value>, AppError> {
     let config = match storage.find(&id) {
         Some(val) => val,
@@ -1401,7 +1468,12 @@ pub async fn run_aggregate(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let mut cursor = match col.aggregate(stages).max_time(MAX_QUERY_TIME).await {
+    let mut aggregate = col.aggregate(stages).max_time(MAX_QUERY_TIME);
+    // Tag the op with the run id so kill_query can find and cancel it.
+    if let Some(c) = comment.as_deref().filter(|s| !s.is_empty()) {
+        aggregate = aggregate.comment(c.to_string());
+    }
+    let mut cursor = match aggregate.await {
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };

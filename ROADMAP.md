@@ -158,8 +158,10 @@ Most of these already have a button or menu item in the UI, currently disabled o
   *Customization is still future work.*
 
 ### Hardening follow-ups (deferred from the backend pass)
-- [ ] **Cancel running query** — a real Cancel button (op tracking + `killOp`); today a `maxTimeMS`
-  cap aborts runaway queries server-side, but there's no user-driven cancel
+- [x] **Cancel running query** — a real Cancel button. Each find/aggregate is tagged with a unique
+  run id (as its `comment`); `kill_query` finds the op via `$currentOp` (own ops, no elevated
+  privilege) and `killOp`s it. The cancelled run renders a calm "Query cancelled" state, and a
+  server that refuses the kill surfaces a clear message. Complements the existing `maxTimeMS` cap.
 - [x] **Structured errors to the frontend** — `AppError` now serializes as `{ code, message }`,
   with Mongo errors classified into auth / tls / network sub-categories; the `errMessage` /
   `errCode` helpers read that shape at every call site, and the shared `StateMessage` placeholder
