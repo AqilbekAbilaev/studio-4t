@@ -8,6 +8,7 @@ mod menu;
 mod persist;
 mod pool;
 mod saved_queries;
+mod settings;
 mod shell;
 mod ssh;
 mod shell_history;
@@ -22,6 +23,7 @@ use known_hosts::KnownHostsStore;
 use pool::ConnectionPool;
 use std::sync::Arc;
 use saved_queries::SavedQueryStorage;
+use settings::SettingsStorage;
 use shell::ShellEngine;
 use shell_history::ShellHistoryStorage;
 use storage::Storage;
@@ -40,6 +42,7 @@ pub fn run() {
             app.manage(HistoryStorage::new(data_dir.join("history.json")));
             app.manage(SavedQueryStorage::new(data_dir.join("saved_queries.json")));
             app.manage(DefaultQueryStorage::new(data_dir.join("default_queries.json")));
+            app.manage(SettingsStorage::new(data_dir.join("settings.json")));
             app.manage(TabStorage::new(data_dir.join("tabs.json")));
             // The host-key trust store is shared between the pool (real connect)
             // and the test_ssh_connection command, so both honor the same TOFU
@@ -101,6 +104,8 @@ pub fn run() {
             duplicate_connection,
             export_connections,
             import_connections,
+            get_settings,
+            update_settings,
             insert_document,
             replace_document,
             delete_document,

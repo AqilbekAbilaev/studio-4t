@@ -141,7 +141,10 @@ Most of these already have a button or menu item in the UI, currently disabled o
 - [x] **Server status** panel (host, version, uptime, connections, memory) — admin `serverStatus`
   via a `server_status` command, shown in a modal (stat-card grid + collapsible raw JSON), opened
   from the connection tree's right-click *Server Info → Server Status*
-- [ ] **Preferences** window (theme, default query limit, shortcuts list)
+- [x] **Preferences** window — opened from File → Preferences; a persisted `settings.json`
+  (`get_settings` / `update_settings`) holds a **default query limit** that newly opened
+  collection tabs adopt, plus a shortcut into the keyboard-shortcuts reference. *Theme toggle is
+  tracked separately under P2.*
 
 ### P2 — Later — advanced / nice-to-have
 - [ ] **GridFS** — browse buckets, upload / download files
