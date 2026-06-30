@@ -95,6 +95,7 @@ pub fn run() {
             rename_collection,
             create_database,
             find_documents,
+            count_documents,
             insert_document,
             replace_document,
             delete_document,

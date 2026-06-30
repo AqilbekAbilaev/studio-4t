@@ -249,6 +249,7 @@ async function applyFromBrowser(entry) {
         @select-rtab="selectRtab"
         @open-vqb="emit('open-vqb')"
         @close-vqb="emit('close-vqb')"
+        @toast="emit('toast', $event)"
       />
     </template>
   </div>

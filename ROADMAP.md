@@ -113,6 +113,9 @@
   collection (`list_indexes`, `create_index`, `drop_index`); the default `_id_` index is protected
 - **Import / Export** a collection to/from JSON and CSV via native OS dialogs
   (`export_collection`, `import_collection`; `tauri-plugin-dialog`, Rust-side file I/O)
+- **Count Documents & Last-page paging** — a filter-aware `count_documents` command backs both
+  the footer "Count Documents" action and the result toolbar's Last-page button (jumps to the
+  final page); the paging range is now skip-aware and shows "of N" once a count is taken
 
 ### Design system
 - `BaseIcon.vue` inline SVG icon set (no icon fonts/images); theming via CSS custom properties
@@ -131,7 +134,6 @@ Most of these already have a button or menu item in the UI, currently disabled o
 - [ ] **IntelliShell editor** — live syntax highlighting + `db.`/method autocomplete, Run current
   line, Save / Open query (the shell ships; these editor niceties need an editor lib, e.g. CodeMirror)
 - [ ] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar stubs)
-- [ ] **Last-page** paging button (currently disabled)
 - [ ] **Server status** panel (host, version, uptime, connections, memory)
 - [ ] **Preferences** window (theme, default query limit, shortcuts list)
 

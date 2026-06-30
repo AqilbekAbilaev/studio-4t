@@ -23,7 +23,7 @@ const props = defineProps({
 // `run` re-runs the active tab in its current mode (the toolbar refresh button).
 // `requery` re-runs the find query with an explicit history flag (pagination, CRUD
 // refresh). Both delegate to the parent, which owns the parse + run pipeline.
-const emit = defineEmits(['run', 'requery', 'select-rtab', 'open-vqb', 'close-vqb'])
+const emit = defineEmits(['run', 'requery', 'select-rtab', 'open-vqb', 'close-vqb', 'toast'])
 
 const viewMode     = ref('table')
 const viewMenu     = ref(false)
@@ -93,6 +93,47 @@ function goNext() {
   if (!tab) return
   tab.skip = (tab.skip || 0) + (tab.limit || 50)
   emit('requery', false)
+}
+
+// Count the documents matching the tab's current filter. The result is cached on
+// the tab together with the filter it was counted for, so the "of N" total is
+// only shown while it still matches the active filter (see rangeText).
+async function fetchCount(tab) {
+  const filter = tab.filter?.trim() || '{}'
+  const total = await invoke('count_documents', {
+    id:         tab.connectionId,
+    database:   tab.dbName,
+    collection: tab.collectionName,
+    filter:     filter,
+  })
+  tab.total = total
+  tab.totalFilter = filter
+  return total
+}
+
+async function goLast() {
+  const tab = props.activeTab
+  if (!tab) return
+  try {
+    const total = await fetchCount(tab)
+    const limit = tab.limit || 50
+    // Land on the page whose first row is the last full page boundary.
+    tab.skip = total === 0 ? 0 : Math.floor((total - 1) / limit) * limit
+    emit('requery', false)
+  } catch (e) {
+    emit('toast', 'Count failed: ' + errMessage(e))
+  }
+}
+
+async function countDocuments() {
+  const tab = props.activeTab
+  if (!tab || isCountDisabled.value) return
+  try {
+    const total = await fetchCount(tab)
+    emit('toast', `${total.toLocaleString()} document${total !== 1 ? 's' : ''} match this query`)
+  } catch (e) {
+    emit('toast', 'Count failed: ' + errMessage(e))
+  }
 }
 
 function setPageSize(size) {
@@ -219,6 +260,27 @@ const explainSummary = computed(() => {
   }
 })
 
+// ── paging range / count ──────────────────────────────
+// "<from> to <to>" of the current page, skip-aware; appends "of <N>" only when a
+// count has been taken for the still-current filter.
+const rangeText = computed(() => {
+  const tab = props.activeTab
+  const len = tab?.results?.length ?? 0
+  if (!len) return '-- to --'
+  const skip = tab.skip || 0
+  const base = `${skip + 1} to ${skip + len}`
+  const curFilter = tab.filter?.trim() || '{}'
+  if (tab.total != null && tab.totalFilter === curFilter) {
+    return `${base} of ${tab.total.toLocaleString()}`
+  }
+  return base
+})
+
+// Count applies to a find filter; aggregate pipelines have no single filter.
+const isCountDisabled = computed(() =>
+  props.isAggregate || !props.activeTab || props.activeTab.kind !== 'collection'
+)
+
 // ── query code ─────────────────────────────────────────
 const queryCode = computed(() => {
   const tab = props.activeTab
@@ -269,7 +331,9 @@ const queryCode = computed(() => {
       <button class="icon-btn"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
         @click="goNext"><BaseIcon name="next" :size="16" /></button>
-      <button class="icon-btn" disabled><BaseIcon name="last" :size="16" /></button>
+      <button class="icon-btn"
+        :disabled="isAggregate || !activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
+        @click="goLast"><BaseIcon name="last" :size="16" /></button>
       <div class="page-size-wrap">
         <span class="page-size" @click="pageSizeMenu = !pageSizeMenu">
           {{ activeTab.limit || 50 }} <BaseIcon name="caretDown" :size="12" />
@@ -285,7 +349,7 @@ const queryCode = computed(() => {
         </div>
       </div>
       <span class="docs-range">
-        Documents {{ activeTab.results?.length ? `1 to ${activeTab.results.length}` : '-- to --' }}
+        Documents {{ rangeText }}
       </span>
       <button class="icon-btn" disabled><BaseIcon name="lock" :size="16" /></button>
       <button class="icon-btn"
@@ -415,7 +479,9 @@ const queryCode = computed(() => {
     <div class="rfooter">
       <span>{{ activeTab.selectedRow >= 0 ? '1 document selected' : '0 documents selected' }}</span>
       <span class="spacer"></span>
-      <span class="fitem"><BaseIcon name="count" :size="14" /> Count Documents</span>
+      <span class="fitem"
+        :class="{ clickable: !isCountDisabled, faded: isCountDisabled }"
+        @click="countDocuments"><BaseIcon name="count" :size="14" /> Count Documents</span>
       <span class="fitem" v-if="activeTab.elapsedMs != null">
         <BaseIcon name="clock" :size="14" />
         {{ (activeTab.elapsedMs / 1000).toFixed(3) }}s
@@ -707,6 +773,9 @@ const queryCode = computed(() => {
 }
 .spacer { flex: 1; }
 .fitem { display: flex; align-items: center; gap: 6px; }
+.fitem.clickable { cursor: pointer; }
+.fitem.clickable:hover { color: var(--text); }
+.fitem.faded { opacity: .4; cursor: default; }
 .run-error { padding: 10px 14px; color: #e07070; font-size: 12px; }
 
 /* Delete confirm dialog */
