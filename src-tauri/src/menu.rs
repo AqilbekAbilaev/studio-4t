@@ -1,6 +1,6 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
-    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, Wry,
+    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry,
 };
 
 pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
@@ -98,7 +98,17 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let help = match Submenu::new(app, "Help", true) {
+    let shortcuts = match MenuItem::with_id(
+        app,
+        "help:shortcuts",
+        "Keyboard Shortcuts",
+        true,
+        None::<&str>,
+    ) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let help = match Submenu::with_items(app, "Help", true, &[&shortcuts]) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -116,6 +126,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 pub fn handle_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         "file:connect" => open_connect_window(app),
+        "help:shortcuts" => {
+            // The frontend owns the shortcuts modal; just nudge it open.
+            let _ = app.emit("menu:shortcuts", ());
+        }
         _ => {}
     }
 }

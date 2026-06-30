@@ -150,7 +150,9 @@ Most of these already have a button or menu item in the UI, currently disabled o
 - [ ] **Data masking** — export an obfuscated copy
 - [ ] **SQL Migration** — generate CREATE TABLE + INSERT from a collection
 - [ ] **Dark / light theme** toggle
-- [ ] **Keyboard shortcuts** reference / customization
+- [x] **Keyboard shortcuts** reference — a read-only modal (Help → Keyboard Shortcuts) listing the
+  shortcuts the app actually handles, grouped by area, with platform-aware modifier symbols.
+  *Customization is still future work.*
 
 ### Hardening follow-ups (deferred from the backend pass)
 - [ ] **Cancel running query** — a real Cancel button (op tracking + `killOp`); today a `maxTimeMS`

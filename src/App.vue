@@ -12,6 +12,7 @@ import ConnectionManager from './components/ConnectionManager.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import SshHostKeyModal from './components/SshHostKeyModal.vue'
 import ServerStatusModal from './components/ServerStatusModal.vue'
+import ShortcutsModal from './components/ShortcutsModal.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -64,6 +65,9 @@ onMounted(async () => {
   // Backend-raised SSH host-key prompts (global emits, so use the app-wide listen).
   listen('ssh-host-key-prompt', (e) => { sshHostKeyPrompt.value = e.payload })
   listen('ssh-host-key-changed', (e) => { sshHostKeyChanged.value = e.payload })
+
+  // Help → Keyboard Shortcuts (native menu) opens the reference modal.
+  listen('menu:shortcuts', () => { showShortcuts.value = true })
 
   // Restore the previous session's tabs before wiring up the save watcher, so the
   // empty default never overwrites tabs.json first.
@@ -139,6 +143,7 @@ let toastTimer = null
 const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
+const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
 
 // SSH host-key prompts raised by the backend during a tunnel handshake. At most
 // one of each is active at a time; the modal shows the prompt first.
@@ -1096,6 +1101,12 @@ async function runAggregate(tabId, params) {
       v-if="serverStatusTarget"
       :target="serverStatusTarget"
       @close="serverStatusTarget = null"
+    />
+
+    <!-- Keyboard Shortcuts reference -->
+    <ShortcutsModal
+      v-if="showShortcuts"
+      @close="showShortcuts = false"
     />
 
     <!-- SSH host-key trust prompt / changed-key warning -->
