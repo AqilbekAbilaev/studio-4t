@@ -255,6 +255,64 @@ pub fn list_connections(storage: State<'_, Storage>) -> Vec<ConnectionConfig> {
     storage.load()
 }
 
+/// Assemble the MongoDB connection string for a saved connection. The password is
+/// deliberately omitted — credentials live in the OS keychain and are never handed
+/// to the frontend; the URI carries the username + auth/TLS options only.
+#[tauri::command]
+pub fn connection_uri(storage: State<'_, Storage>, id: String) -> Result<String, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    Ok(crate::uri::build_uri(&config, None))
+}
+
+/// Duplicate a saved connection: clone its config under a new id and a "(copy)"
+/// name, carry over any keychain secrets to the new id, and persist it. The copy
+/// starts closed (not shown in the sidebar) and with no last-accessed time.
+#[tauri::command]
+pub fn duplicate_connection(
+    storage: State<'_, Storage>,
+    id: String,
+) -> Result<ConnectionConfig, AppError> {
+    let original = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let new_id = Uuid::new_v4().to_string();
+    let mut copy = original.clone();
+    copy.id = new_id.clone();
+    copy.name = format!("{} (copy)", original.name);
+    copy.last_accessed = None;
+    copy.open = false;
+
+    // Carry over keychain secrets (main password + SSH secrets) to the new id's keys.
+    if let Some(pw) = crate::keychain::get(&id) {
+        match crate::keychain::set(&new_id, &pw) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+    }
+    if let Some(sp) = crate::keychain::get(&format!("{}::ssh-pass", id)) {
+        match crate::keychain::set(&format!("{}::ssh-pass", new_id), &sp) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+    }
+    if let Some(pp) = crate::keychain::get(&format!("{}::ssh-key-pass", id)) {
+        match crate::keychain::set(&format!("{}::ssh-key-pass", new_id), &pp) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+    }
+
+    match storage.add(copy.clone()) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    Ok(copy)
+}
+
 #[tauri::command]
 pub async fn update_connection(
     storage: State<'_, Storage>,

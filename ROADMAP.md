@@ -133,7 +133,9 @@ Most of these already have a button or menu item in the UI, currently disabled o
 ### P1 — Medium — productivity & polish
 - [ ] **IntelliShell editor** — live syntax highlighting + `db.`/method autocomplete, Run current
   line, Save / Open query (the shell ships; these editor niceties need an editor lib, e.g. CodeMirror)
-- [ ] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar stubs)
+- [ ] Connection **Import / Export** (Manager toolbar stubs) — *Duplicate and To-URI now work:
+  `duplicate_connection` clones a saved connection (config + keychain secrets) under a "(copy)"
+  name; `connection_uri` copies the connection string to the clipboard (password excluded)*
 - [x] **Server status** panel (host, version, uptime, connections, memory) — admin `serverStatus`
   via a `server_status` command, shown in a modal (stat-card grid + collapsible raw JSON), opened
   from the connection tree's right-click *Server Info → Server Status*

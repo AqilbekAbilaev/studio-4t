@@ -97,6 +97,8 @@ pub fn run() {
             find_documents,
             count_documents,
             server_status,
+            connection_uri,
+            duplicate_connection,
             insert_document,
             replace_document,
             delete_document,
