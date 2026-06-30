@@ -138,6 +138,26 @@ function effectiveTag(conn) {
   return props.tagOverrides[conn.id] !== undefined ? props.tagOverrides[conn.id] : conn.tag
 }
 
+// A connection's live state, derived from what the tree already tracks:
+//   error     → the last list_databases failed
+//   loading   → databases are being fetched
+//   connected → databases loaded successfully (we've talked to the server)
+//   idle      → in the sidebar but not opened yet
+function connStatus(conn) {
+  const id = conn.id
+  if (connErrors.value[id]) return 'error'
+  if (loadingConns.value[id]) return 'loading'
+  if (connDatabases.value[id]) return 'connected'
+  return 'idle'
+}
+
+const STATUS_LABEL = {
+  error:     'Connection error',
+  loading:   'Connecting…',
+  connected: 'Connected',
+  idle:      'Not connected',
+}
+
 function onNodeContext(e, type, label, nodeData) {
   emit('context-menu', { type: type, x: e.clientX, y: e.clientY, label: label, nodeData: nodeData })
 }
@@ -220,6 +240,11 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
           </span>
           <span class="ti"><BaseIcon name="connect" :size="15" /></span>
           <span class="tt">{{ conn.name }}</span>
+          <span
+            class="status-dot"
+            :class="connStatus(conn)"
+            :title="STATUS_LABEL[connStatus(conn)]"
+          ></span>
         </div>
 
         <!-- Loading indicator -->
@@ -380,6 +405,25 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
 .tt { overflow: hidden; text-overflow: ellipsis; }
 
 .cnt { color: var(--text-faint); font-size: 11.5px; margin-left: 4px; }
+
+/* Per-connection status dot, pushed to the right edge of the row. */
+.status-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-left: auto;
+  margin-right: 8px;
+  background: var(--text-faint);
+}
+.status-dot.connected { background: var(--green); }
+.status-dot.error     { background: var(--prod); }
+.status-dot.idle      { background: var(--text-faint); opacity: .45; }
+.status-dot.loading {
+  background: var(--warn);
+  animation: status-pulse 1s ease-in-out infinite;
+}
+@keyframes status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
 .err-node { align-items: flex-start; cursor: default; flex-direction: column; gap: 2px; }
 .err-msg { color: #e07070; font-size: 11.5px; white-space: pre-wrap; word-break: break-word; line-height: 1.5; padding: 2px 0; }
