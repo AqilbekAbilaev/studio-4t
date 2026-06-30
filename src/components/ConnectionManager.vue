@@ -2,10 +2,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
+import { errMessage } from '../utils/errors'
 import BaseIcon from './BaseIcon.vue'
 import NewConnection from './NewConnection.vue'
 
-const emit = defineEmits(['close', 'connect'])
+const emit = defineEmits(['close', 'connect', 'toast'])
 
 const connections = ref([])
 const selectedId = ref(null)
@@ -99,17 +100,40 @@ async function connectSelected() {
   emit('connect', selectedId.value)
 }
 
+async function duplicateSelected() {
+  if (!selectedId.value) return
+  try {
+    const copy = await invoke('duplicate_connection', { id: selectedId.value })
+    connections.value.push(copy)
+    selectedId.value = copy.id
+    emit('toast', `Duplicated as "${copy.name}"`)
+  } catch (e) {
+    emit('toast', 'Duplicate failed: ' + errMessage(e))
+  }
+}
+
+async function copyUri() {
+  if (!selectedId.value) return
+  try {
+    const uri = await invoke('connection_uri', { id: selectedId.value })
+    await navigator.clipboard.writeText(uri)
+    emit('toast', 'Connection URI copied (password excluded)')
+  } catch (e) {
+    emit('toast', 'To URI failed: ' + errMessage(e))
+  }
+}
+
 const CM_TOOLS = [
   { name: 'newConn',   label: 'New Connection', action: newConnection },
   { name: 'folder',    label: 'New Folder' },
   { sep: true },
   { name: 'edit',      label: 'Edit',   action: editSelected,   needsSel: true },
   { name: 'trash',     label: 'Delete', action: deleteSelected, needsSel: true },
-  { name: 'duplicate', label: 'Duplicate' },
+  { name: 'duplicate', label: 'Duplicate', action: duplicateSelected, needsSel: true },
   { sep: true },
   { name: 'import',    label: 'Import' },
   { name: 'export',    label: 'Export' },
-  { name: 'uri',       label: 'To URI' },
+  { name: 'uri',       label: 'To URI', action: copyUri, needsSel: true },
 ]
 </script>
 

@@ -1088,6 +1088,7 @@ async function runAggregate(tabId, params) {
       v-if="showConnectionManager"
       @close="showConnectionManager = false"
       @connect="onManagerConnect"
+      @toast="showToast"
     />
 
     <!-- Server Status modal -->
