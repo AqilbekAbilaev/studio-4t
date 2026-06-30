@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import BaseIcon from './BaseIcon.vue'
 import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
+import { buildExtensions, EditorView, EditorState } from '../utils/shellEditor'
 
 // IntelliShell, Studio-3T style: a code editor on top, the command's output in
 // the reused result grid (Table / JSON / Tree) below, plus a Console tab for
@@ -30,28 +31,71 @@ const viewLabel = computed(() => {
 
 const resultCount = computed(() => props.activeTab.results?.length ?? 0)
 
-// Line-number gutter (kept in sync with the editor's scroll).
-const gutterEl = ref(null)
-const lineNumbers = computed(() => {
-  const n = Math.max((props.activeTab.code || '').split('\n').length, 1)
-  return Array.from({ length: n }, (_, i) => i + 1)
-})
-function syncScroll(e) {
-  if (gutterEl.value) gutterEl.value.scrollTop = e.target.scrollTop
+// ── CodeMirror editor ──────────────────────────────────
+const editorEl = ref(null)
+let view = null
+let syncingFromTab = false          // guard so programmatic doc swaps don't echo back
+const dbCollections = ref([])       // collection names for `db.` autocomplete
+
+function createEditor() {
+  if (!editorEl.value) return
+  const extensions = buildExtensions({
+    onRun:     () => run(),
+    onRunLine: (line) => run(line),
+    onChange:  (text) => { if (!syncingFromTab) props.activeTab.code = text },
+    getCollections: () => dbCollections.value,
+  })
+  view = new EditorView({
+    state: EditorState.create({ doc: props.activeTab.code || '', extensions: extensions }),
+    parent: editorEl.value,
+  })
 }
 
-// Load this connection's persisted command history so the History dropdown
-// (and recall) spans previous sessions.
+// Swap the editor's contents when the active shell tab changes, without echoing
+// the swap back into the (now different) tab's code.
+function setEditorDoc(text) {
+  if (!view) return
+  syncingFromTab = true
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text || '' } })
+  syncingFromTab = false
+}
+
+// Best-effort: preload this database's collection names for `db.` completion.
+async function loadCollections() {
+  try {
+    const dbs = await invoke('list_databases', { id: props.activeTab.connectionId })
+    const match = Array.isArray(dbs) ? dbs.find(d => d.name === props.activeTab.dbName) : null
+    if (match && Array.isArray(match.collections)) dbCollections.value = match.collections
+  } catch (_) {}
+}
+
 onMounted(async () => {
+  await nextTick()
+  createEditor()
+  loadCollections()
+  // Load this connection's persisted command history so the History dropdown
+  // (and recall) spans previous sessions.
   try {
     const past = await invoke('get_shell_history', { connectionId: props.activeTab.connectionId })
     if (Array.isArray(past)) props.activeTab.history = past
   } catch (_) {}
 })
 
-async function run() {
+onUnmounted(() => {
+  if (view) { view.destroy(); view = null }
+})
+
+// One ShellConsole instance is reused across shell tabs — reset the editor and
+// reload completions whenever the bound tab changes.
+watch(() => props.activeTab.id, () => {
+  setEditorDoc(props.activeTab.code || '')
+  dbCollections.value = []
+  loadCollections()
+})
+
+async function run(codeOverride) {
   const tab = props.activeTab
-  const code = (tab.code || '').trim()
+  const code = (codeOverride ?? tab.code ?? '').trim()
   if (!code || tab.isRunning) return
 
   tab.isRunning = true
@@ -112,12 +156,11 @@ async function run() {
   }
 }
 
-function onEditorKeydown(e) {
-  // Cmd/Ctrl+Enter runs; plain Enter inserts a newline (multi-line editor).
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-    e.preventDefault()
-    run()
-  }
+// Run just the line under the cursor (toolbar button; mirrors ⌘⇧⏎).
+function runCurrentLine() {
+  if (!view) return
+  const line = view.state.doc.lineAt(view.state.selection.main.head)
+  run(line.text)
 }
 
 function openHistory() {
@@ -126,6 +169,7 @@ function openHistory() {
 }
 function applyHistory(cmd) {
   props.activeTab.code = cmd
+  setEditorDoc(cmd)
   historyMenu.value = false
 }
 
@@ -143,8 +187,11 @@ function formatScalar(value) {
   <div class="shell">
     <!-- Toolbar -->
     <div class="shell-toolbar">
-      <button class="qbtn run" @click="run" :disabled="activeTab.isRunning">
+      <button class="qbtn run" @click="run()" :disabled="activeTab.isRunning">
         <BaseIcon name="run" :size="16" class="ic" /> Run <span class="kbd">⌘⏎</span>
+      </button>
+      <button class="qbtn" @click="runCurrentLine" :disabled="activeTab.isRunning" title="Run the line under the cursor">
+        <BaseIcon name="run" :size="16" class="ic" /> Run line <span class="kbd">⌘⇧⏎</span>
       </button>
       <div class="tb-sep"></div>
       <div class="hist-wrap">
@@ -166,21 +213,9 @@ function formatScalar(value) {
       <span class="shell-db"><BaseIcon name="dbSmall" :size="14" /> {{ activeTab.dbName }}</span>
     </div>
 
-    <!-- Editor: line-number gutter + code -->
+    <!-- Editor: CodeMirror (JS highlighting + Mongo autocomplete) -->
     <div class="shell-editor">
-      <div class="gutter" ref="gutterEl">
-        <div v-for="n in lineNumbers" :key="n" class="gln">{{ n }}</div>
-      </div>
-      <textarea
-        class="shell-code"
-        v-model="activeTab.code"
-        @keydown="onEditorKeydown"
-        @scroll="syncScroll"
-        placeholder='db.getCollection("myCollection").find({}).limit(20)'
-        spellcheck="false"
-        autocorrect="off"
-        autocapitalize="off"
-      ></textarea>
+      <div class="shell-cm" ref="editorEl"></div>
     </div>
 
     <!-- Results -->
@@ -299,22 +334,15 @@ function formatScalar(value) {
 }
 .hist-item:hover { background: var(--bg-hover); }
 
-/* editor: gutter + code (matches ui-design) */
+/* editor: CodeMirror host (matches ui-design dimensions) */
 .shell-editor {
   flex: none; display: flex; height: 180px; min-height: 90px; max-height: 320px;
   resize: vertical; overflow: hidden;
   border-bottom: 1px solid var(--border); background: var(--bg-window);
 }
-.gutter {
-  flex: none; width: 44px; padding: 12px 0; text-align: right;
-  background: var(--bg-panel-2); border-right: 1px solid var(--border); overflow: hidden;
-}
-.gln { font-family: var(--mono); font-size: 12.5px; color: var(--text-faint); padding-right: 12px; line-height: 1.9; }
-.shell-code {
-  flex: 1; padding: 12px 16px; background: transparent; border: none; outline: none;
-  color: var(--text); font-family: var(--mono); font-size: 13px; line-height: 1.9;
-  white-space: pre; overflow: auto; resize: none;
-}
+.shell-cm { flex: 1; min-width: 0; overflow: hidden; }
+.shell-cm :deep(.cm-editor) { height: 100%; }
+.shell-cm :deep(.cm-editor.cm-focused) { outline: none; }
 
 /* results */
 .shell-results { flex: 1; display: flex; flex-direction: column; min-height: 0; }

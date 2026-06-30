@@ -131,8 +131,12 @@ Most of these already have a button or menu item in the UI, currently disabled o
 "coming soon" / "coming to Studio-4T" stub.
 
 ### P1 — Medium — productivity & polish
-- [ ] **IntelliShell editor** — live syntax highlighting + `db.`/method autocomplete, Run current
-  line, Save / Open query (the shell ships; these editor niceties need an editor lib, e.g. CodeMirror)
+- [x] **IntelliShell editor** — the shell's plain textarea is now a **CodeMirror 6** editor: live
+  JavaScript syntax highlighting (themed with the app's token palette), line numbers, bracket
+  matching, and a **Mongo-aware autocomplete** (collection names after `db.`, collection/cursor
+  methods after a member access, shell globals otherwise). **Run current line** (⌘⇧⏎ / toolbar)
+  joins Run-all (⌘⏎). CodeMirror is code-split (the shell view lazy-loads) so the initial bundle is
+  unchanged. *Remaining: Save / Open shell scripts (needs a script store) — tracked as a follow-up.*
 - [x] Connection **Duplicate / Import / Export / To-URI** (Manager toolbar) — `duplicate_connection`
   clones a saved connection (config + keychain secrets) under a "(copy)" name; `connection_uri`
   copies the connection string to the clipboard (password excluded); `export_connections` /
