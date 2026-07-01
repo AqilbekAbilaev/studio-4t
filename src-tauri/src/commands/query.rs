@@ -1,0 +1,409 @@
+use crate::error::AppError;
+use crate::pool::ConnectionPool;
+use crate::storage::Storage;
+use mongodb::bson;
+use tauri::State;
+
+use super::{parse_ejson_document, parse_pipeline, MAX_QUERY_TIME};
+
+/// Best-effort cancel of a running find/aggregate identified by its `comment`
+/// tag (the run id `find_documents` / `run_aggregate` stamped on the op). Uses
+/// `$currentOp` (own ops only) to find the matching opid(s) and `killOp` to stop
+/// them. A user can kill their own operations without elevated privileges; on
+/// locked-down deployments this may still be denied, which surfaces as an error.
+/// Returns the number of operations killed (0 if it already finished).
+#[tauri::command]
+pub async fn kill_query(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    comment: String,
+) -> Result<usize, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let admin = client.database("admin");
+
+    // $currentOp defaults to the authenticated user's own ops, which is exactly
+    // the find/aggregate we tagged — and needs no inprog privilege.
+    let pipeline = vec![
+        bson::doc! { "$currentOp": {} },
+        bson::doc! { "$match": { "command.comment": &comment } },
+    ];
+    let mut cursor = match admin.aggregate(pipeline).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+
+    let mut killed = 0;
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let op: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        // `opid` is an integer on mongod or a "shard:opid" string on mongos; pass
+        // whichever straight back to killOp.
+        if let Some(opid) = op.get("opid") {
+            let kill_command = bson::doc! { "killOp": 1, "op": opid.clone() };
+            match admin.run_command(kill_command).await {
+                Ok(_) => killed += 1,
+                Err(e) => return Err(AppError::Mongo(e)),
+            };
+        }
+    }
+    Ok(killed)
+}
+
+#[tauri::command]
+pub async fn find_documents(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    filter: String,
+    projection: String,
+    sort: String,
+    skip: i64,
+    limit: i64,
+    comment: Option<String>,
+) -> Result<Vec<serde_json::Value>, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+
+    let filter_doc = match parse_ejson_document(&filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let projection_doc = match parse_ejson_document(&projection) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let sort_doc = match parse_ejson_document(&sort) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    let mut query = col
+        .find(filter_doc)
+        .limit(limit)
+        .skip(skip as u64)
+        .max_time(MAX_QUERY_TIME);
+    // Tag the op with the run id so kill_query can find and cancel it.
+    if let Some(c) = comment.as_deref().filter(|s| !s.is_empty()) {
+        query = query.comment(c.to_string());
+    }
+    if !projection_doc.is_empty() {
+        query = query.projection(projection_doc);
+    }
+    if !sort_doc.is_empty() {
+        query = query.sort(sort_doc);
+    }
+
+    let mut cursor = match query.await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    let mut docs = Vec::new();
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        // Use bson's own From impl (not serde_json::to_value) — bson's Serialize
+        // targets the bson wire format, not JSON, so to_value produces wrong output.
+        docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
+    }
+    Ok(docs)
+}
+
+/// Count the documents matching `filter` (the same filter shape `find_documents`
+/// accepts). Used for the "Count Documents" action and to jump to the last page.
+#[tauri::command]
+pub async fn count_documents(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    filter: String,
+) -> Result<i64, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+
+    let filter_doc = match parse_ejson_document(&filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    let count = match col
+        .count_documents(filter_doc)
+        .max_time(MAX_QUERY_TIME)
+        .await
+    {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(count as i64)
+}
+
+#[tauri::command]
+pub async fn insert_document(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    document: String,
+) -> Result<String, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let doc = match parse_ejson_document(&document) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let result = match col.insert_one(doc).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(result.inserted_id.to_string())
+}
+
+#[tauri::command]
+pub async fn replace_document(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    id_filter: String,
+    document: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let filter_doc = match parse_ejson_document(&id_filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let mut replacement = match parse_ejson_document(&document) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    // MongoDB errors if the replacement contains an _id that differs from the filter.
+    // Remove it unconditionally — the existing _id is preserved by replace_one.
+    replacement.remove("_id");
+    match col.replace_one(filter_doc, replacement).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
+pub async fn delete_document(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    id_filter: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let filter_doc = match parse_ejson_document(&id_filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    match col.delete_one(filter_doc).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+#[tauri::command]
+pub async fn explain_query(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    filter: String,
+    projection: String,
+    sort: String,
+    skip: i64,
+    limit: i64,
+) -> Result<serde_json::Value, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    let filter_doc = match parse_ejson_document(&filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let projection_doc = match parse_ejson_document(&projection) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let sort_doc = match parse_ejson_document(&sort) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    // The `explain` command wraps the equivalent `find` command and reports how
+    // the server would execute it; mirror the same optional fields find_documents uses.
+    let mut find_command = bson::doc! {
+        "find": collection,
+        "filter": filter_doc,
+    };
+    if !projection_doc.is_empty() {
+        find_command.insert("projection", projection_doc);
+    }
+    if !sort_doc.is_empty() {
+        find_command.insert("sort", sort_doc);
+    }
+    if skip > 0 {
+        find_command.insert("skip", skip);
+    }
+    if limit > 0 {
+        find_command.insert("limit", limit);
+    }
+
+    let explain_command = bson::doc! {
+        "explain": find_command,
+        "verbosity": "executionStats",
+    };
+    let result = match client.database(&database).run_command(explain_command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(serde_json::Value::from(bson::Bson::Document(result)))
+}
+
+#[tauri::command]
+pub async fn run_aggregate(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    pipeline: String,
+    comment: Option<String>,
+) -> Result<Vec<serde_json::Value>, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let stages = match parse_pipeline(&pipeline) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let mut aggregate = col.aggregate(stages).max_time(MAX_QUERY_TIME);
+    // Tag the op with the run id so kill_query can find and cancel it.
+    if let Some(c) = comment.as_deref().filter(|s| !s.is_empty()) {
+        aggregate = aggregate.comment(c.to_string());
+    }
+    let mut cursor = match aggregate.await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    let mut docs = Vec::new();
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
+    }
+    Ok(docs)
+}
