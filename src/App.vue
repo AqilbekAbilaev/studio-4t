@@ -288,6 +288,29 @@ function handleTool(name) {
     }
     return
   }
+  // Aggregate / Export / Import are collection-scoped features that already exist
+  // (via the sidebar right-click). From the top bar they target the active tab,
+  // which must be a collection; otherwise we guide the user.
+  if (name === 'aggregate' || name === 'export' || name === 'import') {
+    const tab = tabs.value.find(t => t.id === activeTabId.value)
+    if (!tab || tab.kind !== 'collection') {
+      showToast('Open a collection first')
+      return
+    }
+    if (name === 'aggregate') {
+      openCollectionTab({
+        connectionId: tab.connectionId,
+        connectionName: tab.connectionName,
+        dbName: tab.dbName,
+        collectionName: tab.collectionName,
+      }, 'aggregate')
+    } else {
+      const nodeData = { connId: tab.connectionId, dbName: tab.dbName, collName: tab.collectionName }
+      if (name === 'export') exportCollection(nodeData)
+      else importCollection(nodeData)
+    }
+    return
+  }
   const label = TOOLS.find(t => t.name === name)?.label || name
   showToast(`${label} — coming to Studio-4T`)
 }
