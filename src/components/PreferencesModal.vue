@@ -8,11 +8,13 @@ import BaseIcon from './BaseIcon.vue'
 // new default so newly opened collection tabs use it.
 const props = defineProps({
   defaultQueryLimit: { type: Number, default: 50 },
+  theme: { type: String, default: 'dark' },
 })
 const emit = defineEmits(['close', 'saved', 'open-shortcuts'])
 
 const PAGE_SIZES = [10, 25, 50, 100, 200]
 const limit = ref(props.defaultQueryLimit)
+const theme = ref(props.theme)
 const saving = ref(false)
 const error = ref(null)
 
@@ -20,8 +22,14 @@ async function save() {
   saving.value = true
   error.value = null
   try {
-    const settings = await invoke('update_settings', { defaultQueryLimit: Number(limit.value) })
-    emit('saved', Number(settings.default_query_limit))
+    const settings = await invoke('update_settings', {
+      defaultQueryLimit: Number(limit.value),
+      theme: theme.value,
+    })
+    emit('saved', {
+      defaultQueryLimit: Number(settings.default_query_limit),
+      theme: settings.theme,
+    })
     emit('close')
   } catch (e) {
     error.value = errMessage(e)
@@ -42,6 +50,17 @@ async function save() {
       </div>
 
       <div class="pf-body">
+        <div class="pf-row">
+          <div class="pf-meta">
+            <div class="pf-label">Theme</div>
+            <div class="pf-hint">Overall color scheme for the app.</div>
+          </div>
+          <select v-model="theme" class="pf-select">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+
         <div class="pf-row">
           <div class="pf-meta">
             <div class="pf-label">Default query limit</div>
@@ -86,7 +105,7 @@ async function save() {
   max-width: 92vw;
   background: var(--bg-window);
   border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px #000;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -94,7 +113,7 @@ async function save() {
 .dlg-title {
   height: 36px;
   flex: none;
-  background: linear-gradient(#34363a, #2c2e31);
+  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -163,7 +182,7 @@ async function save() {
 }
 .pf-link:hover { background: var(--bg-hover); }
 
-.pf-error { font-size: 12.5px; color: #e05555; }
+.pf-error { font-size: 12.5px; color: var(--danger-text); }
 
 .pf-footer {
   height: 48px;
