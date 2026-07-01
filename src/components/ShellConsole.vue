@@ -414,7 +414,7 @@ function formatScalar(value) {
 .out-meta { color: var(--text-faint); font-size: 12px; margin-bottom: 12px; }
 .c-log { color: var(--text-dim); white-space: pre-wrap; word-break: break-word; margin: 0 0 4px; }
 .c-val { color: var(--text); white-space: pre-wrap; word-break: break-word; margin: 0; }
-.c-err { color: #e0625b; white-space: pre-wrap; word-break: break-word; margin: 0; }
+.c-err { color: var(--danger-text); white-space: pre-wrap; word-break: break-word; margin: 0; }
 .console, .console :deep(span) { -webkit-user-select: text; user-select: text; }
 .c-val :deep(.jk)  { color: var(--cell-key); }
 .c-val :deep(.jop) { color: var(--cell-op); }

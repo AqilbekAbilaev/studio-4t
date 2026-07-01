@@ -183,8 +183,8 @@ async function cancel() {
 
 body,
 html {
-  background-color: #2c2c2c;
-  color: #e0e0e0;
+  background-color: var(--bg-titlebar);
+  color: var(--text);
   height: 100%;
 }
 
@@ -198,20 +198,20 @@ html {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: #2c2c2c;
-  color: #e0e0e0;
+  background-color: var(--bg-titlebar);
+  color: var(--text);
 }
 
 .tabs {
   display: flex;
-  background-color: #3c3c3c;
-  border-bottom: 1px solid #555;
+  background-color: var(--bg-active);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .tab-btn {
   background: transparent;
   border: none;
-  color: #aaa;
+  color: var(--text-dim);
   padding: 8px 20px;
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -219,13 +219,13 @@ html {
 }
 
 .tab-btn.active {
-  color: #fff;
-  border-bottom-color: #3489eb;
+  color: var(--text);
+  border-bottom-color: var(--accent);
 }
 
 .tab-btn:hover:not(.active) {
-  color: #ccc;
-  background-color: #454545;
+  color: var(--text);
+  background-color: var(--bg-active);
 }
 
 .tab-content {
@@ -261,7 +261,7 @@ html {
 
 .section-label {
   font-size: 11px;
-  color: #888;
+  color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 4px;
@@ -269,20 +269,20 @@ html {
 
 label {
   font-size: 12px;
-  color: #aaa;
+  color: var(--text-dim);
 }
 
 input {
-  background-color: #1e1e1e;
-  border: 1px solid #555;
-  color: #e0e0e0;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
   padding: 5px 8px;
   outline: none;
   width: 100%;
 }
 
 input:focus {
-  border-color: #3489eb;
+  border-color: var(--accent);
 }
 
 .uri-input {
@@ -297,15 +297,15 @@ input:focus {
 }
 
 .status.success {
-  background-color: #1a3a1a;
-  color: #6dbf6d;
-  border: 1px solid #3a6e3a;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success-border);
 }
 
 .status.error {
-  background-color: #3a1a1a;
-  color: #e07070;
-  border: 1px solid #6e3a3a;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid var(--danger);
 }
 
 .actions {
@@ -313,8 +313,8 @@ input:focus {
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  border-top: 1px solid #444;
-  background-color: #333;
+  border-top: 1px solid var(--border-soft);
+  background-color: var(--bg-toolbar);
 }
 
 .actions-right {
@@ -324,15 +324,15 @@ input:focus {
 
 .btn {
   padding: 5px 14px;
-  border: 1px solid #555;
+  border: 1px solid var(--border-soft);
   cursor: pointer;
   font-size: 12px;
   background-color: transparent;
-  color: #e0e0e0;
+  color: var(--text);
 }
 
 .btn:hover:not(:disabled) {
-  background-color: #454545;
+  background-color: var(--bg-active);
 }
 
 .btn:active:not(:disabled) {
@@ -345,12 +345,12 @@ input:focus {
 }
 
 .btn-primary {
-  background-color: #1a5db5;
-  border-color: #3489eb;
+  background-color: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #2068c9;
+  background-color: var(--accent-soft);
 }
 </style>

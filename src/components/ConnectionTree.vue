@@ -446,7 +446,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections })
 @keyframes status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
 .err-node { align-items: flex-start; cursor: default; flex-direction: column; gap: 2px; }
-.err-msg { color: #e07070; font-size: 11.5px; white-space: pre-wrap; word-break: break-word; line-height: 1.5; padding: 2px 0; }
+.err-msg { color: var(--danger-text); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; line-height: 1.5; padding: 2px 0; }
 .err-retry { color: var(--accent); font-size: 11.5px; cursor: pointer; }
 .err-retry:hover { text-decoration: underline; }
 .mini-spin {

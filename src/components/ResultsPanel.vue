@@ -623,7 +623,7 @@ const queryCode = computed(() => {
   border-radius: 5px;
   border: 1px solid var(--border);
   background: var(--bg-toolbar);
-  color: #e0857d;
+  color: var(--danger-text);
   font-size: 12px;
   cursor: pointer;
 }
@@ -661,7 +661,7 @@ const queryCode = computed(() => {
   right: 0;
   top: 30px;
   width: 160px;
-  background: #2a2c30;
+  background: var(--bg-field);
   border: 1px solid var(--border-soft);
   border-radius: 7px;
   box-shadow: 0 14px 34px rgba(0,0,0,.55);
@@ -753,7 +753,7 @@ const queryCode = computed(() => {
   top: 28px;
   left: 0;
   width: 70px;
-  background: #2a2c30;
+  background: var(--bg-field);
   border: 1px solid var(--border-soft);
   border-radius: 7px;
   box-shadow: 0 10px 28px rgba(0,0,0,.55);
@@ -802,7 +802,7 @@ const queryCode = computed(() => {
 .fitem.clickable { cursor: pointer; }
 .fitem.clickable:hover { color: var(--text); }
 .fitem.faded { opacity: .4; cursor: default; }
-.run-error { padding: 10px 14px; color: #e07070; font-size: 12px; }
+.run-error { padding: 10px 14px; color: var(--danger-text); font-size: 12px; }
 
 /* Delete confirm dialog */
 .del-overlay {
@@ -817,7 +817,7 @@ const queryCode = computed(() => {
   width: 400px;
   background: var(--bg-window);
   border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px #000;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -825,7 +825,7 @@ const queryCode = computed(() => {
 .del-title {
   height: 36px;
   flex: none;
-  background: linear-gradient(#34363a, #2c2e31);
+  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -861,7 +861,7 @@ const queryCode = computed(() => {
   line-height: 1.5;
 }
 .del-body p { margin: 0 0 8px; }
-.del-error { font-size: 12px; color: #e05555; margin-top: 6px; }
+.del-error { font-size: 12px; color: var(--danger-text); margin-top: 6px; }
 .del-footer {
   height: 48px;
   flex: none;
@@ -882,8 +882,8 @@ const queryCode = computed(() => {
   color: var(--text);
 }
 .btn:hover { background: var(--bg-hover); }
-.btn.danger { background: #c0392b; color: #fff; }
-.btn.danger:hover { background: #a93226; }
+.btn.danger { background: var(--danger); color: #fff; }
+.btn.danger:hover { background: var(--danger-hover); }
 
 /* CRUD error banner */
 .crud-err-banner {
@@ -891,9 +891,9 @@ const queryCode = computed(() => {
   bottom: 48px;
   left: 50%;
   transform: translateX(-50%);
-  background: #3a1a1a;
-  border: 1px solid #c0392b;
-  color: #e07070;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  color: var(--danger-text);
   border-radius: 6px;
   padding: 8px 14px;
   font-size: 12.5px;
@@ -906,7 +906,7 @@ const queryCode = computed(() => {
 .crud-err-banner button {
   background: none;
   border: none;
-  color: #e07070;
+  color: var(--danger-text);
   cursor: pointer;
   padding: 0;
   display: flex;

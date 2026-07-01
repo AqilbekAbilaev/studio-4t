@@ -329,7 +329,7 @@ const CM_TOOLS = [
   max-height: 92vh;
   background: var(--bg-window);
   border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #000;
+  box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -339,7 +339,7 @@ const CM_TOOLS = [
 .dlg-title {
   height: 36px;
   flex: none;
-  background: linear-gradient(#34363a, #2c2e31);
+  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;

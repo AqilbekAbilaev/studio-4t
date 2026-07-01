@@ -103,7 +103,7 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
   max-width: 92vw;
   background: var(--bg-window);
   border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px #000;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -112,7 +112,7 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
 .dlg-title {
   height: 36px;
   flex: none;
-  background: linear-gradient(#34363a, #2c2e31);
+  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -128,7 +128,7 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
   font-weight: 500;
   pointer-events: none;
 }
-.dlg-title .t.danger { color: #e05555; }
+.dlg-title .t.danger { color: var(--danger-text); }
 
 .close-btn {
   margin-left: auto;
@@ -160,8 +160,8 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
   align-items: flex-start;
 }
 .hk-ico { color: var(--text-dim); flex: none; margin-top: 1px; }
-.hk-ico.danger { color: #e05555; }
-.danger { color: #e05555; }
+.hk-ico.danger { color: var(--danger-text); }
+.danger { color: var(--danger-text); }
 
 .hk-fp {
   font-family: var(--mono);
@@ -204,6 +204,6 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
 .btn:hover { background: var(--bg-hover); }
 .btn.primary { background: var(--accent); color: #fff; }
 .btn.primary:hover { opacity: .88; }
-.btn.danger { background: #b3403f; color: #fff; }
+.btn.danger { background: var(--danger); color: #fff; }
 .btn.danger:hover { opacity: .88; }
 </style>

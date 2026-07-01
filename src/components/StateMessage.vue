@@ -63,14 +63,14 @@ const icon = computed(() => {
   text-align: center;
 }
 .state-ic { color: var(--text-faint); }
-.state.error .state-ic { color: #e05555; }
+.state.error .state-ic { color: var(--danger-text); }
 .state-title {
   font-size: 13px;
   color: var(--text-dim);
   max-width: 520px;
   word-break: break-word;
 }
-.state.error .state-title { color: #e8857d; }
+.state.error .state-title { color: var(--danger-text); }
 .state-hint { font-size: 12px; color: var(--text-faint); max-width: 520px; }
 .state-retry {
   margin-top: 4px;

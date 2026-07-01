@@ -378,7 +378,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
 .mode-toggle button { padding: 4px 11px; background: none; border: none; color: var(--text-dim); font-size: 12px; cursor: pointer; }
 .mode-toggle button.on { background: var(--accent); color: #fff; }
 
-.qparse-error { color: #e05555; font-size: 12px; padding: 4px 12px 6px; flex: none; }
+.qparse-error { color: var(--danger-text); font-size: 12px; padding: 4px 12px 6px; flex: none; }
 
 /* Query fields */
 .qfields {
@@ -475,7 +475,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   top: calc(100% + 4px);
   left: 0;
   min-width: 240px;
-  background: #2a2c30;
+  background: var(--bg-field);
   border: 1px solid var(--border-soft);
   border-radius: 7px;
   box-shadow: 0 10px 28px rgba(0,0,0,.5);
@@ -509,7 +509,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   top: calc(100% + 4px);
   left: 0;
   width: 290px;
-  background: #2a2c30;
+  background: var(--bg-field);
   border: 1px solid var(--border-soft);
   border-radius: 7px;
   box-shadow: 0 10px 28px rgba(0,0,0,.5);
@@ -556,7 +556,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   top: calc(100% + 4px);
   left: 0;
   width: 340px;
-  background: #2a2c30;
+  background: var(--bg-field);
   border: 1px solid var(--border-soft);
   border-radius: 7px;
   box-shadow: 0 14px 34px rgba(0,0,0,.55);
