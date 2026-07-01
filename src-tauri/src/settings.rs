@@ -10,15 +10,24 @@ use std::sync::Mutex;
 pub struct Settings {
     #[serde(default = "default_query_limit")]
     pub default_query_limit: i64,
+    #[serde(default = "default_theme")]
+    pub theme: String,
 }
 
 fn default_query_limit() -> i64 {
     50
 }
 
+fn default_theme() -> String {
+    "dark".to_string()
+}
+
 impl Default for Settings {
     fn default() -> Self {
-        Self { default_query_limit: default_query_limit() }
+        Self {
+            default_query_limit: default_query_limit(),
+            theme: default_theme(),
+        }
     }
 }
 

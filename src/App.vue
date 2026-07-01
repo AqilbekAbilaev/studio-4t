@@ -78,6 +78,7 @@ onMounted(async () => {
     if (settings && Number(settings.default_query_limit)) {
       defaultQueryLimit.value = Number(settings.default_query_limit)
     }
+    if (settings && settings.theme) applyTheme(settings.theme)
   } catch (_) {}
 
   // Restore the previous session's tabs before wiring up the save watcher, so the
@@ -157,6 +158,17 @@ const serverStatusTarget = ref(null)  // { connId, connName } when the Server St
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
 const showPreferences = ref(false)    // File → Preferences
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
+const theme = ref('dark')             // from settings; drives <html data-theme>
+
+// Apply a theme everywhere it needs to live: the ref (for the Preferences select),
+// the <html> attribute (which the CSS tokens key off), and the localStorage mirror
+// that lets both webviews pre-paint on next launch without a flash.
+function applyTheme(next) {
+  const value = next === 'light' ? 'light' : 'dark'
+  theme.value = value
+  document.documentElement.dataset.theme = value
+  localStorage.setItem('s4t-theme', value)
+}
 
 // SSH host-key prompts raised by the backend during a tunnel handshake. At most
 // one of each is active at a time; the modal shows the prompt first.
@@ -1207,8 +1219,9 @@ async function runAggregate(tabId, params) {
     <PreferencesModal
       v-if="showPreferences"
       :default-query-limit="defaultQueryLimit"
+      :theme="theme"
       @close="showPreferences = false"
-      @saved="defaultQueryLimit = $event"
+      @saved="defaultQueryLimit = $event.defaultQueryLimit; applyTheme($event.theme)"
       @open-shortcuts="showPreferences = false; showShortcuts = true"
     />
 
@@ -1487,7 +1500,7 @@ async function runAggregate(tabId, params) {
 .titlebar {
   height: 38px;
   flex: none;
-  background: linear-gradient(#34363a, #2c2e31);
+  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -1613,7 +1626,7 @@ async function runAggregate(tabId, params) {
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
-  background: #303236;
+  background: var(--bg-hover);
   border: 1px solid var(--border-soft);
   color: var(--text);
   padding: 9px 16px;
@@ -1637,7 +1650,7 @@ async function runAggregate(tabId, params) {
   width: 400px;
   background: var(--bg-window);
   border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px #000;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1645,7 +1658,7 @@ async function runAggregate(tabId, params) {
 .del-title {
   height: 36px;
   flex: none;
-  background: linear-gradient(#34363a, #2c2e31);
+  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -1681,7 +1694,7 @@ async function runAggregate(tabId, params) {
   line-height: 1.5;
 }
 .del-body p { margin: 0 0 8px; }
-.del-error { font-size: 12px; color: #e05555; margin-top: 6px; }
+.del-error { font-size: 12px; color: var(--danger-text); margin-top: 6px; }
 .prompt-input {
   width: 100%;
   height: 30px;
@@ -1730,6 +1743,6 @@ async function runAggregate(tabId, params) {
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.primary { background: var(--accent); color: #fff; }
 .btn.primary:hover:not(:disabled) { opacity: .88; }
-.btn.danger { background: #c0392b; color: #fff; }
-.btn.danger:hover:not(:disabled) { background: #a93226; }
+.btn.danger { background: var(--danger); color: #fff; }
+.btn.danger:hover:not(:disabled) { background: var(--danger-hover); }
 </style>

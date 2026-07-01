@@ -18,9 +18,17 @@ pub fn get_settings(settings: State<'_, SettingsStorage>) -> Settings {
 pub fn update_settings(
     settings: State<'_, SettingsStorage>,
     default_query_limit: i64,
+    theme: String,
 ) -> Result<Settings, AppError> {
+    // Only known theme names are accepted; anything else falls back to dark so a
+    // bad value from the frontend can't leave the UI in an undefined state.
+    let validated_theme = match theme.as_str() {
+        "light" => "light".to_string(),
+        _ => "dark".to_string(),
+    };
     let new_settings = Settings {
         default_query_limit: default_query_limit.clamp(1, 1000),
+        theme: validated_theme,
     };
     match settings.save(&new_settings) {
         Ok(_) => Ok(new_settings),
