@@ -272,6 +272,22 @@ function handleTool(name) {
     showConnectionManager.value = true
     return
   }
+  if (name === 'shell') {
+    // The top-bar button has no node context, so it targets the active tab's
+    // connection + database. Collection and shell tabs both carry those fields;
+    // Quickstart (and any context-less tab) does not, so guide the user instead.
+    const tab = tabs.value.find(t => t.id === activeTabId.value)
+    if (tab && tab.connectionId && tab.dbName) {
+      openShellTab({
+        connectionId: tab.connectionId,
+        connectionName: tab.connectionName,
+        dbName: tab.dbName,
+      })
+    } else {
+      showToast('Select a database or collection first to open IntelliShell')
+    }
+    return
+  }
   const label = TOOLS.find(t => t.name === name)?.label || name
   showToast(`${label} — coming to Studio-4T`)
 }
