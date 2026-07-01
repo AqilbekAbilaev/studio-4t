@@ -195,18 +195,18 @@ function colorLabel(name) {
 <style scoped>
 /* position: fixed instead of absolute — our component mounts at root, not inside .window */
 .ctx-backdrop { position: fixed; inset: 0; z-index: 90; }
-.ctx-menu { position: fixed; z-index: 91; min-width: 248px; background: #2b2d31; border: 1px solid #16171a; border-radius: 8px; box-shadow: 0 18px 48px rgba(0,0,0,.6); padding: 5px; }
+.ctx-menu { position: fixed; z-index: 91; min-width: 248px; background: var(--bg-menu); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 18px 48px rgba(0,0,0,.6); padding: 5px; }
 .ctx-item { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 10px; border-radius: 5px; font-size: 13px; color: var(--text); white-space: nowrap; cursor: default; }
 .ctx-item:hover { background: var(--accent); color: #fff; }
 .ctx-item:hover .ctx-ic, .ctx-item:hover .ctx-sc, .ctx-item:hover .ctx-caret { color: rgba(255,255,255,.85); }
-.ctx-item.danger { color: #e87b6b; }
-.ctx-item.danger:hover { background: #c0392b; color: #fff; }
+.ctx-item.danger { color: var(--danger-text); }
+.ctx-item.danger:hover { background: var(--danger); color: #fff; }
 .ctx-ic { width: 18px; flex: none; display: grid; place-items: center; color: var(--text-dim); }
 .ctx-label { flex: 1; }
 .ctx-sc { color: var(--text-faint); font-size: 12px; margin-left: 28px; letter-spacing: 1px; }
 .ctx-caret { color: var(--text-faint); margin-left: 8px; }
-.ctx-sep { height: 1px; background: #3a3c41; margin: 5px 8px; }
-.ctx-sub { position: absolute; left: 100%; top: -5px; margin-left: 2px; min-width: 200px; background: #2b2d31; border: 1px solid #16171a; border-radius: 8px; box-shadow: 0 18px 48px rgba(0,0,0,.6); padding: 5px; }
+.ctx-sep { height: 1px; background: var(--border-soft); margin: 5px 8px; }
+.ctx-sub { position: absolute; left: 100%; top: -5px; margin-left: 2px; min-width: 200px; background: var(--bg-menu); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 18px 48px rgba(0,0,0,.6); padding: 5px; }
 .ctx-color-item { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 5px; font-size: 13px; color: var(--text); }
 .ctx-color-item:hover { background: var(--accent); color: #fff; }
 .ctx-color-sw { width: 14px; height: 14px; border-radius: 4px; flex: none; }

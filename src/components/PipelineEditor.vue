@@ -40,5 +40,5 @@ const emit = defineEmits(['run'])
   line-height: 1.5;
 }
 .agg-input:focus { outline: none; border-color: var(--accent); }
-.qparse-error { color: #e05555; font-size: 12px; padding: 4px 12px 6px; flex: none; }
+.qparse-error { color: var(--danger-text); font-size: 12px; padding: 4px 12px 6px; flex: none; }
 </style>

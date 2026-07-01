@@ -244,8 +244,8 @@ function pickHidden(id) {
   min-width: 200px;
   max-height: 60vh;
   overflow-y: auto;
-  background: #2b2d31;
-  border: 1px solid #16171a;
+  background: var(--bg-menu);
+  border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 18px 48px rgba(0,0,0,.6);
   padding: 5px;
