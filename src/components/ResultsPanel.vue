@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
+import { parseField } from '../utils/queryParser'
 import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
 import VisualQueryBuilder from './VisualQueryBuilder.vue'
@@ -99,7 +100,12 @@ function goNext() {
 // the tab together with the filter it was counted for, so the "of N" total is
 // only shown while it still matches the active filter (see rangeText).
 async function fetchCount(tab) {
-  const filter = tab.filter?.trim() || '{}'
+  // Convert the tab's shell-syntax filter to canonical Extended JSON before sending,
+  // exactly as the run-query path does — the backend's parser is strict and rejects
+  // shell conveniences like unquoted keys.
+  const parsed = parseField(tab.filter || '')
+  if (!parsed.ok) throw new Error(parsed.error)
+  const filter = parsed.ejson
   const total = await invoke('count_documents', {
     id:         tab.connectionId,
     database:   tab.dbName,
@@ -269,8 +275,11 @@ const rangeText = computed(() => {
   if (!len) return '-- to --'
   const skip = tab.skip || 0
   const base = `${skip + 1} to ${skip + len}`
-  const curFilter = tab.filter?.trim() || '{}'
-  if (tab.total != null && tab.totalFilter === curFilter) {
+  // Compare in canonical Extended JSON so the stored count (see fetchCount) matches
+  // the active filter regardless of shell-syntax/whitespace differences.
+  const parsed = parseField(tab.filter || '')
+  const curFilter = parsed.ok ? parsed.ejson : null
+  if (tab.total != null && curFilter != null && tab.totalFilter === curFilter) {
     return `${base} of ${tab.total.toLocaleString()}`
   }
   return base
