@@ -18,6 +18,7 @@ import MaskingModal from './components/MaskingModal.vue'
 import StatsModal from './components/StatsModal.vue'
 import ServerInfoModal from './components/ServerInfoModal.vue'
 import MigrationModal from './components/MigrationModal.vue'
+import SearchModal from './components/SearchModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
 
@@ -162,6 +163,7 @@ const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
+const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
 const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
@@ -369,6 +371,19 @@ function handleTool(name) {
       connName: tab.connectionName,
       dbName: tab.dbName,
       collName: tab.collectionName,
+    }
+    return
+  }
+  if (name === 'search') {
+    const tab = tabs.value.find(t => t.id === activeTabId.value)
+    if (!tab || !tab.connectionId || !tab.dbName) {
+      showToast('Open a collection or database first')
+      return
+    }
+    searchTarget.value = {
+      connId: tab.connectionId,
+      connName: tab.connectionName,
+      dbName: tab.dbName,
     }
     return
   }
@@ -1367,6 +1382,13 @@ async function runAggregate(tabId, params) {
       v-if="migrationTarget"
       :target="migrationTarget"
       @close="migrationTarget = null"
+    />
+
+    <!-- Global Search modal -->
+    <SearchModal
+      v-if="searchTarget"
+      :target="searchTarget"
+      @close="searchTarget = null"
     />
 
     <!-- Keyboard Shortcuts reference -->
