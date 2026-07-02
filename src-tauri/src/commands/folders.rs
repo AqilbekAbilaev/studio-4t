@@ -1,0 +1,76 @@
+use crate::error::AppError;
+use crate::folders::{Folder, FolderStorage};
+use crate::storage::Storage;
+use tauri::State;
+use uuid::Uuid;
+
+#[tauri::command]
+pub fn list_folders(folders: State<'_, FolderStorage>) -> Vec<Folder> {
+    folders.load()
+}
+
+#[tauri::command]
+pub fn create_folder(
+    folders: State<'_, FolderStorage>,
+    name: String,
+) -> Result<Folder, AppError> {
+    let folder = Folder {
+        id: Uuid::new_v4().to_string(),
+        name: name,
+        parent_id: None,
+        created_at: crate::history::now_ms(),
+    };
+    match folders.insert(folder.clone()) {
+        Ok(_) => Ok(folder),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub fn rename_folder(
+    folders: State<'_, FolderStorage>,
+    id: String,
+    name: String,
+) -> Result<(), AppError> {
+    folders.rename(&id, &name)
+}
+
+/// Delete a folder. Any connection inside it falls back to the root (its
+/// `folder_id` is cleared) rather than being deleted along with the folder.
+#[tauri::command]
+pub fn delete_folder(
+    folders: State<'_, FolderStorage>,
+    storage: State<'_, Storage>,
+    id: String,
+) -> Result<(), AppError> {
+    let mut connections = storage.load();
+    let mut changed = false;
+    for c in connections.iter_mut() {
+        if c.folder_id.as_deref() == Some(id.as_str()) {
+            c.folder_id = None;
+            changed = true;
+        }
+    }
+    if changed {
+        match storage.save(&connections) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    folders.delete(&id)
+}
+
+/// Move a connection into a folder, or back to the root when `folder_id` is
+/// `None`. Mirrors `set_connection_tag`: a single-field update on the connection.
+#[tauri::command]
+pub fn move_connection_to_folder(
+    storage: State<'_, Storage>,
+    id: String,
+    folder_id: Option<String>,
+) -> Result<(), AppError> {
+    let mut connections = storage.load();
+    if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+        c.folder_id = folder_id;
+    }
+    storage.save(&connections)
+}

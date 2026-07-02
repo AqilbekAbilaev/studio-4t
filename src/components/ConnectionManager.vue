@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errMessage } from '../utils/errors'
 import BaseIcon from './BaseIcon.vue'
 import NewConnection from './NewConnection.vue'
+import ContextMenu from './ContextMenu.vue'
 
 const emit = defineEmits(['close', 'connect', 'toast'])
 
@@ -16,12 +17,22 @@ const showOnStartup     = ref(false)
 const showNewConnection = ref(false)
 const showEditConnection = ref(false)
 
+// --- Folders (Connection Manager grouping) ---
+const folders          = ref([])
+const expandedFolders  = ref([])      // folder ids currently expanded (default: all)
+const renamingFolderId = ref(null)
+const renameText       = ref('')
+const pendingDeleteId  = ref(null)    // folder id armed for a confirming second click
+const ctxMenu          = ref(null)    // { x, y, connId } for the move-to-folder context menu
+
 const TAG_COLORS = {
   red: '#e07a6b', blue: '#3b82f6', green: '#4caf78', purple: '#b07ddb',
 }
 
 onMounted(async () => {
   connections.value = await invoke('list_connections')
+  folders.value = await invoke('list_folders')
+  expandedFolders.value = folders.value.map(f => f.id)  // start expanded
   listen('connection-saved', (e) => {
     if (!connections.value.find(c => c.id === e.payload.id))
       connections.value.push(e.payload)
@@ -167,9 +178,184 @@ async function importConnections() {
   }
 }
 
+// --- Folder grouping ---
+const isFiltering = computed(() => filterText.value.trim().length > 0)
+
+const validFolderIds = computed(() => new Set(folders.value.map(f => f.id)))
+
+// Connections grouped by their folder id (only valid, existing folders count).
+const connsByFolder = computed(() => {
+  const m = new Map()
+  for (const c of connections.value) {
+    if (c.folder_id && validFolderIds.value.has(c.folder_id)) {
+      if (!m.has(c.folder_id)) m.set(c.folder_id, [])
+      m.get(c.folder_id).push(c)
+    }
+  }
+  return m
+})
+
+// Connections at the root: no folder, or a folder that no longer exists.
+const rootConns = computed(() =>
+  connections.value.filter(c => !c.folder_id || !validFolderIds.value.has(c.folder_id))
+)
+
+function isExpanded(id) { return expandedFolders.value.includes(id) }
+
+function toggleFolder(id) {
+  pendingDeleteId.value = null
+  const i = expandedFolders.value.indexOf(id)
+  if (i === -1) expandedFolders.value.push(id)
+  else expandedFolders.value.splice(i, 1)
+}
+
+// An ordered flat list of rows to render: folder headers, their connections
+// (when expanded), then the root connections. While filtering, a flat list of
+// matches with no folder headers.
+const displayRows = computed(() => {
+  if (isFiltering.value) {
+    return filtered.value.map(c => ({ type: 'conn', conn: c, indent: false }))
+  }
+  const rows = []
+  for (const f of folders.value) {
+    const kids = connsByFolder.value.get(f.id) ?? []
+    rows.push({ type: 'folder', folder: f, count: kids.length })
+    if (isExpanded(f.id)) {
+      if (kids.length === 0) rows.push({ type: 'empty', key: 'empty-' + f.id })
+      else for (const c of kids) rows.push({ type: 'conn', conn: c, indent: true })
+    }
+  }
+  for (const c of rootConns.value) rows.push({ type: 'conn', conn: c, indent: false })
+  return rows
+})
+
+// Create a folder with a unique default name and expand it.
+async function createUniqueFolder() {
+  const base = 'New Folder'
+  const existing = new Set(folders.value.map(f => f.name))
+  let name = base
+  let n = 2
+  while (existing.has(name)) name = `${base} ${n++}`
+  const folder = await invoke('create_folder', { name: name })
+  folders.value.push(folder)
+  expandedFolders.value.push(folder.id)
+  return folder
+}
+
+async function newFolder() {
+  // Create, then drop straight into inline rename.
+  try {
+    startRenameFolder(await createUniqueFolder())
+  } catch (e) {
+    emit('toast', 'Create folder failed: ' + errMessage(e))
+  }
+}
+
+function startRenameFolder(f) {
+  renamingFolderId.value = f.id
+  renameText.value = f.name
+  nextTick(() => {
+    const el = document.querySelector('.folder-rename-input')
+    if (el) { el.focus(); el.select() }
+  })
+}
+
+async function commitRenameFolder(f) {
+  const name = renameText.value.trim()
+  renamingFolderId.value = null
+  if (!name || name === f.name) return
+  try {
+    await invoke('rename_folder', { id: f.id, name: name })
+    const target = folders.value.find(x => x.id === f.id)
+    if (target) target.name = name
+  } catch (e) {
+    emit('toast', 'Rename failed: ' + errMessage(e))
+  }
+}
+
+function cancelRenameFolder() {
+  renamingFolderId.value = null
+}
+
+async function deleteFolder(f) {
+  // Two-click confirm: first click arms, second click deletes.
+  if (pendingDeleteId.value !== f.id) {
+    pendingDeleteId.value = f.id
+    return
+  }
+  pendingDeleteId.value = null
+  try {
+    await invoke('delete_folder', { id: f.id })
+    folders.value = folders.value.filter(x => x.id !== f.id)
+    // Connections inside were moved back to root server-side; reload to reflect.
+    connections.value = await invoke('list_connections')
+  } catch (e) {
+    emit('toast', 'Delete folder failed: ' + errMessage(e))
+  }
+}
+
+function openMoveMenu(event, conn) {
+  selectedId.value = conn.id
+  pendingDeleteId.value = null
+  ctxMenu.value = { x: event.clientX, y: event.clientY, connId: conn.id }
+}
+
+// The items for the reused ContextMenu: remove-from-folder (when applicable),
+// the folder list (current folder checked), then a New Folder action.
+const moveMenuModel = computed(() => {
+  if (!ctxMenu.value) return null
+  const conn = connections.value.find(c => c.id === ctxMenu.value.connId)
+  const currentId = conn && validFolderIds.value.has(conn.folder_id) ? conn.folder_id : null
+  const items = []
+  if (currentId) {
+    items.push({ label: 'Remove from Folder', icon: 'close', value: 'root' })
+    items.push({ sep: true })
+  }
+  for (const f of folders.value) {
+    items.push({
+      label: f.name,
+      icon: 'folder',
+      value: 'f:' + f.id,
+      shortcut: f.id === currentId ? '✓' : undefined,
+    })
+  }
+  if (folders.value.length) items.push({ sep: true })
+  items.push({ label: 'New Folder…', icon: 'plus', value: 'new' })
+  return { x: ctxMenu.value.x, y: ctxMenu.value.y, items: items }
+})
+
+async function onMovePick(value) {
+  const connId = ctxMenu.value && ctxMenu.value.connId
+  ctxMenu.value = null
+  if (!connId) return
+  if (value === 'new') {
+    try {
+      const folder = await createUniqueFolder()
+      await applyMove(connId, folder.id)
+      startRenameFolder(folder)
+    } catch (e) {
+      emit('toast', 'Create folder failed: ' + errMessage(e))
+    }
+    return
+  }
+  const folderId = value === 'root' ? null : value.slice(2)  // strip "f:"
+  await applyMove(connId, folderId)
+}
+
+async function applyMove(connId, folderId) {
+  try {
+    await invoke('move_connection_to_folder', { id: connId, folderId: folderId })
+    const c = connections.value.find(x => x.id === connId)
+    if (c) c.folder_id = folderId
+    if (folderId && !isExpanded(folderId)) expandedFolders.value.push(folderId)
+  } catch (e) {
+    emit('toast', 'Move failed: ' + errMessage(e))
+  }
+}
+
 const CM_TOOLS = [
   { name: 'newConn',   label: 'New Connection', action: newConnection },
-  { name: 'folder',    label: 'New Folder' },
+  { name: 'folder',    label: 'New Folder', action: newFolder },
   { sep: true },
   { name: 'edit',      label: 'Edit',   action: editSelected,   needsSel: true },
   { name: 'trash',     label: 'Delete', action: deleteSelected, needsSel: true },
@@ -233,42 +419,96 @@ const CM_TOOLS = [
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="c in filtered"
-              :key="c.id"
-              :class="{ sel: c.id === selectedId }"
-              @click="selectedId = c.id"
-              @dblclick="editSelected"
+            <template
+              v-for="row in displayRows"
+              :key="row.type === 'conn' ? row.conn.id : (row.key || ('folder-' + row.folder.id))"
             >
-              <td>
-                <span class="cm-name">
-                  <span
-                    class="cm-tag"
-                    :style="tagColor(c.tag)
-                      ? { background: tagColor(c.tag) }
-                      : { background: 'transparent', border: '1px solid var(--border-soft)' }"
-                  >
+              <!-- Folder header -->
+              <tr v-if="row.type === 'folder'" class="folder-row" @click="toggleFolder(row.folder.id)">
+                <td colspan="5">
+                  <div class="folder-head">
                     <BaseIcon
-                      name="dbSmall"
-                      :size="12"
-                      :style="tagColor(c.tag) ? { color: '#fff' } : { color: 'var(--text-faint)' }"
+                      :name="isExpanded(row.folder.id) ? 'caretDown' : 'caret'"
+                      :size="11"
+                      class="folder-caret"
                     />
+                    <BaseIcon name="folder" :size="15" class="folder-ic" />
+                    <input
+                      v-if="renamingFolderId === row.folder.id"
+                      class="folder-rename-input"
+                      v-model="renameText"
+                      @click.stop
+                      @keydown.enter="commitRenameFolder(row.folder)"
+                      @keydown.esc="cancelRenameFolder"
+                      @blur="commitRenameFolder(row.folder)"
+                    />
+                    <span
+                      v-else
+                      class="folder-name"
+                      @dblclick.stop="startRenameFolder(row.folder)"
+                    >{{ row.folder.name }}</span>
+                    <span class="folder-count">{{ row.count }}</span>
+                    <span class="folder-actions" @click.stop>
+                      <button class="fbtn" title="Rename" @click="startRenameFolder(row.folder)">
+                        <BaseIcon name="edit" :size="14" />
+                      </button>
+                      <button
+                        class="fbtn"
+                        :class="{ 'fbtn-danger': pendingDeleteId === row.folder.id }"
+                        :title="pendingDeleteId === row.folder.id ? 'Click again to delete' : 'Delete folder'"
+                        @click="deleteFolder(row.folder)"
+                      >
+                        <BaseIcon name="trash" :size="14" />
+                      </button>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Empty folder hint -->
+              <tr v-else-if="row.type === 'empty'" class="folder-empty-row">
+                <td colspan="5">Empty — right-click a connection and choose “Move to folder”.</td>
+              </tr>
+
+              <!-- Connection row -->
+              <tr
+                v-else
+                :class="{ sel: row.conn.id === selectedId }"
+                @click="selectedId = row.conn.id; pendingDeleteId = null"
+                @dblclick="editSelected"
+                @contextmenu.prevent="openMoveMenu($event, row.conn)"
+              >
+                <td>
+                  <span class="cm-name" :class="{ 'cm-indent': row.indent }">
+                    <span
+                      class="cm-tag"
+                      :style="tagColor(row.conn.tag)
+                        ? { background: tagColor(row.conn.tag) }
+                        : { background: 'transparent', border: '1px solid var(--border-soft)' }"
+                    >
+                      <BaseIcon
+                        name="dbSmall"
+                        :size="12"
+                        :style="tagColor(row.conn.tag) ? { color: '#fff' } : { color: 'var(--text-faint)' }"
+                      />
+                    </span>
+                    {{ row.conn.name }}
                   </span>
-                  {{ c.name }}
-                </span>
-              </td>
-              <td>{{ parseDbServer(c) }}</td>
-              <td>
-                <span v-if="parseSecurity(c)" class="cm-key">
-                  <BaseIcon name="lock" :size="13" />
-                  {{ parseSecurity(c) }}
-                </span>
-                <span v-else class="muted">—</span>
-              </td>
-              <td><span class="muted">{{ c.last_accessed ?? '—' }}</span></td>
-              <td></td>
-            </tr>
-            <tr v-if="filtered.length === 0">
+                </td>
+                <td>{{ parseDbServer(row.conn) }}</td>
+                <td>
+                  <span v-if="parseSecurity(row.conn)" class="cm-key">
+                    <BaseIcon name="lock" :size="13" />
+                    {{ parseSecurity(row.conn) }}
+                  </span>
+                  <span v-else class="muted">—</span>
+                </td>
+                <td><span class="muted">{{ row.conn.last_accessed ?? '—' }}</span></td>
+                <td></td>
+              </tr>
+            </template>
+
+            <tr v-if="displayRows.length === 0">
               <td colspan="5" style="text-align:center;padding:24px;color:var(--text-faint)">
                 No connections found.
               </td>
@@ -292,6 +532,14 @@ const CM_TOOLS = [
 
     </div>
   </div>
+
+  <!-- Move-to-folder context menu (reuses the app's ContextMenu) -->
+  <ContextMenu
+    v-if="moveMenuModel"
+    :menu="moveMenuModel"
+    @close="ctxMenu = null"
+    @pick="onMovePick"
+  />
 
   <!-- New Connection modal -->
   <NewConnection
@@ -480,6 +728,65 @@ table.cmt tr.sel .muted { color: rgba(255,255,255,.8); }
 }
 table.cmt tr.sel .cm-key { color: rgba(255,255,255,.85); }
 .muted { color: var(--text-dim); }
+
+/* ---- folders ---- */
+.folder-row { cursor: default; user-select: none; }
+.folder-row:hover td { background: var(--bg-hover); }
+.folder-row td { background: var(--bg-panel-2); }
+.folder-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.folder-caret { color: var(--text-dim); flex: none; }
+.folder-ic { color: var(--text-dim); flex: none; }
+.folder-name { font-weight: 600; color: var(--text); }
+.folder-count {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  background: var(--bg-input);
+  border-radius: 9px;
+  padding: 1px 8px;
+}
+.folder-rename-input {
+  background: var(--bg-input);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  outline: none;
+  min-width: 160px;
+}
+.folder-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+}
+.folder-row:hover .folder-actions { opacity: 1; }
+.fbtn {
+  display: grid;
+  place-items: center;
+  width: 26px; height: 24px;
+  border: none;
+  background: none;
+  border-radius: 5px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.fbtn:hover { background: var(--bg-window); color: var(--text); }
+.fbtn-danger, .fbtn-danger:hover { color: #fff; background: #e05a4d; }
+
+.cm-indent { padding-left: 22px; }
+
+.folder-empty-row td {
+  padding: 6px 12px 6px 44px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-style: italic;
+}
 
 /* ---- footer ---- */
 .cm-footer {

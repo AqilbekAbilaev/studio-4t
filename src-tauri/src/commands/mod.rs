@@ -18,6 +18,7 @@ pub mod migration;
 pub mod search;
 pub mod gridfs;
 pub mod compare;
+pub mod folders;
 
 pub use connection::*;
 pub use query::*;
@@ -34,6 +35,7 @@ pub use migration::*;
 pub use search::*;
 pub use gridfs::*;
 pub use compare::*;
+pub use folders::*;
 
 // Server-side time cap on user queries so a runaway find/aggregate aborts on the
 // server instead of hanging the UI (Tauri commands can't be cancelled in-flight).

@@ -1,11 +1,15 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 
 const props = defineProps({
   menu: { type: Object, required: true },
 })
 const emit = defineEmits(['close', 'pick'])
+
+// A caller can pass a dynamic `menu.items` array (e.g. a runtime folder list);
+// otherwise fall back to the static, type-keyed menus below.
+const items = computed(() => props.menu.items ?? MENUS[props.menu.type] ?? [])
 
 const menuEl = ref(null)
 const hoveredItem = ref(null)
@@ -133,14 +137,14 @@ function colorLabel(name) {
     :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
     @contextmenu.prevent
   >
-    <template v-for="(item, i) in MENUS[menu.type]" :key="i">
+    <template v-for="(item, i) in items" :key="i">
       <div v-if="item.sep" class="ctx-sep"></div>
       <div
         v-else
         class="ctx-item"
         :class="{ danger: item.danger }"
         @mouseenter="hoveredItem = item.label"
-        @click="item.sub ? undefined : emit('pick', item.label)"
+        @click="item.sub ? undefined : emit('pick', item.value ?? item.label)"
       >
         <span class="ctx-ic">
           <BaseIcon v-if="item.icon" :name="item.icon" :size="15" />

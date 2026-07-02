@@ -64,6 +64,10 @@ pub struct ConnectionConfig {
     pub ssh_key_file: Option<String>,
     #[serde(default)]
     pub tag: Option<String>,
+    // The folder this connection belongs to in the Connection Manager, or `None`
+    // for a connection at the root. Folders themselves live in `folders.json`.
+    #[serde(default)]
+    pub folder_id: Option<String>,
     #[serde(default)]
     pub last_accessed: Option<String>,
     // Whether the connection is currently open in the sidebar tree. Persisted so

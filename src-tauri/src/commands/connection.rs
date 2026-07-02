@@ -98,6 +98,7 @@ pub async fn test_ssh_connection(
         ssh_auth: None,
         ssh_key_file: None,
         tag: None,
+        folder_id: None,
         last_accessed: None,
         open: false,
     };
@@ -186,6 +187,8 @@ pub async fn save_connection(
         ssh_auth: ssh_auth,
         ssh_key_file: ssh_key_file,
         tag: tag,
+        // A newly saved connection starts at the root (no folder).
+        folder_id: None,
         last_accessed: None,
         // A newly saved connection is opened in the sidebar.
         open: true,
@@ -363,9 +366,11 @@ pub async fn update_connection(
     ssh_passphrase: Option<String>,
     tag: Option<String>,
 ) -> Result<(), AppError> {
-    // Preserve last_accessed and the open state from the existing record.
+    // Preserve last_accessed, folder membership, and the open state from the
+    // existing record (the edit dialog doesn't carry these fields).
     let existing = storage.find(&id);
     let last_accessed = existing.as_ref().and_then(|c| c.last_accessed.clone());
+    let folder_id = existing.as_ref().and_then(|c| c.folder_id.clone());
     let open = existing.as_ref().map(|c| c.open).unwrap_or(true);
 
     let config = ConnectionConfig {
@@ -389,6 +394,7 @@ pub async fn update_connection(
         ssh_auth: ssh_auth,
         ssh_key_file: ssh_key_file,
         tag: tag,
+        folder_id: folder_id,
         last_accessed: last_accessed,
         open: open,
     };
