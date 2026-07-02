@@ -138,6 +138,7 @@ pub fn run() {
             analyze_schema,
             translate_sql,
             export_masked_collection,
+            collection_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
