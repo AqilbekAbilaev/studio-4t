@@ -24,19 +24,37 @@ export function deriveMenuContext(activeTab, treeSelection, connectionCount) {
   }
 }
 
-// The node a native menu action should act on: the sidebar selection when there is
-// one (that's what the user just clicked in the tree), otherwise the active tab.
-// Returns a tab-shaped object so it drops straight into the existing handlers.
-export function resolveMenuTarget(activeTab, treeSelection) {
-  const sel = treeSelection || null
-  if (sel && sel.connectionId) {
-    return {
-      connectionId: sel.connectionId,
-      connectionName: sel.connectionName,
-      dbName: sel.dbName || null,
-      collectionName: sel.collectionName || null,
-      kind: sel.collectionName ? 'collection' : (sel.dbName ? 'database' : 'connection'),
-    }
+// Does a tab-shaped target reach at least the given depth?
+//   'collection' → a collection, 'database' → a db or collection,
+//   'connection'/null → any connection.
+function satisfiesLevel(target, requiredLevel) {
+  if (!target || !target.connectionId) return false
+  if (requiredLevel === 'collection') {
+    return target.kind === 'collection' && !!target.collectionName
   }
-  return activeTab || null
+  if (requiredLevel === 'database') return !!target.dbName
+  return true
+}
+
+// The node a native menu action should act on. Because item enablement is the
+// UNION of the active tab and the sidebar selection (see deriveMenuContext), the
+// target must be whichever of the two actually satisfies the action's depth —
+// otherwise a shallow sidebar click could steal an item that only the deeper
+// active tab enabled. The sidebar selection wins when both qualify (that's what
+// the user just clicked); we fall back to the active tab when the selection is too
+// shallow. Returns a tab-shaped object so it drops straight into the existing
+// handlers. `requiredLevel` is 'connection' | 'database' | 'collection' | null.
+export function resolveMenuTarget(activeTab, treeSelection, requiredLevel = null) {
+  const sel = treeSelection || null
+  const tab = activeTab || null
+  const selTarget = sel && sel.connectionId ? {
+    connectionId: sel.connectionId,
+    connectionName: sel.connectionName,
+    dbName: sel.dbName || null,
+    collectionName: sel.collectionName || null,
+    kind: sel.collectionName ? 'collection' : (sel.dbName ? 'database' : 'connection'),
+  } : null
+  if (satisfiesLevel(selTarget, requiredLevel)) return selTarget
+  if (satisfiesLevel(tab, requiredLevel)) return tab
+  return selTarget || tab
 }

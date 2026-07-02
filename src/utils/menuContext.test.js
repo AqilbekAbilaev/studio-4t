@@ -86,4 +86,26 @@ describe('resolveMenuTarget', () => {
   it('returns null when neither a selection nor a tab is available', () => {
     expect(resolveMenuTarget(null, null)).toBe(null)
   })
+
+  it('falls back to the active tab when the selection is too shallow for the level', () => {
+    // Collection tab active, but a bare connection is highlighted. A collection-
+    // scoped action must act on the tab (which its gate lit up), not the shallow
+    // selection — otherwise the enabled item would only toast a guide message.
+    const connSel = { connectionId: 'c2', connectionName: 'Prod', dbName: null, collectionName: null, kind: 'connection' }
+    expect(resolveMenuTarget(collectionTab, connSel, 'collection')).toBe(collectionTab)
+    // A database-scoped action likewise falls through to the collection tab.
+    expect(resolveMenuTarget(collectionTab, connSel, 'database')).toBe(collectionTab)
+    // A connection-scoped action is satisfied by the selection, so it wins.
+    expect(resolveMenuTarget(collectionTab, connSel, 'connection').connectionId).toBe('c2')
+  })
+
+  it('prefers the sidebar selection when it satisfies the required level', () => {
+    const collSel = { connectionId: 'c2', connectionName: 'Prod', dbName: 'analytics', collectionName: 'events', kind: 'collection' }
+    expect(resolveMenuTarget(collectionTab, collSel, 'collection').connectionId).toBe('c2')
+  })
+
+  it('returns the shallow selection for the guide message when neither satisfies', () => {
+    const connSel = { connectionId: 'c2', connectionName: 'Prod', dbName: null, collectionName: null, kind: 'connection' }
+    expect(resolveMenuTarget(quickstart, connSel, 'collection').connectionId).toBe('c2')
+  })
 })

@@ -440,7 +440,7 @@ function handleTool(name, target = null) {
 // connection, most Collection-menu items need a collection. Guides the user when
 // the context is missing.
 function menuNode(action, requiredType) {
-  const tab = menuTarget()
+  const tab = menuTarget(requiredType)
   if (!tab || !tab.connectionId) {
     showToast('Open a connection, database, or collection first')
     return
@@ -492,10 +492,11 @@ watch(menuContext, (ctx) => {
 // The node a native menu action should act on: the sidebar selection when there
 // is one (that's what the user just clicked in the tree), otherwise the active
 // tab. Shaped like a tab so it drops straight into the existing handlers.
-function menuTarget() {
+function menuTarget(requiredLevel = null) {
   return resolveMenuTarget(
     tabs.value.find(t => t.id === activeTabId.value),
     treeSelection.value,
+    requiredLevel,
   )
 }
 
@@ -511,14 +512,14 @@ function handleMenuAction(id) {
     case 'coll:vqb':         vqbOpen.value = true; return
 
     // --- toolbar dispatcher (targets the sidebar selection, else the active tab) ---
-    case 'file:intellishell': handleTool('shell', menuTarget()); return
+    case 'file:intellishell': handleTool('shell', menuTarget('database')); return
     case 'file:sql':          handleTool('sql'); return
-    case 'file:search':       handleTool('search', menuTarget()); return
+    case 'file:search':       handleTool('search', menuTarget('database')); return
     case 'coll:open_tab':     handleTool('collection'); return
-    case 'coll:export':       handleTool('export', menuTarget()); return
-    case 'coll:import':       handleTool('import', menuTarget()); return
-    case 'coll:mask':         handleTool('mask', menuTarget()); return
-    case 'coll:compare':      handleTool('compare', menuTarget()); return
+    case 'coll:export':       handleTool('export', menuTarget('collection')); return
+    case 'coll:import':       handleTool('import', menuTarget('collection')); return
+    case 'coll:mask':         handleTool('mask', menuTarget('collection')); return
+    case 'coll:compare':      handleTool('compare', menuTarget('database')); return
 
     // --- server / connection scoped ---
     case 'file:server_status': menuNode('Server Status', 'connection'); return
