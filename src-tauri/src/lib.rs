@@ -140,6 +140,7 @@ pub fn run() {
             export_masked_collection,
             collection_stats,
             duplicate_collection,
+            server_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
