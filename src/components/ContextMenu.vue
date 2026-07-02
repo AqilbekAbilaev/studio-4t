@@ -49,6 +49,7 @@ const MENUS = {
   database: [
     { label: 'Open IntelliShell', icon: 'shell',  shortcut: '⌘L' },
     { label: 'Search in…',        icon: 'search' },
+    { label: 'GridFS…',           icon: 'folder' },
     { sep: true },
     { label: 'Add Collection…' },
     { label: 'Add View…' },
