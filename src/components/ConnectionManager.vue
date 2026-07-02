@@ -187,12 +187,10 @@ const CM_TOOLS = [
 
       <!-- Title bar -->
       <div class="dlg-title">
-        <div class="traffic">
-          <span class="light r" style="cursor:pointer" @click="$emit('close')"></span>
-          <span class="light y"></span>
-          <span class="light g"></span>
-        </div>
         <div class="t">Connection Manager</div>
+        <button class="dlg-close" title="Close" @click="$emit('close')">
+          <BaseIcon name="close" :size="14" />
+        </button>
       </div>
 
       <!-- Toolbar -->
@@ -355,11 +353,19 @@ const CM_TOOLS = [
   font-weight: 500;
   pointer-events: none;
 }
-.traffic { display: flex; gap: 8px; }
-.light { width: 12px; height: 12px; border-radius: 50%; }
-.light.r { background: #ec6a5e; }
-.light.y { background: #f4bf4f; }
-.light.g { background: #61c554; }
+.dlg-close {
+  margin-left: auto;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px; height: 24px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.dlg-close:hover { background: var(--bg-hover); color: var(--text); }
 
 /* ---- toolbar ---- */
 .cm-toolbar {
