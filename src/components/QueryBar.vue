@@ -28,6 +28,13 @@ function setMode(mode) {
   props.activeTab.mode = mode
 }
 
+// Sort spinner next to the Sort field: sets a one-key `_id` sort and runs.
+// dir 1 = ascending (oldest first), dir -1 = descending (newest first).
+function sortById(dir) {
+  props.activeTab.sort = `{ _id: ${dir} }`
+  emit('run')
+}
+
 // ── query history ──────────────────────────────────────
 async function openHistoryMenu() {
   const tab = props.activeTab
@@ -280,6 +287,10 @@ watch(() => props.activeTab && props.activeTab.id, () => {
       <span class="qlabel">Sort</span>
       <div class="qinput">
         <input class="qval" :value="activeTab.sort" @input="activeTab.sort = $event.target.value" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="emit('run')" />
+        <span class="qicon-col">
+          <BaseIcon name="caret" :size="11" style="transform: rotate(-90deg)" title="Sort by _id ascending (oldest first)" @click="sortById(1)" />
+          <BaseIcon name="caret" :size="11" style="transform: rotate(90deg)" title="Sort by _id descending (newest first)" @click="sortById(-1)" />
+        </span>
       </div>
       <span></span>
 
@@ -416,6 +427,17 @@ watch(() => props.activeTab && props.activeTab.id, () => {
 }
 .qval::placeholder { color: var(--text-faint); }
 .qicons { display: flex; gap: 4px; color: var(--text-faint); flex: none; }
+
+/* Sort spinner: stacked up/down carets that set an _id sort and run. */
+.qicon-col {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  line-height: 0;
+  color: var(--text-faint);
+}
+.qicon-col :deep(svg) { cursor: pointer; }
+.qicon-col :deep(svg:hover) { color: var(--text); }
 
 /* Limit + Skip side by side, spanning the right 3 grid columns */
 .num-cluster {
