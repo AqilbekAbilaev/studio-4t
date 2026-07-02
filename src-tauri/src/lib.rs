@@ -68,15 +68,9 @@ pub fn run() {
                 data_dir.join("shell_history.json"),
             ));
 
-            let native_menu = match menu::build(app.handle()) {
-                Ok(val) => val,
-                Err(e) => return Err(e.into()),
-            };
-            match app.set_menu(native_menu) {
-                Ok(val) => val,
-                Err(e) => return Err(e.into()),
-            };
-            app.on_menu_event(menu::handle_event);
+            // The menu bar is a custom in-app component (src/components/Menubar.vue),
+            // rendered in our own design system, so no native OS menu is installed.
+            // menu.rs still provides the Connect window helper used by a command.
 
             Ok(())
         })

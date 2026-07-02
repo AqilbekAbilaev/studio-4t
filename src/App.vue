@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { installInputUndo } from './utils/inputUndo'
@@ -23,6 +23,7 @@ import GridFsModal from './components/GridFsModal.vue'
 import CompareModal from './components/CompareModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
+import Menubar from './components/Menubar.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -76,10 +77,8 @@ onMounted(async () => {
   listen('ssh-host-key-prompt', (e) => { sshHostKeyPrompt.value = e.payload })
   listen('ssh-host-key-changed', (e) => { sshHostKeyChanged.value = e.payload })
 
-  // Help → Keyboard Shortcuts (native menu) opens the reference modal.
-  listen('menu:shortcuts', () => { showShortcuts.value = true })
-  // File → Preferences (native menu) opens the preferences modal.
-  listen('menu:preferences', () => { showPreferences.value = true })
+  // The menu bar is in-app; its keyboard shortcuts live here.
+  window.addEventListener('keydown', onGlobalKeydown)
 
   // Load persisted preferences so new tabs adopt the configured default limit.
   try {
@@ -132,6 +131,10 @@ onMounted(async () => {
   // Save on any change to the open tabs or the active tab. The watched getter
   // reads only persistable fields, so result-set updates don't trigger it.
   watch(() => JSON.stringify(projectSession()), scheduleSaveTabs)
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
 });
 
 // ── toolbar definition ─────────────────────────────────────
@@ -414,6 +417,128 @@ function handleTool(name) {
   }
   const label = TOOLS.find(t => t.name === name)?.label || name
   showToast(`${label} — coming to Studio-4T`)
+}
+
+// Bridges a native-menu item into the existing right-click context handler by
+// synthesizing the "selected node" from the active tab. `requiredType` guards
+// the action: server-level items need a connection, most Collection-menu items
+// need an open collection tab. Guides the user when the context is missing.
+function menuNode(action, requiredType) {
+  const tab = tabs.value.find(t => t.id === activeTabId.value)
+  if (!tab || !tab.connectionId) {
+    showToast('Open a connection, database, or collection first')
+    return
+  }
+  if (requiredType === 'collection' && (tab.kind !== 'collection' || !tab.collectionName)) {
+    showToast('Open a collection first')
+    return
+  }
+  if (requiredType === 'database' && !tab.dbName) {
+    showToast('Open a database or collection first')
+    return
+  }
+  contextMenu.value = {
+    type: requiredType,
+    label: tab.collectionName || tab.dbName || tab.connectionName,
+    nodeData: {
+      connId: tab.connectionId,
+      connName: tab.connectionName,
+      dbName: tab.dbName,
+      collName: tab.collectionName,
+    },
+  }
+  handleContextAction(action)
+}
+
+// What the menu bar treats as "selected", so items grey out live. Based on the
+// active tab: a collection tab satisfies all three, a shell/database tab
+// satisfies connection + database, Quickstart satisfies none.
+const menuContext = computed(() => {
+  const tab = tabs.value.find(t => t.id === activeTabId.value)
+  return {
+    hasConnection: !!(tab && tab.connectionId),
+    hasDatabase: !!(tab && tab.connectionId && tab.dbName),
+    hasCollection: !!(tab && tab.kind === 'collection' && tab.collectionName),
+  }
+})
+
+// Routes menu-bar actions (emitted by id) to the same handlers the toolbar and
+// right-click menus already use. The menu bar never emits a disabled item.
+function handleMenuAction(id) {
+  switch (id) {
+    // --- direct modals / app ---
+    case 'file:connect':     invoke('open_connect_window').catch(() => {}); return
+    case 'file:exit':        appWindow.close(); return
+    case 'edit:preferences': showPreferences.value = true; return
+    case 'help:shortcuts':   showShortcuts.value = true; return
+    case 'coll:vqb':         vqbOpen.value = true; return
+
+    // --- toolbar dispatcher (targets the active tab) ---
+    case 'file:intellishell': handleTool('shell'); return
+    case 'file:sql':          handleTool('sql'); return
+    case 'file:search':       handleTool('search'); return
+    case 'coll:open_tab':     handleTool('collection'); return
+    case 'coll:export':       handleTool('export'); return
+    case 'coll:import':       handleTool('import'); return
+    case 'coll:mask':         handleTool('mask'); return
+    case 'coll:compare':      handleTool('compare'); return
+
+    // --- server / connection scoped ---
+    case 'file:server_status': menuNode('Server Status', 'connection'); return
+    case 'file:server_build':  menuNode('Build Info', 'connection'); return
+
+    // --- database scoped ---
+    case 'db:add_collection':  menuNode('Add Collection…', 'database'); return
+    case 'db:drop_database':   menuNode('Drop Database…', 'database'); return
+    case 'gridfs:open':        menuNode('GridFS…', 'database'); return
+
+    // --- collection scoped ---
+    case 'coll:aggregation':   menuNode('Open Aggregation Editor', 'collection'); return
+    case 'coll:add_index':     menuNode('Indexes…', 'collection'); return
+    case 'coll:stats':
+    case 'db:collection_stats': menuNode('Collection Stats', 'collection'); return
+    case 'coll:schema':        menuNode('View Schema', 'collection'); return
+    case 'coll:rename':        menuNode('Rename Collection…', 'collection'); return
+    case 'coll:duplicate':     menuNode('Duplicate Collection…', 'collection'); return
+    case 'coll:drop':          menuNode('Drop Collection…', 'collection'); return
+
+    // --- view ---
+    case 'view:refresh':
+      for (const conn of connectionTreeRef.value.getConnections()) {
+        connectionTreeRef.value.refreshConn(conn.id)
+      }
+      showToast('Refreshed')
+      return
+  }
+}
+
+// The menu bar's keyboard shortcuts. The native OS menu used to provide these;
+// now we own them. We skip when focus is in a text field or code editor so the
+// webview keeps its native editing keys (the WebKitGTK swallow trap), and only
+// claim our specific combos.
+function onGlobalKeydown(e) {
+  const t = e.target
+  if (t && t.closest && t.closest('input, textarea, [contenteditable], .cm-editor, .monaco-editor')) {
+    return
+  }
+  const mod = e.ctrlKey || e.metaKey
+  let id = null
+  if (mod && !e.altKey) {
+    const k = e.key.toLowerCase()
+    if (k === 'n' && !e.shiftKey) id = 'file:connect'
+    else if (k === 'l' && e.shiftKey) id = 'file:sql'
+    else if (k === 'l' && !e.shiftKey) id = 'file:intellishell'
+    else if (k === 'p' && !e.shiftKey) id = 'edit:preferences'
+    else if (k === 'b' && !e.shiftKey) id = 'coll:vqb'
+    else if (k === 'r' && !e.shiftKey) id = 'view:refresh'
+  } else if (!mod && !e.altKey && !e.shiftKey) {
+    if (e.key === 'F4') id = 'coll:aggregation'
+    else if (e.key === 'F10') id = 'coll:open_tab'
+  }
+  if (id) {
+    e.preventDefault()
+    handleMenuAction(id)
+  }
 }
 
 function onManagerConnect(id) {
@@ -1302,6 +1427,9 @@ async function runAggregate(tabId, params) {
 
 <template>
   <div class="app-layout">
+    <!-- Menu bar -->
+    <Menubar :context="menuContext" @action="handleMenuAction" />
+
     <!-- Toolbar -->
     <div class="toolbar">
       <template v-for="(t, i) in TOOLS" :key="i">
