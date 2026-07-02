@@ -135,6 +135,7 @@ pub fn run() {
             get_shell_history,
             push_shell_command,
             clear_shell_history,
+            analyze_schema,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,12 +8,14 @@ pub mod query;
 pub mod admin;
 pub mod persistence;
 pub mod shell;
+pub mod schema;
 
 pub use connection::*;
 pub use query::*;
 pub use admin::*;
 pub use persistence::*;
 pub use shell::*;
+pub use schema::*;
 
 // Server-side time cap on user queries so a runaway find/aggregate aborts on the
 // server instead of hanging the UI (Tauri commands can't be cancelled in-flight).
