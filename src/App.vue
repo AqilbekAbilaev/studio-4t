@@ -14,6 +14,7 @@ import SshHostKeyModal from './components/SshHostKeyModal.vue'
 import ServerStatusModal from './components/ServerStatusModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
+import MaskingModal from './components/MaskingModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
 
@@ -159,6 +160,7 @@ const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
+const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
 const showPreferences = ref(false)    // File → Preferences
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
@@ -328,6 +330,20 @@ function handleTool(name) {
       const nodeData = { connId: tab.connectionId, dbName: tab.dbName, collName: tab.collectionName }
       if (name === 'export') exportCollection(nodeData)
       else importCollection(nodeData)
+    }
+    return
+  }
+  if (name === 'mask') {
+    const tab = tabs.value.find(t => t.id === activeTabId.value)
+    if (!tab || tab.kind !== 'collection') {
+      showToast('Open a collection first')
+      return
+    }
+    maskingTarget.value = {
+      connId: tab.connectionId,
+      connName: tab.connectionName,
+      dbName: tab.dbName,
+      collName: tab.collectionName,
     }
     return
   }
@@ -1238,6 +1254,14 @@ async function runAggregate(tabId, params) {
     <SqlModal
       v-if="showSqlModal"
       @close="showSqlModal = false"
+    />
+
+    <!-- Data Masking modal -->
+    <MaskingModal
+      v-if="maskingTarget"
+      :target="maskingTarget"
+      @toast="showToast"
+      @close="maskingTarget = null"
     />
 
     <!-- Keyboard Shortcuts reference -->
