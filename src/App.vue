@@ -1771,19 +1771,6 @@ async function runAggregate(tabId, params) {
   position: relative;
   -webkit-app-region: drag;
 }
-.traffic {
-  display: flex;
-  gap: 8px;
-  -webkit-app-region: no-drag;
-}
-.light {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-.light.r { background: #ec6a5e; }
-.light.y { background: #f4bf4f; }
-.light.g { background: #61c554; }
 .title {
   position: absolute;
   left: 0;

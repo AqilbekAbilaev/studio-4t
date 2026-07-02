@@ -488,12 +488,10 @@ async function save() {
   <div v-if="step === 'intro'" class="overlay" @mousedown.self="$emit('close')">
     <div class="dialog nc-intro">
       <div class="dlg-title">
-        <div class="traffic">
-          <span class="light r" @click="$emit('close')"></span>
-          <span class="light y"></span>
-          <span class="light g"></span>
-        </div>
         <div class="t">New Connection</div>
+        <button class="dlg-close" title="Close" @click="$emit('close')">
+          <BaseIcon name="close" :size="14" />
+        </button>
       </div>
 
       <div class="nci-body">
@@ -536,12 +534,10 @@ async function save() {
   <div v-else class="overlay" @mousedown.self="$emit('close')">
     <div class="dialog nc">
       <div class="dlg-title">
-        <div class="traffic">
-          <span class="light r" @click="$emit('close')"></span>
-          <span class="light y"></span>
-          <span class="light g"></span>
-        </div>
         <div class="t">{{ isEditMode ? 'Edit Connection' : 'New Connection' }}</div>
+        <button class="dlg-close" title="Close" @click="$emit('close')">
+          <BaseIcon name="close" :size="14" />
+        </button>
       </div>
 
       <!-- Name row -->
@@ -892,11 +888,16 @@ async function save() {
   font-size: 13px; color: var(--text-dim); font-weight: 500;
   pointer-events: none;
 }
-.traffic { display: flex; gap: 8px; }
-.light   { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; }
-.light.r { background: #ec6a5e; }
-.light.y { background: #f4bf4f; }
-.light.g { background: #61c554; }
+.dlg-close {
+  margin-left: auto;
+  z-index: 1;
+  display: grid; place-items: center;
+  width: 24px; height: 24px;
+  border: none; background: none;
+  border-radius: 6px;
+  color: var(--text-dim); cursor: pointer;
+}
+.dlg-close:hover { background: var(--bg-hover); color: var(--text); }
 
 /* ── Intro body ── */
 .nci-body { padding: 22px 24px 8px; }
