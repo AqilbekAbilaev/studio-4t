@@ -28,6 +28,9 @@ pub enum AppError {
 
     #[error("SSH tunnel error: {0}")]
     Ssh(String),
+
+    #[error("SQL error: {0}")]
+    Sql(String),
 }
 
 impl AppError {
@@ -53,6 +56,7 @@ impl AppError {
             AppError::Keychain(_) => "keychain",
             AppError::Shell(_) => "shell",
             AppError::Ssh(_) => "ssh",
+            AppError::Sql(_) => "sql",
         }
     }
 }
