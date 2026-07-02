@@ -19,6 +19,7 @@ import StatsModal from './components/StatsModal.vue'
 import ServerInfoModal from './components/ServerInfoModal.vue'
 import MigrationModal from './components/MigrationModal.vue'
 import SearchModal from './components/SearchModal.vue'
+import GridFsModal from './components/GridFsModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
 
@@ -164,6 +165,7 @@ const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
+const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
 const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
 const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
@@ -624,6 +626,24 @@ async function handleContextAction(action) {
     }
     duplicateCollectionName.value = saved.nodeData.collName + '_copy'
     duplicateCollectionError.value = null
+    return
+  }
+
+  if (action === 'GridFS…' && saved.type === 'database') {
+    gridfsTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+    }
+    return
+  }
+
+  if (action === 'Search in…' && saved.type === 'database') {
+    searchTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+    }
     return
   }
 
@@ -1389,6 +1409,14 @@ async function runAggregate(tabId, params) {
       v-if="searchTarget"
       :target="searchTarget"
       @close="searchTarget = null"
+    />
+
+    <!-- GridFS modal -->
+    <GridFsModal
+      v-if="gridfsTarget"
+      :target="gridfsTarget"
+      @toast="showToast"
+      @close="gridfsTarget = null"
     />
 
     <!-- Keyboard Shortcuts reference -->
