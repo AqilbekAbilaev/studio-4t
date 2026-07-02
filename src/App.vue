@@ -20,6 +20,7 @@ import ServerInfoModal from './components/ServerInfoModal.vue'
 import MigrationModal from './components/MigrationModal.vue'
 import SearchModal from './components/SearchModal.vue'
 import GridFsModal from './components/GridFsModal.vue'
+import CompareModal from './components/CompareModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
 
@@ -166,6 +167,7 @@ const serverStatusTarget = ref(null)  // { connId, connName } when the Server St
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
+const compareTarget = ref(null)       // { connId, connName, dbName } for the Data Compare modal
 const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
 const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
@@ -383,6 +385,19 @@ function handleTool(name) {
       return
     }
     searchTarget.value = {
+      connId: tab.connectionId,
+      connName: tab.connectionName,
+      dbName: tab.dbName,
+    }
+    return
+  }
+  if (name === 'compare') {
+    const tab = tabs.value.find(t => t.id === activeTabId.value)
+    if (!tab || !tab.connectionId || !tab.dbName) {
+      showToast('Open a collection or database first')
+      return
+    }
+    compareTarget.value = {
       connId: tab.connectionId,
       connName: tab.connectionName,
       dbName: tab.dbName,
@@ -1417,6 +1432,13 @@ async function runAggregate(tabId, params) {
       :target="gridfsTarget"
       @toast="showToast"
       @close="gridfsTarget = null"
+    />
+
+    <!-- Data Compare modal -->
+    <CompareModal
+      v-if="compareTarget"
+      :target="compareTarget"
+      @close="compareTarget = null"
     />
 
     <!-- Keyboard Shortcuts reference -->
