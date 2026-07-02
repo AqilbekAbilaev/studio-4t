@@ -143,6 +143,11 @@ pub fn run() {
             server_info,
             generate_sql_migration,
             search_collections,
+            list_gridfs_buckets,
+            list_gridfs_files,
+            gridfs_upload,
+            gridfs_download,
+            gridfs_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
