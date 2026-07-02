@@ -21,6 +21,7 @@ const connDatabases = ref({})      // connId → DatabaseInfo[]
 const connErrors = ref({})         // connId → string
 const expandedDbs = ref({})        // "connId/dbName" → boolean
 const selectedKey = ref(null)      // collection row highlighted by a single click
+const selectedNode = ref(null)     // { conn, db, collName } for the highlighted row
 const searchText = ref('')
 const sidebarEl = ref(null)        // root element, used to detect outside clicks
 
@@ -86,6 +87,16 @@ function toggleDatabase(connId, dbName) {
 // mirrors Studio-3T and lets the same collection be opened in several tabs.
 function highlightCollection(conn, db, collName) {
   selectedKey.value = collectionKey(conn.id, db.name, collName)
+  selectedNode.value = { conn: conn, db: db, collName: collName }
+}
+
+// Opens whatever collection is currently highlighted (single-click) in the tree.
+// Used by the toolbar's "Collection" button. Returns false when nothing is
+// highlighted so the caller can guide the user.
+function openSelectedCollection() {
+  if (!selectedKey.value || !selectedNode.value) return false
+  openCollection(selectedNode.value.conn, selectedNode.value.db, selectedNode.value.collName)
+  return true
 }
 
 function openCollection(conn, db, collName) {
@@ -218,7 +229,7 @@ function getConnections() {
   return connections.value
 }
 
-defineExpose({ disconnectConn, refreshConn, getConnections })
+defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollection })
 </script>
 
 <template>

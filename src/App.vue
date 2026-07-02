@@ -311,6 +311,14 @@ function handleTool(name) {
     showSqlModal.value = true
     return
   }
+  if (name === 'collection') {
+    // Opens the collection currently highlighted in the sidebar, same as
+    // double-clicking it. Guides the user when nothing is highlighted.
+    if (!connectionTreeRef.value.openSelectedCollection()) {
+      showToast('Select a collection in the sidebar first')
+    }
+    return
+  }
   if (name === 'shell') {
     // The top-bar button has no node context, so it targets the active tab's
     // connection + database. Collection and shell tabs both carry those fields;
