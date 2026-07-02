@@ -137,6 +137,7 @@ pub fn run() {
             clear_shell_history,
             analyze_schema,
             translate_sql,
+            export_masked_collection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
