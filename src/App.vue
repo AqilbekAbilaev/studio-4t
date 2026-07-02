@@ -13,6 +13,7 @@ import ContextMenu from './components/ContextMenu.vue'
 import SshHostKeyModal from './components/SshHostKeyModal.vue'
 import ServerStatusModal from './components/ServerStatusModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
+import SqlModal from './components/SqlModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
 
@@ -157,6 +158,7 @@ const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
+const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
 const showPreferences = ref(false)    // File → Preferences
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
@@ -284,6 +286,10 @@ const activeCollectionKey = computed(() => {
 function handleTool(name) {
   if (name === 'connect') {
     showConnectionManager.value = true
+    return
+  }
+  if (name === 'sql') {
+    showSqlModal.value = true
     return
   }
   if (name === 'shell') {
@@ -1226,6 +1232,12 @@ async function runAggregate(tabId, params) {
       v-if="schemaTarget"
       :target="schemaTarget"
       @close="schemaTarget = null"
+    />
+
+    <!-- SQL → MQL translator -->
+    <SqlModal
+      v-if="showSqlModal"
+      @close="showSqlModal = false"
     />
 
     <!-- Keyboard Shortcuts reference -->
