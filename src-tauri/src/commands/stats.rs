@@ -1,0 +1,109 @@
+use crate::error::AppError;
+use crate::pool::ConnectionPool;
+use crate::storage::Storage;
+use mongodb::bson;
+use serde::Serialize;
+use tauri::State;
+
+// A single index's on-disk size, pulled from collStats.indexSizes.
+#[derive(Serialize)]
+pub struct IndexSize {
+    pub name: String,
+    pub size: i64,
+}
+
+// The headline numbers from `collStats`, normalized into typed fields so the UI
+// doesn't have to dig through the raw document. The full raw result is kept too,
+// for the "show raw" view and forward-compatibility with fields we don't surface.
+#[derive(Serialize)]
+pub struct CollectionStats {
+    pub ns: Option<String>,
+    pub count: Option<i64>,
+    pub size: Option<i64>,
+    pub avg_obj_size: Option<i64>,
+    pub storage_size: Option<i64>,
+    pub total_index_size: Option<i64>,
+    pub nindexes: Option<i64>,
+    pub capped: bool,
+    pub indexes: Vec<IndexSize>,
+    pub raw: serde_json::Value,
+}
+
+// collStats mixes Int32 / Int64 / Double for its numeric fields depending on the
+// server and value magnitude, so read any of them as i64.
+fn as_i64(value: Option<&bson::Bson>) -> Option<i64> {
+    match value {
+        Some(bson::Bson::Int32(v)) => Some(*v as i64),
+        Some(bson::Bson::Int64(v)) => Some(*v),
+        Some(bson::Bson::Double(v)) => Some(*v as i64),
+        _ => None,
+    }
+}
+
+// Pure extraction from a raw collStats document into the typed summary. Kept free
+// of I/O so it can be unit-tested with a hand-built document.
+pub(crate) fn extract_stats(doc: &bson::Document) -> CollectionStats {
+    let mut indexes: Vec<IndexSize> = Vec::new();
+    if let Some(bson::Bson::Document(sizes)) = doc.get("indexSizes") {
+        for (name, value) in sizes {
+            if let Some(size) = as_i64(Some(value)) {
+                indexes.push(IndexSize { name: name.clone(), size: size });
+            }
+        }
+    }
+    // Largest index first — the useful ordering when hunting bloat.
+    indexes.sort_by(|a, b| b.size.cmp(&a.size).then_with(|| a.name.cmp(&b.name)));
+
+    let capped = match doc.get("capped") {
+        Some(bson::Bson::Boolean(value)) => *value,
+        _ => false,
+    };
+    let ns = match doc.get("ns") {
+        Some(bson::Bson::String(value)) => Some(value.clone()),
+        _ => None,
+    };
+
+    CollectionStats {
+        ns: ns,
+        count: as_i64(doc.get("count")),
+        size: as_i64(doc.get("size")),
+        avg_obj_size: as_i64(doc.get("avgObjSize")),
+        storage_size: as_i64(doc.get("storageSize")),
+        total_index_size: as_i64(doc.get("totalIndexSize")),
+        nindexes: as_i64(doc.get("nindexes")),
+        capped: capped,
+        indexes: indexes,
+        raw: serde_json::Value::from(bson::Bson::Document(doc.clone())),
+    }
+}
+
+/// Collection statistics (`collStats`): document count, data/storage size, average
+/// document size, index count and per-index sizes. Studio-3T surfaces the same
+/// numbers in its Collection Stats view.
+#[tauri::command]
+pub async fn collection_stats(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+) -> Result<CollectionStats, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let command = bson::doc! { "collStats": &collection };
+    let result = match client.database(&database).run_command(command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(extract_stats(&result))
+}
+
+#[cfg(test)]
+mod tests;

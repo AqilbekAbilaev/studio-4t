@@ -15,6 +15,7 @@ import ServerStatusModal from './components/ServerStatusModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
+import StatsModal from './components/StatsModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
 
@@ -161,6 +162,7 @@ const serverStatusTarget = ref(null)  // { connId, connName } when the Server St
 const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
 const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
+const statsTarget = ref(null)         // { connId, connName, dbName, collName } for the Collection Stats modal
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
 const showPreferences = ref(false)    // File → Preferences
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
@@ -543,6 +545,16 @@ async function handleContextAction(action) {
 
   if (action === 'View Schema' && saved.type === 'collection') {
     schemaTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+      collName: saved.nodeData.collName,
+    }
+    return
+  }
+
+  if (action === 'Collection Stats' && saved.type === 'collection') {
+    statsTarget.value = {
       connId: saved.nodeData.connId,
       connName: saved.nodeData.connName,
       dbName: saved.nodeData.dbName,
@@ -1262,6 +1274,13 @@ async function runAggregate(tabId, params) {
       :target="maskingTarget"
       @toast="showToast"
       @close="maskingTarget = null"
+    />
+
+    <!-- Collection Stats modal -->
+    <StatsModal
+      v-if="statsTarget"
+      :target="statsTarget"
+      @close="statsTarget = null"
     />
 
     <!-- Keyboard Shortcuts reference -->
