@@ -148,6 +148,7 @@ pub fn run() {
             gridfs_upload,
             gridfs_download,
             gridfs_delete,
+            compare_collections,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
