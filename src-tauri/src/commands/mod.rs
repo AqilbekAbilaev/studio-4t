@@ -14,6 +14,7 @@ pub mod masking;
 pub mod stats;
 pub mod duplicate;
 pub mod serverinfo;
+pub mod migration;
 
 pub use connection::*;
 pub use query::*;
@@ -26,6 +27,7 @@ pub use masking::*;
 pub use stats::*;
 pub use duplicate::*;
 pub use serverinfo::*;
+pub use migration::*;
 
 // Server-side time cap on user queries so a runaway find/aggregate aborts on the
 // server instead of hanging the UI (Tauri commands can't be cancelled in-flight).
