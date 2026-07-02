@@ -12,6 +12,7 @@ import ConnectionManager from './components/ConnectionManager.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import SshHostKeyModal from './components/SshHostKeyModal.vue'
 import ServerStatusModal from './components/ServerStatusModal.vue'
+import SchemaModal from './components/SchemaModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
 
@@ -155,6 +156,7 @@ let toastTimer = null
 const connectionTreeRef = ref(null)
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
+const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
 const showPreferences = ref(false)    // File → Preferences
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
@@ -513,6 +515,16 @@ async function handleContextAction(action) {
     serverStatusTarget.value = {
       connId: saved.nodeData.connId,
       connName: saved.nodeData.connName,
+    }
+    return
+  }
+
+  if (action === 'View Schema' && saved.type === 'collection') {
+    schemaTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+      collName: saved.nodeData.collName,
     }
     return
   }
@@ -1207,6 +1219,13 @@ async function runAggregate(tabId, params) {
       v-if="serverStatusTarget"
       :target="serverStatusTarget"
       @close="serverStatusTarget = null"
+    />
+
+    <!-- Schema (View Schema) modal -->
+    <SchemaModal
+      v-if="schemaTarget"
+      :target="schemaTarget"
+      @close="schemaTarget = null"
     />
 
     <!-- Keyboard Shortcuts reference -->
