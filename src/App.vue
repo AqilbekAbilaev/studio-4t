@@ -225,6 +225,11 @@ const renameCollectionName   = ref('')
 const renameCollectionError  = ref(null)
 const renameCollectionSaving = ref(false)
 
+const duplicateCollectionTarget = ref(null)  // { connId, dbName, collName } | null
+const duplicateCollectionName   = ref('')
+const duplicateCollectionError  = ref(null)
+const duplicateCollectionSaving = ref(false)
+
 const addDatabaseTarget   = ref(null)  // { connId } | null
 const newDatabaseName     = ref('')
 const newDatabaseCollName = ref('')
@@ -563,6 +568,17 @@ async function handleContextAction(action) {
     return
   }
 
+  if (action === 'Duplicate Collection…' && saved.type === 'collection') {
+    duplicateCollectionTarget.value = {
+      connId: saved.nodeData.connId,
+      dbName: saved.nodeData.dbName,
+      collName: saved.nodeData.collName,
+    }
+    duplicateCollectionName.value = saved.nodeData.collName + '_copy'
+    duplicateCollectionError.value = null
+    return
+  }
+
   showToast(action + ' — coming to Studio-4T')
 }
 
@@ -646,6 +662,29 @@ async function confirmRenameCollection() {
     renameCollectionError.value = errMessage(e)
   } finally {
     renameCollectionSaving.value = false
+  }
+}
+
+async function confirmDuplicateCollection() {
+  const target = duplicateCollectionTarget.value
+  const name = duplicateCollectionName.value.trim()
+  if (!target || !name || name === target.collName) return
+  duplicateCollectionSaving.value = true
+  duplicateCollectionError.value = null
+  try {
+    const count = await invoke('duplicate_collection', {
+      id: target.connId,
+      database: target.dbName,
+      source: target.collName,
+      target: name,
+    })
+    await connectionTreeRef.value.refreshConn(target.connId)
+    showToast(`Copied ${count} document${count === 1 ? '' : 's'} to "${name}"`)
+    duplicateCollectionTarget.value = null
+  } catch (e) {
+    duplicateCollectionError.value = errMessage(e)
+  } finally {
+    duplicateCollectionSaving.value = false
   }
 }
 
@@ -1441,6 +1480,37 @@ async function runAggregate(tabId, params) {
           <button class="btn" @click="renameCollectionTarget = null">Cancel</button>
           <button class="btn primary" :disabled="!renameCollectionName.trim() || renameCollectionName.trim() === renameCollectionTarget.collName || renameCollectionSaving" @click="confirmRenameCollection">
             {{ renameCollectionSaving ? 'Renaming…' : 'Rename' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Duplicate Collection prompt -->
+    <div v-if="duplicateCollectionTarget" class="del-overlay" @mousedown.self="duplicateCollectionTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Duplicate Collection</div>
+          <button class="close-btn" @click="duplicateCollectionTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <input
+            v-model="duplicateCollectionName"
+            class="prompt-input"
+            placeholder="New collection name"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.enter="confirmDuplicateCollection"
+          />
+          <div v-if="duplicateCollectionError" class="del-error">{{ duplicateCollectionError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="duplicateCollectionTarget = null">Cancel</button>
+          <button class="btn primary" :disabled="!duplicateCollectionName.trim() || duplicateCollectionName.trim() === duplicateCollectionTarget.collName || duplicateCollectionSaving" @click="confirmDuplicateCollection">
+            {{ duplicateCollectionSaving ? 'Duplicating…' : 'Duplicate' }}
           </button>
         </div>
       </div>
