@@ -16,6 +16,7 @@ import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
 import StatsModal from './components/StatsModal.vue'
+import ServerInfoModal from './components/ServerInfoModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
 
@@ -163,6 +164,7 @@ const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when t
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
 const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
 const statsTarget = ref(null)         // { connId, connName, dbName, collName } for the Collection Stats modal
+const serverInfoTarget = ref(null)    // { connId, connName, kind, title } for Build/Host/Replica info
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
 const showPreferences = ref(false)    // File → Preferences
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
@@ -554,6 +556,21 @@ async function handleContextAction(action) {
       connName: saved.nodeData.connName,
       dbName: saved.nodeData.dbName,
       collName: saved.nodeData.collName,
+    }
+    return
+  }
+
+  const serverInfoKinds = {
+    'Build Info': 'build',
+    'Host Info': 'host',
+    'Replica Set Status': 'replica',
+  }
+  if (serverInfoKinds[action] && saved.type === 'connection') {
+    serverInfoTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      kind: serverInfoKinds[action],
+      title: action,
     }
     return
   }
@@ -1320,6 +1337,13 @@ async function runAggregate(tabId, params) {
       v-if="statsTarget"
       :target="statsTarget"
       @close="statsTarget = null"
+    />
+
+    <!-- Build / Host / Replica Set info modal -->
+    <ServerInfoModal
+      v-if="serverInfoTarget"
+      :target="serverInfoTarget"
+      @close="serverInfoTarget = null"
     />
 
     <!-- Keyboard Shortcuts reference -->
