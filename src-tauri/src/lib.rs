@@ -141,6 +141,7 @@ pub fn run() {
             collection_stats,
             duplicate_collection,
             server_info,
+            generate_sql_migration,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
