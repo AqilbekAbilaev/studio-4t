@@ -23,6 +23,7 @@ fn conn(id: &str, name: &str) -> ConnectionConfig {
         ssh_auth: None,
         ssh_key_file: None,
         tag: None,
+        folder_id: None,
         last_accessed: None,
         open: false,
     }

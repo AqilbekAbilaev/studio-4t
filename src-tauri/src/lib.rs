@@ -1,6 +1,7 @@
 mod commands;
 mod default_queries;
 mod error;
+mod folders;
 mod history;
 #[cfg(test)]
 mod integration_tests;
@@ -20,6 +21,7 @@ mod uri;
 
 use commands::*;
 use default_queries::DefaultQueryStorage;
+use folders::FolderStorage;
 use history::HistoryStorage;
 use known_hosts::KnownHostsStore;
 use pool::ConnectionPool;
@@ -41,6 +43,7 @@ pub fn run() {
                 Err(e) => return Err(e.into()),
             };
             app.manage(Storage::new(data_dir.join("connections.json")));
+            app.manage(FolderStorage::new(data_dir.join("folders.json")));
             app.manage(HistoryStorage::new(data_dir.join("history.json")));
             app.manage(SavedQueryStorage::new(data_dir.join("saved_queries.json")));
             app.manage(DefaultQueryStorage::new(data_dir.join("default_queries.json")));
@@ -149,6 +152,11 @@ pub fn run() {
             gridfs_download,
             gridfs_delete,
             compare_collections,
+            list_folders,
+            create_folder,
+            rename_folder,
+            delete_folder,
+            move_connection_to_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
