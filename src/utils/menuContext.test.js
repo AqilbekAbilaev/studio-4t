@@ -15,6 +15,7 @@ describe('deriveMenuContext', () => {
   it('is all-false with no tab, no selection, no connections', () => {
     expect(deriveMenuContext(null, null, 0)).toEqual({
       hasConnection: false, hasDatabase: false, hasCollection: false, anyConnection: false,
+      hasDocument: false, hasField: false,
     })
   })
 
@@ -61,6 +62,32 @@ describe('deriveMenuContext', () => {
     expect(deriveMenuContext(quickstart, null, 2).anyConnection).toBe(true)
     // Also true purely from the active tab's connection.
     expect(deriveMenuContext(collectionTab, null, 0).anyConnection).toBe(true)
+  })
+
+  it('document/field context comes from the active collection tab, never the sidebar', () => {
+    // A collection selected in the sidebar enables collection items but NOT the
+    // Document menu — there is no results grid / selection there.
+    const collSel = { connectionId: 'c1', connectionName: 'Local', dbName: 'shop', collectionName: 'orders', kind: 'collection' }
+    const fromSidebar = deriveMenuContext(quickstart, collSel, 1)
+    expect(fromSidebar.hasCollection).toBe(true)
+    expect(fromSidebar.hasDocument).toBe(false)
+    expect(fromSidebar.hasField).toBe(false)
+
+    // A collection tab with results but no row selected: still no document context.
+    const noSelection = { ...collectionTab, results: [{ _id: 1 }], selectedRow: -1 }
+    expect(deriveMenuContext(noSelection, null, 1).hasDocument).toBe(false)
+
+    // A row selected enables whole-document actions but not field actions.
+    const rowSelected = { ...collectionTab, results: [{ _id: 1 }], selectedRow: 0 }
+    const rowCtx = deriveMenuContext(rowSelected, null, 1)
+    expect(rowCtx.hasDocument).toBe(true)
+    expect(rowCtx.hasField).toBe(false)
+
+    // A selected field enables both.
+    const fieldSelected = { ...collectionTab, results: [{ _id: 1 }], selectedRow: 0, selectedField: '_id' }
+    const fieldCtx = deriveMenuContext(fieldSelected, null, 1)
+    expect(fieldCtx.hasDocument).toBe(true)
+    expect(fieldCtx.hasField).toBe(true)
   })
 })
 

@@ -183,6 +183,10 @@ const connectionTreeRef = ref(null)
 // selected/open in the tree, not only on the active tab.
 const treeSelection = ref(null)       // { connectionId, connectionName, dbName, collectionName, kind } | null
 const treeConnectionCount = ref(0)
+// A one-shot Document/Collection editing request routed from the native menu down to
+// the active collection's ResultsPanel (which owns the editors). Bumping `nonce`
+// re-fires the panel's watcher; `action` is the menu item id. See requestDocMenuAction.
+const docMenuRequest = ref(null)      // { action, nonce } | null
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
@@ -486,6 +490,8 @@ watch(menuContext, (ctx) => {
     hasDatabase: ctx.hasDatabase,
     hasCollection: ctx.hasCollection,
     anyConnection: ctx.anyConnection,
+    hasDocument: ctx.hasDocument,
+    hasField: ctx.hasField,
   }).catch(() => {})
 }, { immediate: true })
 
@@ -554,6 +560,23 @@ function handleMenuAction(id) {
     case 'coll:duplicate':     menuNode('Duplicate Collection…', 'collection'); return
     case 'coll:drop':          menuNode('Drop Collection…', 'collection'); return
 
+    // --- collection: document editing (open/activate a collection tab, then run) ---
+    case 'coll:insert_document':
+    case 'coll:update_dialog':
+    case 'coll:delete_dialog':
+    case 'coll:clear':
+      requestCollectionDocAction(id); return
+
+    // --- document: act on the selected row/field in the active results view ---
+    case 'doc:edit_value':
+    case 'doc:add_field':
+    case 'doc:remove_field':
+    case 'doc:rename_field':
+    case 'doc:view_json':
+    case 'doc:edit_json':
+    case 'doc:delete':
+      requestDocMenuAction(id); return
+
     // --- view ---
     case 'view:refresh':
       for (const conn of connectionTreeRef.value.getConnections()) {
@@ -562,6 +585,47 @@ function handleMenuAction(id) {
       showToast('Refreshed')
       return
   }
+}
+
+// Route a Document-menu action to the active collection tab's ResultsPanel, which
+// owns the field/document editors. The Document gates already guarantee an active
+// collection tab with a selected row/field, so this only needs to signal the panel.
+function requestDocMenuAction(action) {
+  const tab = tabs.value.find(t => t.id === activeTabId.value)
+  if (!tab || tab.kind !== 'collection' || (tab.selectedRow ?? -1) < 0) {
+    showToast('Select a document in the results first')
+    return
+  }
+  docMenuRequest.value = { action: action, nonce: Date.now() }
+}
+
+// Route a Collection document-editing action (Insert / Update / Delete dialog, Clear)
+// to a collection's ResultsPanel. Resolve the target collection (sidebar selection or
+// active tab), open it as a tab so its results view exists and can refresh, then — once
+// that tab is mounted — signal the panel to open the matching dialog.
+async function requestCollectionDocAction(action) {
+  const target = menuTarget('collection')
+  if (!target || target.kind !== 'collection' || !target.collectionName) {
+    showToast('Open a collection first')
+    return
+  }
+  const active = tabs.value.find(t => t.id === activeTabId.value)
+  const sameCollectionActive = active && active.kind === 'collection'
+    && active.connectionId === target.connectionId
+    && active.dbName === target.dbName
+    && active.collectionName === target.collectionName
+  // Reuse the active tab when it already shows this collection; otherwise open one so
+  // the operation has a results view to refresh afterward.
+  if (!sameCollectionActive) {
+    openCollectionTab({
+      connectionId: target.connectionId,
+      connectionName: target.connectionName,
+      dbName: target.dbName,
+      collectionName: target.collectionName,
+    })
+  }
+  await nextTick()
+  docMenuRequest.value = { action: action, nonce: Date.now() }
 }
 
 // The menu bar's keyboard shortcuts, used on Linux only (elsewhere the native
@@ -1529,6 +1593,7 @@ async function runAggregate(tabId, params) {
         :active-tab-id="activeTabId"
         :vqb-open="vqbOpen"
         :clipboard-query="clipboardQuery"
+        :doc-menu-request="docMenuRequest"
         @activate-tab="activateTab"
         @close-tab="closeTab"
         @tab-context="onTabContext"

@@ -142,6 +142,73 @@ async fn find_paging_and_count_round_trip() {
 }
 
 #[tokio::test]
+async fn update_delete_many_and_clear_round_trip() {
+    let config = match test_config() {
+        Some(val) => val,
+        None => {
+            eprintln!("skipping: set STUDIO4T_TEST_MONGODB=host[:port] to run live tests");
+            return;
+        }
+    };
+    let client = connect(&config).await;
+    let db = client.database("studio4t_it_bulk");
+    let col = db.collection::<Document>("items");
+
+    match col.drop().await {
+        Ok(_) => {}
+        Err(e) => panic!("drop collection: {}", e),
+    }
+
+    let mut docs = Vec::new();
+    for n in 0..10 {
+        docs.push(doc! { "n": n, "tag": "keep" });
+    }
+    match col.insert_many(docs).await {
+        Ok(_) => {}
+        Err(e) => panic!("insert_many: {}", e),
+    }
+
+    // update_many: flag the low half — the Update Dialog's core path.
+    let updated = match col
+        .update_many(doc! { "n": doc! { "$lt": 5 } }, doc! { "$set": { "tag": "low" } })
+        .await
+    {
+        Ok(val) => val,
+        Err(e) => panic!("update_many: {}", e),
+    };
+    assert_eq!(updated.modified_count, 5);
+    let low = match col.count_documents(doc! { "tag": "low" }).await {
+        Ok(val) => val,
+        Err(e) => panic!("count low: {}", e),
+    };
+    assert_eq!(low, 5);
+
+    // delete_many: remove the low half — the Delete Dialog's core path.
+    let deleted = match col.delete_many(doc! { "tag": "low" }).await {
+        Ok(val) => val,
+        Err(e) => panic!("delete_many: {}", e),
+    };
+    assert_eq!(deleted.deleted_count, 5);
+
+    // clear_collection: empty filter removes the rest while the collection remains.
+    let cleared = match col.delete_many(doc! {}).await {
+        Ok(val) => val,
+        Err(e) => panic!("clear delete_many: {}", e),
+    };
+    assert_eq!(cleared.deleted_count, 5);
+    let remaining = match col.count_documents(doc! {}).await {
+        Ok(val) => val,
+        Err(e) => panic!("count remaining: {}", e),
+    };
+    assert_eq!(remaining, 0);
+
+    match db.drop().await {
+        Ok(_) => {}
+        Err(e) => panic!("drop db: {}", e),
+    }
+}
+
+#[tokio::test]
 async fn aggregate_round_trip() {
     let config = match test_config() {
         Some(val) => val,

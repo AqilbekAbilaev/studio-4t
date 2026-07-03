@@ -5,11 +5,15 @@ import { errMessage } from '../utils/errors'
 import { parseField } from '../utils/queryParser'
 import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
+import FieldEditModal from './FieldEditModal.vue'
+import UpdateDocumentsModal from './UpdateDocumentsModal.vue'
+import DeleteDocumentsModal from './DeleteDocumentsModal.vue'
 import VisualQueryBuilder from './VisualQueryBuilder.vue'
 import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
 import StateMessage from './StateMessage.vue'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
+import { inspectField, setFieldValue, addFieldValue, removeField, renameField } from '../utils/docEdit'
 
 const props = defineProps({
   activeTab:   { type: Object,  required: true },
@@ -19,6 +23,9 @@ const props = defineProps({
   vqbOpen:     { type: Boolean, default: false },
   tabs:        { type: Array,   required: true },
   activeTabId: { type: String,  required: true },
+  // One-shot Document/Collection editing request from the native menu (see App.vue's
+  // requestDocMenuAction). `{ action, nonce }`; a new nonce re-fires the dispatch.
+  docMenuRequest: { type: Object, default: null },
 })
 
 // `run` re-runs the active tab in its current mode (the toolbar refresh button).
@@ -246,6 +253,183 @@ async function onDeleteConfirm() {
   } catch (e) {
     crudError.value = errMessage(e)
   }
+}
+
+// ── Document / Collection menu editors ─────────────────
+// Field-level edits (Edit Value/Type, Add Field, Remove Field, Rename Field), the
+// read-only JSON view, and the collection-wide Update/Delete/Clear dialogs. Field
+// ops operate on the selected row's document at the current drill path, sent through
+// the same replace_document command the inline cell editor uses.
+const fieldEdit        = ref(null)   // { mode:'edit'|'add'|'rename', fieldName, initialType, initialRaw }
+const fieldEditError   = ref(null)
+const removeFieldName  = ref(null)   // field pending remove-confirm
+const removeFieldError = ref(null)
+const viewJsonDoc      = ref(null)   // document shown read-only
+const showUpdateDialog = ref(false)
+const showDeleteDialog = ref(false)
+const showClearConfirm = ref(false)
+const clearConfirmText = ref('')
+const clearBusy        = ref(false)
+const clearError       = ref(null)
+
+// The currently selected document, or null when no row is selected / out of range.
+function selectedDoc() {
+  const tab = props.activeTab
+  if (!tab || (tab.selectedRow ?? -1) < 0) return null
+  return tab.results?.[tab.selectedRow] ?? null
+}
+
+// Dispatch a native Document/Collection menu action onto this panel. The menu gates
+// guarantee the prerequisites (active collection / selected row / selected field);
+// we re-check defensively and guide the user if the selection changed meanwhile.
+function runDocMenuAction(action) {
+  const tab = props.activeTab
+  if (!tab || tab.kind !== 'collection') return
+
+  // Collection-wide actions — no row selection required.
+  switch (action) {
+    case 'coll:insert_document': openInsert(); return
+    case 'coll:update_dialog':   showUpdateDialog.value = true; return
+    case 'coll:delete_dialog':   showDeleteDialog.value = true; return
+    case 'coll:clear':
+      clearConfirmText.value = ''
+      clearError.value = null
+      showClearConfirm.value = true
+      return
+  }
+
+  const doc = selectedDoc()
+  if (!doc) { emit('toast', 'Select a document in the results first'); return }
+
+  // Whole-document actions.
+  switch (action) {
+    case 'doc:view_json': viewJsonDoc.value = doc; return
+    case 'doc:edit_json': openEdit(); return
+    case 'doc:delete':    crudError.value = null; showDeleteConfirm.value = true; return
+    case 'doc:add_field':
+      fieldEditError.value = null
+      fieldEdit.value = { mode: 'add', fieldName: '', initialType: 'String', initialRaw: '' }
+      return
+  }
+
+  // Field-level actions — need a selected field.
+  const field = tab.selectedField
+  if (!field) { emit('toast', 'Select a field (click a cell) first'); return }
+  // The _id field can't be changed: replace_document preserves the original _id, so
+  // editing/removing/renaming it would be a silent no-op. Block it here, matching the
+  // inline cell editor, which already refuses to edit _id (ResultTable guessType 'id').
+  if (field === '_id') { emit('toast', 'The _id field cannot be edited'); return }
+  switch (action) {
+    case 'doc:edit_value': {
+      const info = inspectField(doc, drillPath.value, field)
+      fieldEditError.value = null
+      fieldEdit.value = { mode: 'edit', fieldName: field, initialType: info.type, initialRaw: info.raw }
+      return
+    }
+    case 'doc:rename_field':
+      fieldEditError.value = null
+      fieldEdit.value = { mode: 'rename', fieldName: field, initialType: 'String', initialRaw: '' }
+      return
+    case 'doc:remove_field':
+      removeFieldError.value = null
+      removeFieldName.value = field
+      return
+  }
+}
+
+watch(() => props.docMenuRequest && props.docMenuRequest.nonce, (nonce) => {
+  if (nonce == null) return
+  runDocMenuAction(props.docMenuRequest.action)
+})
+
+// Persist a field-op mutation of the selected document via replace_document, then
+// refresh the page so the grid reflects it.
+async function saveDocReplacement(newDoc, original) {
+  await invoke('replace_document', {
+    id: props.activeTab.connectionId,
+    database: props.activeTab.dbName,
+    collection: props.activeTab.collectionName,
+    idFilter: buildIdFilter(original),
+    document: JSON.stringify(newDoc),
+  })
+  emit('requery', true)
+}
+
+async function onFieldEditSave(payload) {
+  const tab = props.activeTab
+  const doc = selectedDoc()
+  if (!doc || !fieldEdit.value) { fieldEdit.value = null; return }
+  fieldEditError.value = null
+  try {
+    const mode = fieldEdit.value.mode
+    let newDoc
+    if (mode === 'edit') {
+      newDoc = setFieldValue(doc, drillPath.value, payload.name, payload.value)
+    } else if (mode === 'add') {
+      newDoc = addFieldValue(doc, drillPath.value, payload.name, payload.value)
+    } else {
+      newDoc = renameField(doc, drillPath.value, fieldEdit.value.fieldName, payload.name)
+    }
+    await saveDocReplacement(newDoc, doc)
+    fieldEdit.value = null
+    tab.selectedField = null
+  } catch (e) {
+    fieldEditError.value = errMessage(e)
+  }
+}
+
+async function onRemoveFieldConfirm() {
+  const tab = props.activeTab
+  const doc = selectedDoc()
+  const field = removeFieldName.value
+  if (!doc || !field) { removeFieldName.value = null; return }
+  removeFieldError.value = null
+  try {
+    const newDoc = removeField(doc, drillPath.value, field)
+    await saveDocReplacement(newDoc, doc)
+    removeFieldName.value = null
+    tab.selectedField = null
+  } catch (e) {
+    removeFieldError.value = errMessage(e)
+  }
+}
+
+async function onClearConfirm() {
+  const tab = props.activeTab
+  if (clearConfirmText.value !== tab.collectionName) return
+  clearError.value = null
+  clearBusy.value = true
+  try {
+    const removed = await invoke('clear_collection', {
+      id: tab.connectionId,
+      database: tab.dbName,
+      collection: tab.collectionName,
+    })
+    showClearConfirm.value = false
+    tab.selectedRow = -1
+    tab.selectedField = null
+    emit('toast', `Cleared ${removed} document${removed !== 1 ? 's' : ''} from ${tab.collectionName}`)
+    emit('requery', true)
+  } catch (e) {
+    clearError.value = errMessage(e)
+  } finally {
+    clearBusy.value = false
+  }
+}
+
+function onUpdateDialogDone(message) {
+  showUpdateDialog.value = false
+  emit('toast', message)
+  emit('requery', true)
+}
+
+function onDeleteDialogDone(message) {
+  const tab = props.activeTab
+  showDeleteDialog.value = false
+  tab.selectedRow = -1
+  tab.selectedField = null
+  emit('toast', message)
+  emit('requery', true)
 }
 
 // Best-effort headline metrics pulled from the explain document; the full plan
@@ -547,6 +731,93 @@ const queryCode = computed(() => {
         <span class="spacer"></span>
         <button class="btn" @click="showDeleteConfirm = false">Cancel</button>
         <button class="btn danger" @click="onDeleteConfirm">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Field editor (Edit Value/Type, Add Field, Rename Field) -->
+  <FieldEditModal
+    v-if="fieldEdit"
+    :mode="fieldEdit.mode"
+    :field-name="fieldEdit.fieldName"
+    :initial-type="fieldEdit.initialType"
+    :initial-raw="fieldEdit.initialRaw"
+    :save-error="fieldEditError"
+    @close="fieldEdit = null; fieldEditError = null"
+    @save="onFieldEditSave"
+  />
+
+  <!-- Remove field confirmation -->
+  <div v-if="removeFieldName" class="del-overlay" @mousedown.self="removeFieldName = null">
+    <div class="del-dialog">
+      <div class="del-title">
+        <div class="t">Remove Field</div>
+        <button class="close-btn" @click="removeFieldName = null"><BaseIcon name="close" :size="14" /></button>
+      </div>
+      <div class="del-body">
+        <p>Remove the field <code>{{ removeFieldName }}</code> from this document?</p>
+        <div v-if="removeFieldError" class="del-error">{{ removeFieldError }}</div>
+      </div>
+      <div class="del-footer">
+        <span class="spacer"></span>
+        <button class="btn" @click="removeFieldName = null">Cancel</button>
+        <button class="btn danger" @click="onRemoveFieldConfirm">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Read-only document JSON view -->
+  <div v-if="viewJsonDoc" class="del-overlay" @mousedown.self="viewJsonDoc = null">
+    <div class="vj-dialog">
+      <div class="del-title">
+        <div class="t">View Document (JSON)</div>
+        <button class="close-btn" @click="viewJsonDoc = null"><BaseIcon name="close" :size="14" /></button>
+      </div>
+      <div class="vj-body">
+        <div class="json-doc" v-html="syntaxHighlight(mongoStringify(viewJsonDoc))"></div>
+      </div>
+      <div class="del-footer">
+        <span class="spacer"></span>
+        <button class="btn" @click="viewJsonDoc = null">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Collection: Update / Delete dialogs -->
+  <UpdateDocumentsModal
+    v-if="showUpdateDialog"
+    :active-tab="activeTab"
+    @close="showUpdateDialog = false"
+    @done="onUpdateDialogDone"
+  />
+  <DeleteDocumentsModal
+    v-if="showDeleteDialog"
+    :active-tab="activeTab"
+    @close="showDeleteDialog = false"
+    @done="onDeleteDialogDone"
+  />
+
+  <!-- Clear Collection confirmation (type the name to confirm) -->
+  <div v-if="showClearConfirm" class="del-overlay" @mousedown.self="showClearConfirm = false">
+    <div class="del-dialog">
+      <div class="del-title">
+        <div class="t">Clear Collection</div>
+        <button class="close-btn" @click="showClearConfirm = false"><BaseIcon name="close" :size="14" /></button>
+      </div>
+      <div class="del-body">
+        <p>This deletes <strong>every document</strong> in
+          <code>{{ activeTab.collectionName }}</code>. The collection and its indexes remain.
+          This cannot be undone.</p>
+        <p class="cc-prompt">Type <code>{{ activeTab.collectionName }}</code> to confirm:</p>
+        <input class="cc-input" v-model="clearConfirmText" spellcheck="false" autocomplete="off"
+               @keydown.enter="onClearConfirm" />
+        <div v-if="clearError" class="del-error">{{ clearError }}</div>
+      </div>
+      <div class="del-footer">
+        <span class="spacer"></span>
+        <button class="btn" @click="showClearConfirm = false">Cancel</button>
+        <button class="btn danger" :disabled="clearBusy || clearConfirmText !== activeTab.collectionName"
+                @click="onClearConfirm">{{ clearBusy ? 'Clearing…' : 'Clear Collection' }}</button>
       </div>
     </div>
   </div>
@@ -883,7 +1154,39 @@ const queryCode = computed(() => {
 }
 .btn:hover { background: var(--bg-hover); }
 .btn.danger { background: var(--danger); color: #fff; }
-.btn.danger:hover { background: var(--danger-hover); }
+.btn.danger:hover:not(:disabled) { background: var(--danger-hover); }
+.btn:disabled { opacity: .5; cursor: default; }
+.del-body code { font-family: var(--mono); color: var(--text); }
+.cc-prompt { margin-top: 12px; }
+.cc-input {
+  width: 100%;
+  margin-top: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 7px 9px;
+  outline: none;
+  box-sizing: border-box;
+}
+.cc-input:focus { border-color: var(--accent); }
+
+/* Read-only document JSON viewer (reuses the .del-overlay backdrop) */
+.vj-dialog {
+  width: 680px;
+  max-width: 94vw;
+  height: 520px;
+  max-height: 92vh;
+  background: var(--bg-window);
+  border-radius: 10px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.vj-body { flex: 1; overflow: auto; padding: 12px 16px; }
 
 /* CRUD error banner */
 .crud-err-banner {

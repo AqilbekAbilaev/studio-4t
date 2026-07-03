@@ -15,12 +15,22 @@ export function deriveMenuContext(activeTab, treeSelection, connectionCount) {
   const tab = activeTab || null
   const sel = treeSelection || null
   const tabConnection = !!(tab && tab.connectionId)
+  // Document/field selection is a property of the ACTIVE collection tab's results
+  // view only — never the sidebar. The Document menu acts on the row/field the user
+  // has selected in the grid, which only exists while a collection tab is active and
+  // has run a query. A field selection implies a row selection.
+  const rowCount = tab && tab.kind === 'collection' ? (tab.results?.length ?? 0) : 0
+  const selectedRow = tab ? (tab.selectedRow ?? -1) : -1
+  const hasDocument = selectedRow >= 0 && selectedRow < rowCount
+  const hasField = hasDocument && !!(tab && tab.selectedField)
   return {
     hasConnection: tabConnection || !!(sel && sel.connectionId),
     hasDatabase: !!(tab && tab.connectionId && tab.dbName) || !!(sel && sel.dbName),
     hasCollection: !!(tab && tab.kind === 'collection' && tab.collectionName) || !!(sel && sel.collectionName),
     // Refresh acts on every open connection, so it enables whenever one exists.
     anyConnection: (connectionCount || 0) > 0 || tabConnection,
+    hasDocument: hasDocument,
+    hasField: hasField,
   }
 }
 

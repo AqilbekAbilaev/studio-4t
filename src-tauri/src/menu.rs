@@ -33,6 +33,12 @@ pub enum Gate {
     // At least one connection is open in the tree (used by Refresh, whose handler
     // refreshes every connection rather than one specific node).
     AnyConnection,
+    // A document row is selected in the active collection's results view (the
+    // Document-menu actions that operate on a whole document).
+    Document,
+    // A field/cell is selected in the active collection's results view (the
+    // Document-menu actions that operate on one field of the selected document).
+    DocumentField,
 }
 
 // The live selection context, mirrored from the frontend's `menuContext`.
@@ -41,6 +47,8 @@ pub struct MenuContext {
     pub has_database: bool,
     pub has_collection: bool,
     pub any_connection: bool,
+    pub has_document: bool,
+    pub has_field: bool,
 }
 
 // Whether an item with the given gate should be enabled in the given context.
@@ -52,6 +60,8 @@ pub fn gate_enabled(gate: Gate, context: &MenuContext) -> bool {
         Gate::Database => context.has_database,
         Gate::Collection => context.has_collection,
         Gate::AnyConnection => context.any_connection,
+        Gate::Document => context.has_document,
+        Gate::DocumentField => context.has_field,
     }
 }
 
@@ -147,9 +157,9 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "coll:aggregation", label: "Open Aggregation Editor", accel: Some("F4"), gate: Some(Gate::Collection) },
                 Spec::Placeholder { id: "coll:mapreduce", label: "Open Map-Reduce" },
                 Spec::Separator,
-                Spec::Placeholder { id: "coll:insert_document", label: "Insert Document…" },
-                Spec::Placeholder { id: "coll:update_dialog", label: "Update Dialog…" },
-                Spec::Placeholder { id: "coll:delete_dialog", label: "Delete Dialog…" },
+                Spec::Action { id: "coll:insert_document", label: "Insert Document…", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "coll:update_dialog", label: "Update Dialog…", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "coll:delete_dialog", label: "Delete Dialog…", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:vqb", label: "Show Visual Query Builder", accel: Some("CmdOrCtrl+B"), gate: Some(Gate::Collection) },
                 Spec::Separator,
                 Spec::Action { id: "coll:export", label: "Export…", accel: None, gate: Some(Gate::Collection) },
@@ -167,7 +177,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Separator,
                 Spec::Action { id: "coll:rename", label: "Rename Collection…", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:duplicate", label: "Duplicate Collection…", accel: None, gate: Some(Gate::Collection) },
-                Spec::Placeholder { id: "coll:clear", label: "Clear Collection" },
+                Spec::Action { id: "coll:clear", label: "Clear Collection", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:drop", label: "Drop Collection…", accel: None, gate: Some(Gate::Collection) },
             ],
         ),
@@ -186,14 +196,14 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
         (
             "Document",
             vec![
-                Spec::Placeholder { id: "doc:edit_value", label: "Edit Value / Type…" },
-                Spec::Placeholder { id: "doc:remove_field", label: "Remove Field" },
-                Spec::Placeholder { id: "doc:rename_field", label: "Rename Field…" },
-                Spec::Placeholder { id: "doc:add_field", label: "Add Field / Value…" },
+                Spec::Action { id: "doc:edit_value", label: "Edit Value / Type…", accel: None, gate: Some(Gate::DocumentField) },
+                Spec::Action { id: "doc:remove_field", label: "Remove Field", accel: None, gate: Some(Gate::DocumentField) },
+                Spec::Action { id: "doc:rename_field", label: "Rename Field…", accel: None, gate: Some(Gate::DocumentField) },
+                Spec::Action { id: "doc:add_field", label: "Add Field / Value…", accel: None, gate: Some(Gate::Document) },
                 Spec::Separator,
-                Spec::Placeholder { id: "doc:view_json", label: "View Document (JSON)…" },
-                Spec::Placeholder { id: "doc:edit_json", label: "Edit Document (JSON)…" },
-                Spec::Placeholder { id: "doc:delete", label: "Delete Document" },
+                Spec::Action { id: "doc:view_json", label: "View Document (JSON)…", accel: None, gate: Some(Gate::Document) },
+                Spec::Action { id: "doc:edit_json", label: "Edit Document (JSON)…", accel: None, gate: Some(Gate::Document) },
+                Spec::Action { id: "doc:delete", label: "Delete Document", accel: None, gate: Some(Gate::Document) },
             ],
         ),
         (
@@ -512,12 +522,16 @@ pub fn set_menu_context(
     has_database: bool,
     has_collection: bool,
     any_connection: bool,
+    has_document: bool,
+    has_field: bool,
 ) -> Result<(), String> {
     let context = MenuContext {
         has_connection: has_connection,
         has_database: has_database,
         has_collection: has_collection,
         any_connection: any_connection,
+        has_document: has_document,
+        has_field: has_field,
     };
     let guard = match items.0.lock() {
         Ok(val) => val,
@@ -568,6 +582,20 @@ mod tests {
             has_database: has_database,
             has_collection: has_collection,
             any_connection: any_connection,
+            has_document: false,
+            has_field: false,
+        }
+    }
+
+    // Context with the document/field flags set, for the Document-menu gates.
+    fn doc_context(has_document: bool, has_field: bool) -> MenuContext {
+        MenuContext {
+            has_connection: true,
+            has_database: true,
+            has_collection: true,
+            any_connection: true,
+            has_document: has_document,
+            has_field: has_field,
         }
     }
 
@@ -578,11 +606,48 @@ mod tests {
         assert!(!gate_enabled(Gate::Database, &all_off));
         assert!(!gate_enabled(Gate::Collection, &all_off));
         assert!(!gate_enabled(Gate::AnyConnection, &all_off));
+        assert!(!gate_enabled(Gate::Document, &all_off));
+        assert!(!gate_enabled(Gate::DocumentField, &all_off));
 
         assert!(gate_enabled(Gate::Connection, &context(true, false, false, false)));
         assert!(gate_enabled(Gate::Database, &context(false, true, false, false)));
         assert!(gate_enabled(Gate::Collection, &context(false, false, true, false)));
         assert!(gate_enabled(Gate::AnyConnection, &context(false, false, false, true)));
+    }
+
+    #[test]
+    fn document_gates_track_document_and_field_selection() {
+        // No selection: neither the whole-document nor the field actions enable.
+        let none = doc_context(false, false);
+        assert!(!gate_enabled(Gate::Document, &none));
+        assert!(!gate_enabled(Gate::DocumentField, &none));
+
+        // A row is selected but no field: whole-document actions enable, field ones
+        // stay disabled.
+        let row_only = doc_context(true, false);
+        assert!(gate_enabled(Gate::Document, &row_only));
+        assert!(!gate_enabled(Gate::DocumentField, &row_only));
+
+        // A field is selected (which implies a row): both enable.
+        let field = doc_context(true, true);
+        assert!(gate_enabled(Gate::Document, &field));
+        assert!(gate_enabled(Gate::DocumentField, &field));
+    }
+
+    #[test]
+    fn document_and_collection_editing_items_have_the_expected_gates() {
+        // Field-scoped Document actions.
+        for id in ["doc:edit_value", "doc:remove_field", "doc:rename_field"] {
+            assert_eq!(gate_of(id), Gate::DocumentField, "{id} should gate on a field");
+        }
+        // Whole-document actions.
+        for id in ["doc:add_field", "doc:view_json", "doc:edit_json", "doc:delete"] {
+            assert_eq!(gate_of(id), Gate::Document, "{id} should gate on a document");
+        }
+        // Collection document-editing actions gate on an active collection.
+        for id in ["coll:insert_document", "coll:update_dialog", "coll:delete_dialog", "coll:clear"] {
+            assert_eq!(gate_of(id), Gate::Collection, "{id} should gate on a collection");
+        }
     }
 
     #[test]
