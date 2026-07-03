@@ -68,9 +68,27 @@ pub fn run() {
                 data_dir.join("shell_history.json"),
             ));
 
-            // The menu bar is a custom in-app component (src/components/Menubar.vue),
-            // rendered in our own design system, so no native OS menu is installed.
-            // menu.rs still provides the Connect window helper used by a command.
+            // Install the native OS menu (macOS system menu bar; native in-window
+            // menu on Windows/Linux). Item clicks are emitted to the frontend,
+            // which routes them through the existing handlers. The gated item
+            // handles are kept in managed state so `set_menu_context` can toggle
+            // their enabled flag as the selection changes.
+            let (native_menu, gated_items) = match menu::build(app.handle()) {
+                Ok(val) => val,
+                Err(e) => return Err(e.into()),
+            };
+            // Scope the menu to the main window so the small Connect dialog (a
+            // second webview) doesn't get its own native menu bar.
+            let main_window = match app.get_webview_window("main") {
+                Some(val) => val,
+                None => return Err("no main window to attach the menu to".into()),
+            };
+            match main_window.set_menu(native_menu) {
+                Ok(_val) => {}
+                Err(e) => return Err(e.into()),
+            };
+            app.manage(menu::MenuItems(std::sync::Mutex::new(gated_items)));
+            app.on_menu_event(menu::handle_event);
 
             Ok(())
         })
@@ -151,6 +169,7 @@ pub fn run() {
             rename_folder,
             delete_folder,
             move_connection_to_folder,
+            menu::set_menu_context,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

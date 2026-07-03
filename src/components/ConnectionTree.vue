@@ -12,7 +12,7 @@ const props = defineProps({
   tagOverrides: { type: Object, default: () => ({}) },
   contextActiveNodeKey: { type: String, default: null },
 })
-const emit = defineEmits(['select-collection', 'expanded', 'context-menu'])
+const emit = defineEmits(['select-collection', 'expanded', 'context-menu', 'select-node', 'connections-changed'])
 
 const connections = ref([])
 const expandedConns = ref({})      // connId → boolean
@@ -21,8 +21,26 @@ const connDatabases = ref({})      // connId → DatabaseInfo[]
 const connErrors = ref({})         // connId → string
 const expandedDbs = ref({})        // "connId/dbName" → boolean
 const selectedKey = ref(null)      // collection row highlighted by a single click
-const selectedNode = ref(null)     // { conn, db, collName } for the highlighted row
+// The current single-click sidebar selection, at whatever level was clicked:
+//   { connectionId, connectionName, dbName, collectionName, kind } | null
+// This is what the native menu gates on (a selected connection/database/
+// collection enables the matching items), so it's emitted to App.vue.
+const selection = ref(null)
 const searchText = ref('')
+
+// Records the selection at any tree level and tells App.vue, which folds it into
+// the menu context. Also drives the collection-row highlight (selectedKey).
+function setSelection(sel) {
+  selection.value = sel
+  selectedKey.value = sel && sel.kind === 'collection'
+    ? collectionKey(sel.connectionId, sel.dbName, sel.collectionName)
+    : null
+  emit('select-node', sel)
+}
+
+function clearSelection() {
+  if (selection.value) setSelection(null)
+}
 const sidebarEl = ref(null)        // root element, used to detect outside clicks
 
 // A single click anywhere outside the sidebar (e.g. in the QueryWorkspace) clears
@@ -30,7 +48,7 @@ const sidebarEl = ref(null)        // root element, used to detect outside click
 // the per-row handlers, so they're ignored here.
 function clearSelectionOnOutsideClick(e) {
   if (sidebarEl.value && !sidebarEl.value.contains(e.target)) {
-    selectedKey.value = null
+    clearSelection()
   }
 }
 
@@ -55,9 +73,21 @@ onUnmounted(() => {
   document.removeEventListener('click', clearSelectionOnOutsideClick)
 })
 
+// User click on a connection row: record the selection (so connection-scoped menu
+// items enable) and expand/collapse it. Kept separate from `toggleConnection` so
+// the programmatic auto-expand (below) doesn't move the selection.
+function selectConnection(conn) {
+  setSelection({
+    connectionId: conn.id,
+    connectionName: conn.name,
+    dbName: null,
+    collectionName: null,
+    kind: 'connection',
+  })
+  toggleConnection(conn)
+}
+
 async function toggleConnection(conn) {
-  // Clicking any other row clears a lingering single-click collection highlight.
-  selectedKey.value = null
   const id = conn.id
   const wasOpen = expandedConns.value[id]
   expandedConns.value[id] = !wasOpen
@@ -76,40 +106,56 @@ async function toggleConnection(conn) {
   }
 }
 
-function toggleDatabase(connId, dbName) {
-  // Clicking any other row clears a lingering single-click collection highlight.
-  selectedKey.value = null
-  const key = `${connId}/${dbName}`
+function toggleDatabase(conn, dbName) {
+  // Selecting a database row enables database-scoped menu items.
+  setSelection({
+    connectionId: conn.id,
+    connectionName: conn.name,
+    dbName: dbName,
+    collectionName: null,
+    kind: 'database',
+  })
+  const key = `${conn.id}/${dbName}`
   expandedDbs.value[key] = !expandedDbs.value[key]
 }
 
 // Single click only selects (highlights) the row; double click opens it. This
 // mirrors Studio-3T and lets the same collection be opened in several tabs.
 function highlightCollection(conn, db, collName) {
-  selectedKey.value = collectionKey(conn.id, db.name, collName)
-  selectedNode.value = { conn: conn, db: db, collName: collName }
-}
-
-// Opens whatever collection is currently highlighted (single-click) in the tree.
-// Used by the toolbar's "Collection" button. Returns false when nothing is
-// highlighted so the caller can guide the user.
-function openSelectedCollection() {
-  if (!selectedKey.value || !selectedNode.value) return false
-  openCollection(selectedNode.value.conn, selectedNode.value.db, selectedNode.value.collName)
-  return true
-}
-
-function openCollection(conn, db, collName) {
-  // Opening makes the row the active collection, so its highlight comes from
-  // `activeCollectionKey`. Clear the single-click selection set by the click
-  // that preceded this double-click, otherwise it lingers as a stale highlight
-  // after the active tab moves to another collection.
-  selectedKey.value = null
-  emit('select-collection', {
+  setSelection({
     connectionId: conn.id,
     connectionName: conn.name,
     dbName: db.name,
     collectionName: collName,
+    kind: 'collection',
+  })
+}
+
+// Opens whatever collection is currently highlighted (single-click) in the tree.
+// Used by the toolbar's "Collection" button and the Collection menu. Returns false
+// when nothing is highlighted so the caller can guide the user.
+function openSelectedCollection() {
+  const sel = selection.value
+  if (!sel || sel.kind !== 'collection') return false
+  openCollectionFor(sel.connectionId, sel.connectionName, sel.dbName, sel.collectionName)
+  return true
+}
+
+function openCollection(conn, db, collName) {
+  openCollectionFor(conn.id, conn.name, db.name, collName)
+}
+
+function openCollectionFor(connectionId, connectionName, dbName, collectionName) {
+  // Opening makes the row the active collection, so its highlight comes from
+  // `activeCollectionKey`. Clear the single-click selection set by the click
+  // that preceded this double-click, otherwise it lingers as a stale highlight
+  // after the active tab moves to another collection.
+  setSelection(null)
+  emit('select-collection', {
+    connectionId: connectionId,
+    connectionName: connectionName,
+    dbName: dbName,
+    collectionName: collectionName,
   })
 }
 
@@ -157,6 +203,10 @@ watch(() => props.activeCollectionKey, async (key) => {
   expandedDbs.value[`${connId}/${dbName}`] = true
 })
 
+// Tell App.vue how many connections are open, so the View → Refresh menu item
+// (which refreshes every connection) can enable whenever at least one exists.
+watch(() => connections.value.length, (count) => emit('connections-changed', count), { immediate: true })
+
 import { computed } from 'vue'
 const filtered = computed(() => {
   if (!searchText.value) return connections.value
@@ -193,6 +243,10 @@ function onNodeContext(e, type, label, nodeData) {
 }
 
 function disconnectConn(connId, { persist = true } = {}) {
+  // Drop a stale selection pointing at the connection that's going away.
+  if (selection.value && selection.value.connectionId === connId) {
+    setSelection(null)
+  }
   connections.value = connections.value.filter(c => c.id !== connId)
   delete expandedConns.value[connId]
   delete loadingConns.value[connId]
@@ -247,7 +301,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
 
     <!-- Tree -->
     <!-- Clicking empty space in the tree clears a single-click collection highlight. -->
-    <div class="tree" @click.self="selectedKey = null">
+    <div class="tree" @click.self="clearSelection">
       <div v-if="filtered.length === 0" class="tree-empty">
         No connections. Use File → Connect.
       </div>
@@ -263,7 +317,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
             bold: effectiveTag(conn) === 'red',
           }"
           style="padding-left: 6px"
-          @click="toggleConnection(conn)"
+          @click="selectConnection(conn)"
           @contextmenu.prevent="onNodeContext($event, 'connection', conn.name, { connId: conn.id, connName: conn.name })"
         >
           <span class="tw">
@@ -302,7 +356,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
                 'ctx-sel': props.contextActiveNodeKey === conn.id + '/' + db.name,
               }"
               style="padding-left: 21px"
-              @click="db.accessible ? toggleDatabase(conn.id, db.name) : (selectedKey = null)"
+              @click="db.accessible ? toggleDatabase(conn, db.name) : setSelection(null)"
               @contextmenu.prevent="onNodeContext($event, 'database', db.name, { connId: conn.id, dbName: db.name })"
             >
               <span class="tw">
