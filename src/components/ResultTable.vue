@@ -250,7 +250,15 @@ function autoFitColumn(e, col) {
 }
 
 // ── row / cell selection ──────────────────────────────
-const selectedCol = ref(null)  // tracked only for right-click context menu copy
+const selectedCol = ref(null)  // the field/cell selected in the grid
+
+// Mirror the selected field onto the active tab so App.vue's menu context (and the
+// Document menu's field-scoped gates) can see it — ResultTable owns cell selection,
+// but the native menu is driven from tab state. Kept in sync with selectedCol so the
+// menu's "a field is selected" state always matches the highlighted cell.
+watch(selectedCol, (col) => {
+  if (props.activeTab) props.activeTab.selectedField = col || null
+})
 const cellCtx     = ref(null)  // { x, y, row, col } | null — right-click menu
 const inlineEdit  = ref(null)  // { rowIdx, col, raw } | null — in-place primitive edit
 

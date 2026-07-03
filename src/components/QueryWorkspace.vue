@@ -18,6 +18,7 @@ const props = defineProps({
   activeTabId:    { type: String,  required: true },
   vqbOpen:        { type: Boolean, default: false },
   clipboardQuery: { type: Object,  default: null },
+  docMenuRequest: { type: Object,  default: null },
 })
 const emit = defineEmits(['activate-tab', 'close-tab', 'tab-context', 'run-query', 'run-aggregate', 'toggle-vqb', 'open-vqb', 'close-vqb', 'toast', 'copy-query', 'paste-query', 'cancel-query'])
 
@@ -245,6 +246,7 @@ async function applyFromBrowser(entry) {
         :vqb-open="vqbOpen"
         :tabs="tabs"
         :active-tab-id="activeTabId"
+        :doc-menu-request="docMenuRequest"
         @run="run"
         @requery="runQuery"
         @select-rtab="selectRtab"

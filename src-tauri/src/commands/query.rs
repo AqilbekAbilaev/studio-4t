@@ -6,6 +6,28 @@ use tauri::State;
 
 use super::{parse_ejson_document, parse_pipeline, MAX_QUERY_TIME};
 
+#[cfg(test)]
+mod tests {
+    use super::is_operator_update;
+    use mongodb::bson::doc;
+
+    #[test]
+    fn operator_form_updates_are_accepted() {
+        assert!(is_operator_update(&doc! { "$set": { "a": 1 } }));
+        assert!(is_operator_update(&doc! { "$set": { "a": 1 }, "$unset": { "b": "" } }));
+    }
+
+    #[test]
+    fn replacement_and_empty_updates_are_rejected() {
+        // A plain field is replacement-style, which update_many must not accept.
+        assert!(!is_operator_update(&doc! { "a": 1 }));
+        // Mixed operator + field is also invalid.
+        assert!(!is_operator_update(&doc! { "$set": { "a": 1 }, "b": 2 }));
+        // An empty update changes nothing and is not valid operator form.
+        assert!(!is_operator_update(&doc! {}));
+    }
+}
+
 /// Best-effort cancel of a running find/aggregate identified by its `comment`
 /// tag (the run id `find_documents` / `run_aggregate` stamped on the op). Uses
 /// `$currentOp` (own ops only) to find the matching opid(s) and `killOp` to stop
@@ -287,6 +309,127 @@ pub async fn delete_document(
         Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),
     }
+}
+
+/// Whether an update document is in operator form (every top-level key starts with
+/// `$`, e.g. `{ "$set": … }`). update_many rejects replacement-style documents, so we
+/// check up front to return a clear message instead of a raw driver error. An empty
+/// update is not valid operator form.
+fn is_operator_update(update: &bson::Document) -> bool {
+    !update.is_empty() && update.keys().all(|key| key.starts_with('$'))
+}
+
+/// Update every document matching `filter` with the given `update` document (which
+/// must contain update operators such as `$set` / `$unset`). Backs the Collection →
+/// Update Dialog. Returns the number of documents modified.
+#[tauri::command]
+pub async fn update_many(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    filter: String,
+    update: String,
+) -> Result<i64, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let filter_doc = match parse_ejson_document(&filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let update_doc = match parse_ejson_document(&update) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    // Guard against a replacement-style document reaching update_many, which the
+    // driver rejects: every top-level key of an update must be an operator ($set…).
+    if !is_operator_update(&update_doc) {
+        return Err(AppError::Bson(
+            "Update must use operators, e.g. { \"$set\": { \"field\": value } }".to_string(),
+        ));
+    }
+    let result = match col.update_many(filter_doc, update_doc).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(result.modified_count as i64)
+}
+
+/// Delete every document matching `filter`. Backs the Collection → Delete Dialog.
+/// The caller is responsible for confirming the operation. Returns the number of
+/// documents deleted.
+#[tauri::command]
+pub async fn delete_many(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    filter: String,
+) -> Result<i64, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let filter_doc = match parse_ejson_document(&filter) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let result = match col.delete_many(filter_doc).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(result.deleted_count as i64)
+}
+
+/// Delete every document in the collection while keeping the (empty) collection and
+/// its indexes — the "Clear Collection" action, distinct from dropping it. The caller
+/// is responsible for confirming. Returns the number of documents removed.
+#[tauri::command]
+pub async fn clear_collection(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+) -> Result<i64, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    // An empty filter matches every document; the collection itself is untouched.
+    let result = match col.delete_many(bson::doc! {}).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(result.deleted_count as i64)
 }
 
 #[tauri::command]
