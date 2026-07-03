@@ -117,8 +117,11 @@ removed.
   sidebar/tree selection** (`ConnectionTree` emits `select-node` / `connections-changed`). The
   frontend `menuContext` (see `src/utils/menuContext.js`, unit-tested) is pushed to Rust via the
   `set_menu_context` command, which flips each gated item's `enabled`. Menu actions resolve their
-  target via `resolveMenuTarget` (sidebar selection preferred, else active tab), so an enabled item
-  always fires on the node the gate lit up for.
+  target via `resolveMenuTarget`, which is level-aware: it picks whichever of the sidebar selection
+  or active tab actually satisfies the action's required depth (`connection`/`database`/`collection`),
+  with the sidebar selection winning when both qualify and the active tab used as fallback when the
+  selection is too shallow — so an enabled item always fires on a node deep enough for the gate that
+  lit it up.
 - **Accelerators** are attached on macOS/Windows only. On Linux they're omitted (WebKitGTK swallows
   editing keys) and `App.vue`'s `onGlobalKeydown` keeps the JS shortcuts instead — gated by
   `NATIVE_MENU_OWNS_SHORTCUTS`.
