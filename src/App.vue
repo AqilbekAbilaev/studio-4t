@@ -5,6 +5,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
 import { errMessage, errCode } from './utils/errors'
+import { deriveMenuContext, resolveMenuTarget } from './utils/menuContext'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -23,12 +24,16 @@ import GridFsModal from './components/GridFsModal.vue'
 import CompareModal from './components/CompareModal.vue'
 import ShortcutsModal from './components/ShortcutsModal.vue'
 import PreferencesModal from './components/PreferencesModal.vue'
-import Menubar from './components/Menubar.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 
 const appWindow = getCurrentWindow();
+
+// On macOS/Windows the native menu registers the keyboard accelerators. On Linux
+// it doesn't (WebKitGTK would swallow editing keys), so the webview keeps its own
+// shortcut handling there. Detected from the webview's platform string.
+const NATIVE_MENU_OWNS_SHORTCUTS = !/Linux/i.test(navigator.userAgent);
 
 appWindow.listen('window-focus', async (event) => {
   if (event.payload === true) {
@@ -77,8 +82,16 @@ onMounted(async () => {
   listen('ssh-host-key-prompt', (e) => { sshHostKeyPrompt.value = e.payload })
   listen('ssh-host-key-changed', (e) => { sshHostKeyChanged.value = e.payload })
 
-  // The menu bar is in-app; its keyboard shortcuts live here.
-  window.addEventListener('keydown', onGlobalKeydown)
+  // Native menu clicks arrive here; route them through the same handlers the
+  // custom bar used. (menu.rs emits the clicked item's id.)
+  listen('menu-action', (e) => handleMenuAction(e.payload))
+
+  // On Linux the native menu carries no accelerators (they'd swallow editing keys
+  // on WebKitGTK — see menu.rs), so we keep our own keyboard shortcuts there. On
+  // macOS/Windows the native menu owns the accelerators, so we don't double-bind.
+  if (NATIVE_MENU_OWNS_SHORTCUTS === false) {
+    window.addEventListener('keydown', onGlobalKeydown)
+  }
 
   // Load persisted preferences so new tabs adopt the configured default limit.
   try {
@@ -165,6 +178,11 @@ const activeTabId = ref('t0')
 const toast = ref(null)
 let toastTimer = null
 const connectionTreeRef = ref(null)
+// The sidebar's current single-click selection and how many connections are open.
+// Both feed `menuContext`, so the native menu enables items based on what's
+// selected/open in the tree, not only on the active tab.
+const treeSelection = ref(null)       // { connectionId, connectionName, dbName, collectionName, kind } | null
+const treeConnectionCount = ref(0)
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
@@ -305,7 +323,9 @@ const activeCollectionKey = computed(() => {
 })
 
 // ── toolbar handler ────────────────────────────────────────
-function handleTool(name) {
+// `target` lets the native menu inject the sidebar selection; the toolbar buttons
+// omit it and so act on the active tab, exactly as before.
+function handleTool(name, target = null) {
   if (name === 'connect') {
     showConnectionManager.value = true
     return
@@ -322,11 +342,12 @@ function handleTool(name) {
     }
     return
   }
+  // The remaining actions operate on a specific node. From the toolbar that's the
+  // active tab; from the native menu the caller passes the sidebar selection.
+  // Collection and shell tabs carry the connection/database fields; Quickstart
+  // (and any context-less tab) does not, so we guide the user instead.
+  const tab = target || tabs.value.find(t => t.id === activeTabId.value)
   if (name === 'shell') {
-    // The top-bar button has no node context, so it targets the active tab's
-    // connection + database. Collection and shell tabs both carry those fields;
-    // Quickstart (and any context-less tab) does not, so guide the user instead.
-    const tab = tabs.value.find(t => t.id === activeTabId.value)
     if (tab && tab.connectionId && tab.dbName) {
       openShellTab({
         connectionId: tab.connectionId,
@@ -339,10 +360,8 @@ function handleTool(name) {
     return
   }
   // Aggregate / Export / Import are collection-scoped features that already exist
-  // (via the sidebar right-click). From the top bar they target the active tab,
-  // which must be a collection; otherwise we guide the user.
+  // (via the sidebar right-click); the target must be a collection.
   if (name === 'aggregate' || name === 'export' || name === 'import') {
-    const tab = tabs.value.find(t => t.id === activeTabId.value)
     if (!tab || tab.kind !== 'collection') {
       showToast('Open a collection first')
       return
@@ -362,7 +381,6 @@ function handleTool(name) {
     return
   }
   if (name === 'mask') {
-    const tab = tabs.value.find(t => t.id === activeTabId.value)
     if (!tab || tab.kind !== 'collection') {
       showToast('Open a collection first')
       return
@@ -376,7 +394,6 @@ function handleTool(name) {
     return
   }
   if (name === 'migration') {
-    const tab = tabs.value.find(t => t.id === activeTabId.value)
     if (!tab || tab.kind !== 'collection') {
       showToast('Open a collection first')
       return
@@ -390,7 +407,6 @@ function handleTool(name) {
     return
   }
   if (name === 'search') {
-    const tab = tabs.value.find(t => t.id === activeTabId.value)
     if (!tab || !tab.connectionId || !tab.dbName) {
       showToast('Open a collection or database first')
       return
@@ -403,7 +419,6 @@ function handleTool(name) {
     return
   }
   if (name === 'compare') {
-    const tab = tabs.value.find(t => t.id === activeTabId.value)
     if (!tab || !tab.connectionId || !tab.dbName) {
       showToast('Open a collection or database first')
       return
@@ -420,11 +435,12 @@ function handleTool(name) {
 }
 
 // Bridges a native-menu item into the existing right-click context handler by
-// synthesizing the "selected node" from the active tab. `requiredType` guards
-// the action: server-level items need a connection, most Collection-menu items
-// need an open collection tab. Guides the user when the context is missing.
+// synthesizing the "selected node" from the current target (sidebar selection, or
+// the active tab). `requiredType` guards the action: server-level items need a
+// connection, most Collection-menu items need a collection. Guides the user when
+// the context is missing.
 function menuNode(action, requiredType) {
-  const tab = tabs.value.find(t => t.id === activeTabId.value)
+  const tab = menuTarget(requiredType)
   if (!tab || !tab.connectionId) {
     showToast('Open a connection, database, or collection first')
     return
@@ -450,17 +466,39 @@ function menuNode(action, requiredType) {
   handleContextAction(action)
 }
 
-// What the menu bar treats as "selected", so items grey out live. Based on the
-// active tab: a collection tab satisfies all three, a shell/database tab
-// satisfies connection + database, Quickstart satisfies none.
-const menuContext = computed(() => {
-  const tab = tabs.value.find(t => t.id === activeTabId.value)
-  return {
-    hasConnection: !!(tab && tab.connectionId),
-    hasDatabase: !!(tab && tab.connectionId && tab.dbName),
-    hasCollection: !!(tab && tab.kind === 'collection' && tab.collectionName),
-  }
-})
+// What the native menu treats as "selected", so items enable/disable live. The
+// context is the UNION of the active tab and the sidebar/tree selection: a
+// collection tab satisfies all three, and so does a collection highlighted in the
+// tree even while Quickstart is the active tab (the original bug). `anyConnection`
+// is true whenever at least one connection is open — it gates View → Refresh,
+// which refreshes every connection rather than one specific node.
+const menuContext = computed(() => deriveMenuContext(
+  tabs.value.find(t => t.id === activeTabId.value),
+  treeSelection.value,
+  treeConnectionCount.value,
+))
+
+// Push the context down to the native menu so gated items enable/disable in step
+// with the selection. Runs immediately for the initial (empty) state too.
+watch(menuContext, (ctx) => {
+  invoke('set_menu_context', {
+    hasConnection: ctx.hasConnection,
+    hasDatabase: ctx.hasDatabase,
+    hasCollection: ctx.hasCollection,
+    anyConnection: ctx.anyConnection,
+  }).catch(() => {})
+}, { immediate: true })
+
+// The node a native menu action should act on: the sidebar selection when there
+// is one (that's what the user just clicked in the tree), otherwise the active
+// tab. Shaped like a tab so it drops straight into the existing handlers.
+function menuTarget(requiredLevel = null) {
+  return resolveMenuTarget(
+    tabs.value.find(t => t.id === activeTabId.value),
+    treeSelection.value,
+    requiredLevel,
+  )
+}
 
 // Routes menu-bar actions (emitted by id) to the same handlers the toolbar and
 // right-click menus already use. The menu bar never emits a disabled item.
@@ -471,17 +509,31 @@ function handleMenuAction(id) {
     case 'file:exit':        appWindow.close(); return
     case 'edit:preferences': showPreferences.value = true; return
     case 'help:shortcuts':   showShortcuts.value = true; return
-    case 'coll:vqb':         vqbOpen.value = true; return
+    case 'coll:vqb': {
+      const tab = menuTarget('collection')
+      if (!tab || tab.kind !== 'collection' || !tab.collectionName) {
+        showToast('Open a collection first')
+        return
+      }
+      openCollectionTab({
+        connectionId: tab.connectionId,
+        connectionName: tab.connectionName,
+        dbName: tab.dbName,
+        collectionName: tab.collectionName,
+      })
+      vqbOpen.value = true
+      return
+    }
 
-    // --- toolbar dispatcher (targets the active tab) ---
-    case 'file:intellishell': handleTool('shell'); return
+    // --- toolbar dispatcher (targets the sidebar selection, else the active tab) ---
+    case 'file:intellishell': handleTool('shell', menuTarget('database')); return
     case 'file:sql':          handleTool('sql'); return
-    case 'file:search':       handleTool('search'); return
+    case 'file:search':       handleTool('search', menuTarget('database')); return
     case 'coll:open_tab':     handleTool('collection'); return
-    case 'coll:export':       handleTool('export'); return
-    case 'coll:import':       handleTool('import'); return
-    case 'coll:mask':         handleTool('mask'); return
-    case 'coll:compare':      handleTool('compare'); return
+    case 'coll:export':       handleTool('export', menuTarget('collection')); return
+    case 'coll:import':       handleTool('import', menuTarget('collection')); return
+    case 'coll:mask':         handleTool('mask', menuTarget('collection')); return
+    case 'coll:compare':      handleTool('compare', menuTarget('database')); return
 
     // --- server / connection scoped ---
     case 'file:server_status': menuNode('Server Status', 'connection'); return
@@ -512,10 +564,10 @@ function handleMenuAction(id) {
   }
 }
 
-// The menu bar's keyboard shortcuts. The native OS menu used to provide these;
-// now we own them. We skip when focus is in a text field or code editor so the
-// webview keeps its native editing keys (the WebKitGTK swallow trap), and only
-// claim our specific combos.
+// The menu bar's keyboard shortcuts, used on Linux only (elsewhere the native
+// menu's accelerators own them — see NATIVE_MENU_OWNS_SHORTCUTS). We skip when
+// focus is in a text field or code editor so the webview keeps its native editing
+// keys (the WebKitGTK swallow trap), and only claim our specific combos.
 function onGlobalKeydown(e) {
   const t = e.target
   if (t && t.closest && t.closest('input, textarea, [contenteditable], .cm-editor, .monaco-editor')) {
@@ -1427,8 +1479,8 @@ async function runAggregate(tabId, params) {
 
 <template>
   <div class="app-layout">
-    <!-- Menu bar -->
-    <Menubar :context="menuContext" @action="handleMenuAction" />
+    <!-- The menu bar is the native OS menu (installed from src-tauri/src/menu.rs);
+         see handleMenuAction for how its clicks are routed back into the app. -->
 
     <!-- Toolbar -->
     <div class="toolbar">
@@ -1462,6 +1514,8 @@ async function runAggregate(tabId, params) {
         :tag-overrides="tagOverrides"
         :context-active-node-key="contextActiveNodeKey"
         @select-collection="openCollectionTab"
+        @select-node="treeSelection = $event"
+        @connections-changed="treeConnectionCount = $event"
         @expanded="expandConnectionId = null"
         @context-menu="contextMenu = $event"
       />
