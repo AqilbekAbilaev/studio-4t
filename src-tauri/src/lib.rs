@@ -79,9 +79,8 @@ pub fn run() {
             };
             // Scope the menu to the main window so the small Connect dialog (a
             // second webview) doesn't get its own native menu bar.
-            let windows = app.webview_windows();
-            let main_window = match windows.values().next() {
-                Some(val) => val.clone(),
+            let main_window = match app.get_webview_window("main") {
+                Some(val) => val,
                 None => return Err("no main window to attach the menu to".into()),
             };
             match main_window.set_menu(native_menu) {

@@ -509,7 +509,21 @@ function handleMenuAction(id) {
     case 'file:exit':        appWindow.close(); return
     case 'edit:preferences': showPreferences.value = true; return
     case 'help:shortcuts':   showShortcuts.value = true; return
-    case 'coll:vqb':         vqbOpen.value = true; return
+    case 'coll:vqb': {
+      const tab = menuTarget('collection')
+      if (!tab || tab.kind !== 'collection' || !tab.collectionName) {
+        showToast('Open a collection first')
+        return
+      }
+      openCollectionTab({
+        connectionId: tab.connectionId,
+        connectionName: tab.connectionName,
+        dbName: tab.dbName,
+        collectionName: tab.collectionName,
+      })
+      vqbOpen.value = true
+      return
+    }
 
     // --- toolbar dispatcher (targets the sidebar selection, else the active tab) ---
     case 'file:intellishell': handleTool('shell', menuTarget('database')); return
