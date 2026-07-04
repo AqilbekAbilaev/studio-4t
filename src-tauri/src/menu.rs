@@ -97,7 +97,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
             "File",
             vec![
                 Spec::Action { id: "file:connect", label: "Connect…", accel: Some("CmdOrCtrl+N"), gate: None },
-                Spec::Placeholder { id: "file:add_database", label: "Add Database…" },
+                Spec::Action { id: "file:add_database", label: "Add Database…", accel: None, gate: Some(Gate::Connection) },
                 Spec::Separator,
                 Spec::Action { id: "file:intellishell", label: "Open IntelliShell", accel: Some("CmdOrCtrl+L"), gate: Some(Gate::Database) },
                 Spec::Action { id: "file:sql", label: "Open SQL", accel: Some("CmdOrCtrl+Shift+L"), gate: None },
@@ -135,7 +135,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
         (
             "Database",
             vec![
-                Spec::Placeholder { id: "db:add_database", label: "Add Database…" },
+                Spec::Action { id: "db:add_database", label: "Add Database…", accel: None, gate: Some(Gate::Connection) },
                 Spec::Placeholder { id: "db:copy_database", label: "Copy Database" },
                 Spec::Placeholder { id: "db:copy_all", label: "Copy All Collections/Views/Buckets" },
                 Spec::Placeholder { id: "db:paste_database", label: "Paste Database" },
@@ -147,16 +147,16 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "db:drop_database", label: "Drop Database", accel: None, gate: Some(Gate::Database) },
                 Spec::Separator,
                 Spec::Action { id: "db:add_collection", label: "Add Collection…", accel: None, gate: Some(Gate::Database) },
-                Spec::Placeholder { id: "db:add_view", label: "Add View…" },
+                Spec::Action { id: "db:add_view", label: "Add View…", accel: None, gate: Some(Gate::Database) },
                 Spec::Placeholder { id: "db:add_bucket", label: "Add GridFS Bucket…" },
                 Spec::Separator,
                 Spec::Placeholder { id: "db:manage_users", label: "Manage Users" },
                 Spec::Placeholder { id: "db:manage_roles", label: "Manage Roles" },
                 Spec::Placeholder { id: "db:functions", label: "Add / Edit Stored Functions" },
                 Spec::Separator,
-                Spec::Placeholder { id: "db:database_stats", label: "Database Statistics" },
+                Spec::Action { id: "db:database_stats", label: "Database Statistics", accel: None, gate: Some(Gate::Database) },
                 Spec::Action { id: "db:collection_stats", label: "Collection Statistics", accel: None, gate: Some(Gate::Collection) },
-                Spec::Placeholder { id: "db:current_ops", label: "Current Operations" },
+                Spec::Action { id: "db:current_ops", label: "Current Operations", accel: None, gate: Some(Gate::Connection) },
             ],
         ),
         (
@@ -176,8 +176,8 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Placeholder { id: "coll:copy", label: "Copy Collection" },
                 Spec::Separator,
                 Spec::Action { id: "coll:add_index", label: "Add Index…", accel: None, gate: Some(Gate::Collection) },
-                Spec::Placeholder { id: "coll:validator", label: "Add / Edit Validator…" },
-                Spec::Placeholder { id: "coll:add_view", label: "Add View Here…" },
+                Spec::Action { id: "coll:validator", label: "Add / Edit Validator…", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "coll:add_view", label: "Add View Here…", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:stats", label: "Collection Stats", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:mask", label: "Mask Collection/View", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:schema", label: "View Schema", accel: None, gate: Some(Gate::Collection) },
@@ -235,25 +235,33 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
             "View",
             vec![
                 Spec::Action { id: "view:refresh", label: "Refresh", accel: Some("CmdOrCtrl+R"), gate: Some(Gate::AnyConnection) },
-                Spec::Placeholder { id: "view:refresh_document", label: "Refresh Document" },
+                // Re-runs the active collection tab's query to refresh its results.
+                Spec::Action { id: "view:refresh_document", label: "Refresh Document", accel: None, gate: Some(Gate::Collection) },
                 Spec::Separator,
-                Spec::Placeholder { id: "view:step_column", label: "Step Into Column" },
-                Spec::Placeholder { id: "view:step_cell", label: "Step Into Cell" },
-                Spec::Placeholder { id: "view:step_out", label: "Step Out" },
+                // Drill navigation over the active collection's results (field-path based).
+                Spec::Action { id: "view:step_column", label: "Step Into Column", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "view:step_cell", label: "Step Into Cell", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "view:step_out", label: "Step Out", accel: None, gate: Some(Gate::Collection) },
                 Spec::Separator,
-                Spec::Placeholder { id: "view:tree", label: "Tree View" },
-                Spec::Placeholder { id: "view:table", label: "Table View" },
-                Spec::Placeholder { id: "view:json", label: "JSON View" },
+                // The active collection tab's results view mode (mirrors the in-panel
+                // view picker). Gated on a collection; no-op with a toast otherwise.
+                Spec::Action { id: "view:tree", label: "Tree View", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "view:table", label: "Table View", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "view:json", label: "JSON View", accel: None, gate: Some(Gate::Collection) },
                 Spec::Separator,
-                Spec::Placeholder { id: "view:next_tab", label: "Next Tab" },
-                Spec::Placeholder { id: "view:prev_tab", label: "Previous Tab" },
-                Spec::Placeholder { id: "view:close_tab", label: "Close Tab" },
-                Spec::Placeholder { id: "view:close_tab_np", label: "Close Tab (No Prompt)" },
+                // Tab navigation/closing act on the active tab; always enabled (they
+                // no-op safely when there are 0–1 tabs), so no gate.
+                Spec::Action { id: "view:next_tab", label: "Next Tab", accel: None, gate: None },
+                Spec::Action { id: "view:prev_tab", label: "Previous Tab", accel: None, gate: None },
+                Spec::Action { id: "view:close_tab", label: "Close Tab", accel: None, gate: None },
+                Spec::Action { id: "view:close_tab_np", label: "Close Tab (No Prompt)", accel: None, gate: None },
                 Spec::Separator,
                 Spec::Placeholder { id: "view:split_v", label: "Split Vertically" },
                 Spec::Placeholder { id: "view:split_h", label: "Split Horizontally" },
                 Spec::Placeholder { id: "view:history", label: "History Manager…" },
-                Spec::Placeholder { id: "view:hide_toolbar", label: "Hide Global Toolbar" },
+                // Toggles the global toolbar; the label stays "Hide Global Toolbar"
+                // (native menu labels aren't re-titled), a toast reports the new state.
+                Spec::Action { id: "view:hide_toolbar", label: "Hide Global Toolbar", accel: None, gate: None },
             ],
         ),
         (
@@ -262,9 +270,9 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "help:shortcuts", label: "Keyboard Shortcuts", accel: None, gate: None },
                 Spec::Separator,
                 Spec::Placeholder { id: "help:license", label: "My License" },
-                Spec::Placeholder { id: "help:about", label: "About…" },
+                Spec::Action { id: "help:about", label: "About…", accel: None, gate: None },
                 Spec::Placeholder { id: "help:gallery", label: "Feature Gallery" },
-                Spec::Placeholder { id: "help:quickstart", label: "Quickstart" },
+                Spec::Action { id: "help:quickstart", label: "Quickstart", accel: None, gate: None },
                 Spec::Placeholder { id: "help:whats_new", label: "What's New" },
                 Spec::Placeholder { id: "help:updates", label: "Check for Updates…" },
                 Spec::Separator,
@@ -754,8 +762,8 @@ mod tests {
     #[test]
     fn placeholders_are_carried_over_but_ungated() {
         // A representative built:false placeholder is present and never gated on.
-        assert!(matches!(spec_of("view:json"), Some(Spec::Placeholder { .. })));
-        assert!(gate_of_opt("view:json").is_none());
+        assert!(matches!(spec_of("view:split_v"), Some(Spec::Placeholder { .. })));
+        assert!(gate_of_opt("view:split_v").is_none());
     }
 
     // Test helpers: look an item up by id in the logical menu table.

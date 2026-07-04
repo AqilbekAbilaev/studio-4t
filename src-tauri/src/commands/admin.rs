@@ -4,9 +4,10 @@ use crate::storage::Storage;
 use mongodb::bson;
 use mongodb::options::IndexOptions;
 use mongodb::IndexModel;
+use serde::Serialize;
 use tauri::State;
 
-use super::{csv_to_docs, docs_to_csv, parse_ejson_document, parse_json_documents, DatabaseInfo};
+use super::{csv_to_docs, docs_to_csv, parse_ejson_document, parse_json_documents, parse_pipeline, DatabaseInfo};
 
 /// The `_id_` index is created and required by MongoDB and can never be dropped,
 /// hidden, or otherwise modified. The index-management guards share this check so
@@ -76,6 +77,168 @@ pub async fn create_collection(
     };
     match client.database(&database).create_collection(&name).await {
         Ok(val) => Ok(val),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+/// Create a view: a read-only collection defined by an aggregation `pipeline` over a
+/// source collection (`view_on`). Uses the `create` command with viewOn + pipeline.
+#[tauri::command]
+pub async fn create_view(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    name: String,
+    view_on: String,
+    pipeline: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    // Parse and validate the pipeline before opening a connection, so a bad pipeline
+    // fails fast with a clear message rather than a driver error.
+    let stages = match parse_pipeline(&pipeline) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let pipeline_bson: Vec<bson::Bson> = stages.into_iter().map(bson::Bson::Document).collect();
+    let command = bson::doc! {
+        "create": &name,
+        "viewOn": &view_on,
+        "pipeline": pipeline_bson,
+    };
+    match client.database(&database).run_command(command).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+// The current schema-validation settings for a collection, read from its options so
+// the editor can prefill rather than silently overwrite an existing rule.
+#[derive(Serialize)]
+pub struct ValidatorInfo {
+    pub validator: Option<String>,          // the validator document as pretty JSON, if any
+    pub validation_level: Option<String>,   // "off" | "moderate" | "strict"
+    pub validation_action: Option<String>,  // "error" | "warn"
+}
+
+/// Read a collection's current schema validator (via `listCollections`) so the
+/// validator editor can prefill. Returns empty fields when no validator is set.
+#[tauri::command]
+pub async fn get_validator(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+) -> Result<ValidatorInfo, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let command = bson::doc! { "listCollections": 1, "filter": { "name": &collection } };
+    let result = match client.database(&database).run_command(command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    let empty = ValidatorInfo {
+        validator: None,
+        validation_level: None,
+        validation_action: None,
+    };
+    // Navigate result.cursor.firstBatch[0].options, tolerating any missing level.
+    let cursor = match result.get("cursor") {
+        Some(bson::Bson::Document(doc)) => doc,
+        _ => return Ok(empty),
+    };
+    let first_batch = match cursor.get("firstBatch") {
+        Some(bson::Bson::Array(arr)) => arr,
+        _ => return Ok(empty),
+    };
+    let entry = match first_batch.first() {
+        Some(bson::Bson::Document(doc)) => doc,
+        _ => return Ok(empty),
+    };
+    let options = match entry.get("options") {
+        Some(bson::Bson::Document(doc)) => doc,
+        _ => return Ok(empty),
+    };
+    let validator = match options.get("validator") {
+        Some(bson::Bson::Document(doc)) if !doc.is_empty() => {
+            let value = serde_json::Value::from(bson::Bson::Document(doc.clone()));
+            match serde_json::to_string_pretty(&value) {
+                Ok(text) => Some(text),
+                Err(_) => None,
+            }
+        }
+        _ => None,
+    };
+    let validation_level = match options.get("validationLevel") {
+        Some(bson::Bson::String(text)) => Some(text.clone()),
+        _ => None,
+    };
+    let validation_action = match options.get("validationAction") {
+        Some(bson::Bson::String(text)) => Some(text.clone()),
+        _ => None,
+    };
+    Ok(ValidatorInfo {
+        validator: validator,
+        validation_level: validation_level,
+        validation_action: validation_action,
+    })
+}
+
+/// Set (or clear) a collection's schema validator via `collMod`. An empty validator
+/// clears the rule. `validation_level`/`validation_action` are passed through.
+#[tauri::command]
+pub async fn set_validator(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    validator: String,
+    validation_level: String,
+    validation_action: String,
+) -> Result<(), AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    // Parse the validator up front; an empty string clears the rule (validator: {}).
+    let validator_doc = if validator.trim().is_empty() || validator.trim() == "{}" {
+        bson::Document::new()
+    } else {
+        match parse_ejson_document(&validator) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        }
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let command = bson::doc! {
+        "collMod": &collection,
+        "validator": validator_doc,
+        "validationLevel": &validation_level,
+        "validationAction": &validation_action,
+    };
+    match client.database(&database).run_command(command).await {
+        Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),
     }
 }
@@ -208,6 +371,57 @@ pub async fn server_status(
         Err(e) => return Err(e),
     };
     let command = bson::doc! { "serverStatus": 1 };
+    let result = match client.database("admin").run_command(command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(serde_json::Value::from(bson::Bson::Document(result)))
+}
+
+/// Run `dbStats` for a database — collection/object counts and data/storage/index
+/// sizes. Returned raw as JSON; the frontend surfaces the headline fields.
+#[tauri::command]
+pub async fn database_stats(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+) -> Result<serde_json::Value, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let command = bson::doc! { "dbStats": 1 };
+    let result = match client.database(&database).run_command(command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(serde_json::Value::from(bson::Bson::Document(result)))
+}
+
+/// Run admin `currentOp` for a connection — the operations currently in progress on
+/// the server. Returned raw as JSON; the frontend lists the `inprog` array.
+#[tauri::command]
+pub async fn current_ops(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+) -> Result<serde_json::Value, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let command = bson::doc! { "currentOp": 1 };
     let result = match client.database("admin").run_command(command).await {
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),

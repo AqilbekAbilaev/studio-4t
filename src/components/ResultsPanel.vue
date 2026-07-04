@@ -293,6 +293,37 @@ function runDocMenuAction(action) {
     case 'coll:update_dialog':   showUpdateDialog.value = true; return
     case 'coll:delete_dialog':   showDeleteDialog.value = true; return
     case 'edit:paste_documents': pasteDocuments(); return
+    // View → results view mode (mirrors the in-panel view picker).
+    case 'view:table': viewMode.value = 'table'; return
+    case 'view:tree':  viewMode.value = 'tree';  return
+    case 'view:json':  viewMode.value = 'json';  return
+    // View → Refresh Document: re-run the current query to refresh the results.
+    case 'view:refresh_document': emit('requery', true); return
+    // View → Step Out: pop one drill level (the results grid is field-path based).
+    case 'view:step_out':
+      if (drillPath.value.length) {
+        drillPath.value = drillPath.value.slice(0, -1)
+      } else {
+        emit('toast', 'Already at the top level')
+      }
+      return
+    // View → Step Into Column / Cell: drill into the selected field if it holds an
+    // object/array. Both step by field name in this field-path-based grid.
+    case 'view:step_column':
+    case 'view:step_cell': {
+      const stepDoc = selectedDoc()
+      const stepField = tab.selectedField
+      if (!stepDoc || !stepField) { emit('toast', 'Select a cell to step into'); return }
+      const stepVal = selectedFieldValue(stepDoc)
+      if (stepVal === null || typeof stepVal !== 'object') {
+        emit('toast', 'Selected cell is not an object or array')
+        return
+      }
+      drillPath.value = [...drillPath.value, stepField]
+      tab.selectedRow = -1
+      tab.selectedField = null
+      return
+    }
     case 'coll:clear':
       clearConfirmText.value = ''
       clearError.value = null

@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { installInputUndo } from './utils/inputUndo'
-import { parseField } from './utils/queryParser'
+import { parseField, parsePipeline } from './utils/queryParser'
 import { errMessage, errCode } from './utils/errors'
 import { deriveMenuContext, resolveMenuTarget } from './utils/menuContext'
 import { isProtectedIndex, indexKeyLabel, indexSpecJson, isIndexHidden } from './utils/indexSpec'
@@ -14,6 +14,10 @@ import ConnectionManager from './components/ConnectionManager.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import SshHostKeyModal from './components/SshHostKeyModal.vue'
 import ServerStatusModal from './components/ServerStatusModal.vue'
+import DatabaseStatsModal from './components/DatabaseStatsModal.vue'
+import CurrentOpsModal from './components/CurrentOpsModal.vue'
+import ValidatorModal from './components/ValidatorModal.vue'
+import AboutModal from './components/AboutModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
@@ -184,12 +188,17 @@ const connectionTreeRef = ref(null)
 // selected/open in the tree, not only on the active tab.
 const treeSelection = ref(null)       // { connectionId, connectionName, dbName, collectionName, kind } | null
 const treeConnectionCount = ref(0)
-// A one-shot Document/Collection editing request routed from the native menu down to
-// the active collection's ResultsPanel (which owns the editors). Bumping `nonce`
-// re-fires the panel's watcher; `action` is the menu item id. See requestDocMenuAction.
+// A one-shot request routed from the native menu down to the active collection's
+// ResultsPanel (which owns the editors and results view). Used for Document/Collection
+// editing as well as the View menu's view-mode toggles and Refresh Document. Bumping
+// `nonce` re-fires the panel's watcher; `action` is the menu item id.
 const docMenuRequest = ref(null)      // { action, nonce } | null
+const toolbarHidden = ref(false)      // View → Hide Global Toolbar toggle
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
+const dbStatsTarget = ref(null)       // { connId, connName, dbName } when the Database Statistics modal is open
+const currentOpsTarget = ref(null)    // { connId, connName } when the Current Operations modal is open
+const validatorTarget = ref(null)     // { connId, connName, dbName, collName } when the Validator modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
@@ -200,6 +209,7 @@ const maskingTarget = ref(null)       // { connId, connName, dbName, collName } 
 const statsTarget = ref(null)         // { connId, connName, dbName, collName } for the Collection Stats modal
 const serverInfoTarget = ref(null)    // { connId, connName, kind, title } for Build/Host/Replica info
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
+const showAbout = ref(false)          // Help → About
 const showPreferences = ref(false)    // File → Preferences
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
 const theme = ref('dark')             // from settings; drives <html data-theme>
@@ -247,6 +257,13 @@ const addCollectionTarget = ref(null)   // { connId, dbName } | null
 const newCollectionName   = ref('')
 const addCollectionError  = ref(null)
 const addCollectionSaving = ref(false)
+
+const addViewTarget   = ref(null)       // { connId, dbName } | null
+const newViewName     = ref('')
+const newViewSource   = ref('')         // source collection the view reads from
+const newViewPipeline = ref('')         // aggregation pipeline (JSON array, optional)
+const addViewError    = ref(null)
+const addViewSaving   = ref(false)
 
 const dropDatabaseTarget   = ref(null)  // { connId, dbName } | null
 const dropDatabaseError    = ref(null)
@@ -532,6 +549,8 @@ function handleMenuAction(id) {
     case 'file:exit':        appWindow.close(); return
     case 'edit:preferences': showPreferences.value = true; return
     case 'help:shortcuts':   showShortcuts.value = true; return
+    case 'help:quickstart':  openQuickstart(); return
+    case 'help:about':       showAbout.value = true; return
     case 'coll:vqb': {
       const tab = menuTarget('collection')
       if (!tab || tab.kind !== 'collection' || !tab.collectionName) {
@@ -561,9 +580,16 @@ function handleMenuAction(id) {
     // --- server / connection scoped ---
     case 'file:server_status': menuNode('Server Status', 'connection'); return
     case 'file:server_build':  menuNode('Build Info', 'connection'); return
+    case 'db:database_stats':  menuNode('Database Statistics', 'database'); return
+    case 'db:current_ops':     menuNode('Current Operations', 'connection'); return
 
     // --- database scoped ---
     case 'db:add_collection':  menuNode('Add Collection…', 'database'); return
+    case 'file:add_database':
+    case 'db:add_database':    menuNode('Add Database…', 'connection'); return
+    case 'db:add_view':        menuNode('Add View…', 'database'); return
+    case 'coll:add_view':      menuNode('Add View Here…', 'collection'); return
+    case 'coll:validator':     menuNode('Add / Edit Validator…', 'collection'); return
     case 'db:drop_database':   menuNode('Drop Database…', 'database'); return
     case 'gridfs:open':        menuNode('GridFS…', 'database'); return
 
@@ -620,6 +646,37 @@ function handleMenuAction(id) {
         connectionTreeRef.value.refreshConn(conn.id)
       }
       showToast('Refreshed')
+      return
+
+    // Tab navigation/closing. Close Tab and Close Tab (No Prompt) behave the same
+    // today — there is no unsaved-changes prompt to differ on yet.
+    case 'view:next_tab':      cycleTab(1); return
+    case 'view:prev_tab':      cycleTab(-1); return
+    case 'view:close_tab':
+    case 'view:close_tab_np':
+      if (activeTabId.value != null) closeTab(activeTabId.value)
+      return
+
+    // Results view mode + Refresh Document act on the active collection tab's
+    // ResultsPanel; signal it directly (no row selection required).
+    case 'view:tree':
+    case 'view:table':
+    case 'view:json':
+    case 'view:refresh_document':
+    case 'view:step_column':
+    case 'view:step_cell':
+    case 'view:step_out': {
+      const tab = tabs.value.find(t => t.id === activeTabId.value)
+      if (!tab || tab.kind !== 'collection') { showToast('Open a collection tab first'); return }
+      docMenuRequest.value = { action: id, nonce: Date.now() }
+      return
+    }
+
+    // Toggle the global toolbar. The native menu label stays "Hide Global Toolbar";
+    // a toast reports the resulting state.
+    case 'view:hide_toolbar':
+      toolbarHidden.value = !toolbarHidden.value
+      showToast(toolbarHidden.value ? 'Toolbar hidden' : 'Toolbar shown')
       return
   }
 }
@@ -831,6 +888,17 @@ async function handleContextAction(action) {
     return
   }
 
+  // Add View… (database node) and Add View Here… (collection node — prefills the
+  // source with the clicked collection). Both create a view in the same database.
+  if (action === 'Add View…' || action === 'Add View Here…') {
+    addViewTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
+    newViewName.value = ''
+    newViewSource.value = action === 'Add View Here…' ? (saved.nodeData.collName || '') : ''
+    newViewPipeline.value = ''
+    addViewError.value = null
+    return
+  }
+
   if (action === 'Open Aggregation Editor') {
     openCollectionTab({
       connectionId: saved.nodeData.connId,
@@ -879,6 +947,33 @@ async function handleContextAction(action) {
     serverStatusTarget.value = {
       connId: saved.nodeData.connId,
       connName: saved.nodeData.connName,
+    }
+    return
+  }
+
+  if (action === 'Current Operations' && saved.type === 'connection') {
+    currentOpsTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+    }
+    return
+  }
+
+  if (action === 'Database Statistics' && saved.type === 'database') {
+    dbStatsTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+    }
+    return
+  }
+
+  if (action === 'Add / Edit Validator…' && saved.type === 'collection') {
+    validatorTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+      collName: saved.nodeData.collName,
     }
     return
   }
@@ -966,6 +1061,39 @@ async function confirmAddCollection() {
   } finally {
     addCollectionSaving.value = false
   }
+}
+
+async function confirmAddView() {
+  const target = addViewTarget.value
+  const name = newViewName.value.trim()
+  const source = newViewSource.value.trim()
+  if (!target || !name || !source) return
+  // Validate the (optional) pipeline up front so a typo surfaces before the round-trip.
+  const pp = parsePipeline(newViewPipeline.value)
+  if (!pp.ok) { addViewError.value = pp.error; return }
+  addViewSaving.value = true
+  addViewError.value = null
+  try {
+    await invoke('create_view', {
+      id: target.connId,
+      database: target.dbName,
+      name: name,
+      viewOn: source,
+      pipeline: pp.ejson,
+    })
+    await connectionTreeRef.value.refreshConn(target.connId)
+    showToast(`View "${name}" created`)
+    addViewTarget.value = null
+  } catch (e) {
+    addViewError.value = errMessage(e)
+  } finally {
+    addViewSaving.value = false
+  }
+}
+
+// The Validator modal owns its own fetch/save; we just confirm the result.
+function onValidatorSaved(collName) {
+  showToast(`Validator saved for "${collName}"`)
 }
 
 async function confirmDropDatabase() {
@@ -1454,6 +1582,31 @@ function activateTab(id) {
   if (tab && tab._restored) runRestoredTab(tab)
 }
 
+// Help → Quickstart: focus the existing Quickstart tab, or open one if it was closed.
+function openQuickstart() {
+  const existing = tabs.value.find(t => t.kind === 'quickstart')
+  if (existing) {
+    activateTab(existing.id)
+    return
+  }
+  const id = 't' + Date.now()
+  tabs.value.push({ id: id, kind: 'quickstart', title: 'Quickstart' })
+  activateTab(id)
+}
+
+// Move the active-tab selection by `delta` (+1 next, -1 previous), wrapping around.
+// No-ops when fewer than two tabs are open.
+function cycleTab(delta) {
+  if (tabs.value.length < 2) return
+  const idx = tabs.value.findIndex(t => t.id === activeTabId.value)
+  if (idx < 0) {
+    activateTab(tabs.value[0].id)
+    return
+  }
+  const next = (idx + delta + tabs.value.length) % tabs.value.length
+  activateTab(tabs.value[next].id)
+}
+
 // A tab restored from a previous session carries its query text but no results.
 // We run it lazily — the first time it becomes active — so a restart doesn't
 // reconnect to every server at once. Find tabs re-run their stored query;
@@ -1746,7 +1899,7 @@ async function runAggregate(tabId, params) {
          see handleMenuAction for how its clicks are routed back into the app. -->
 
     <!-- Toolbar -->
-    <div class="toolbar">
+    <div class="toolbar" v-show="!toolbarHidden">
       <template v-for="(t, i) in TOOLS" :key="i">
         <div v-if="t.sep" class="tb-sep"></div>
         <button v-else class="tbtn" :title="t.label" @click="handleTool(t.name)">
@@ -1831,6 +1984,25 @@ async function runAggregate(tabId, params) {
       @close="serverStatusTarget = null"
     />
 
+    <DatabaseStatsModal
+      v-if="dbStatsTarget"
+      :target="dbStatsTarget"
+      @close="dbStatsTarget = null"
+    />
+
+    <CurrentOpsModal
+      v-if="currentOpsTarget"
+      :target="currentOpsTarget"
+      @close="currentOpsTarget = null"
+    />
+
+    <ValidatorModal
+      v-if="validatorTarget"
+      :target="validatorTarget"
+      @saved="onValidatorSaved"
+      @close="validatorTarget = null"
+    />
+
     <!-- Schema (View Schema) modal -->
     <SchemaModal
       v-if="schemaTarget"
@@ -1901,6 +2073,12 @@ async function runAggregate(tabId, params) {
       @close="showShortcuts = false"
     />
 
+    <!-- About -->
+    <AboutModal
+      v-if="showAbout"
+      @close="showAbout = false"
+    />
+
     <!-- Preferences -->
     <PreferencesModal
       v-if="showPreferences"
@@ -1947,6 +2125,50 @@ async function runAggregate(tabId, params) {
           <button class="btn" @click="addCollectionTarget = null">Cancel</button>
           <button class="btn primary" :disabled="!newCollectionName.trim() || addCollectionSaving" @click="confirmAddCollection">
             {{ addCollectionSaving ? 'Creating…' : 'Create' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add View modal -->
+    <div v-if="addViewTarget" class="del-overlay" @mousedown.self="addViewTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Add View</div>
+          <button class="close-btn" @click="addViewTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <input
+            v-model="newViewName"
+            class="prompt-input"
+            placeholder="View name"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+          />
+          <input
+            v-model="newViewSource"
+            class="prompt-input"
+            placeholder="Source collection (viewOn)"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+          />
+          <textarea
+            v-model="newViewPipeline"
+            class="prompt-input pipeline-input"
+            placeholder="Aggregation pipeline (optional), e.g. [ { &quot;$match&quot;: { &quot;active&quot;: true } } ]"
+            spellcheck="false"
+          ></textarea>
+          <div v-if="addViewError" class="del-error">{{ addViewError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="addViewTarget = null">Cancel</button>
+          <button class="btn primary" :disabled="!newViewName.trim() || !newViewSource.trim() || addViewSaving" @click="confirmAddView">
+            {{ addViewSaving ? 'Creating…' : 'Create' }}
           </button>
         </div>
       </div>
@@ -2486,6 +2708,18 @@ async function runAggregate(tabId, params) {
   box-sizing: border-box;
 }
 .prompt-input:focus { outline: none; border-color: var(--accent); }
+.pipeline-input {
+  height: auto;
+  min-height: 76px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+/* Space stacked inputs in multi-field dialogs (e.g. Add View); single-input
+   dialogs like Add Collection are unaffected. */
+.del-body .prompt-input + .prompt-input { margin-top: 10px; }
 
 .idx-dialog { width: 560px; }
 .idx-msg { padding: 16px 0; color: var(--text-faint); font-size: 12px; }
