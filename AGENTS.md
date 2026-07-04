@@ -93,11 +93,15 @@ App.vue  (owns all app state: tabs[], showConnectionManager, etc.)
 
 | File | Responsibility |
 |---|---|
-| `commands.rs` | All `#[tauri::command]` functions wired into the invoke handler |
-| `pool.rs` | `ConnectionPool`: `HashMap<id, Client>` behind a `tokio::Mutex`; `get_or_create` avoids holding the lock during network I/O |
-| `storage.rs` | JSON file persistence for `ConnectionConfig` at the OS app-data dir (`connections.json`) |
-| `uri.rs` | `with_timeout()` appends MongoDB timeout params; `tcp_probe()` does a fast TCP check before the MongoDB handshake |
-| `error.rs` | `AppError` enum serialized as a plain string so the frontend receives a human-readable message |
+| `commands/` | All `#[tauri::command]` functions, split by area (`query`, `admin`, `connection`, `schema`, `sql`, `masking`, `migration`, `gridfs`, `compare`, `stats`, …) and re-exported from `commands/mod.rs`. `mod.rs` also holds shared helpers — notably `client_for(pool, storage, id)`, the single entry point every command uses to resolve a connection to a live client, plus the EJSON/CSV parse helpers. |
+| `pool.rs` | `ConnectionPool`: one `Client` per connection id behind a `tokio::Mutex` (and the live `SshTunnel` for tunnelled connections). `connect()` returns the cached client on a hit and only reads the keychain / builds the URI on a miss. |
+| `storage.rs` | JSON persistence for `ConnectionConfig` (`connections.json`). Read-modify-write goes through the locked `update_with`; the raw `save` is private so writes can't bypass the lock. Other JSON stores share the same shape: `folders`, `history`, `saved_queries`, `default_queries`, `settings`, `tabs`, `shell_history`, `known_hosts`. |
+| `persist.rs` | `atomic_write()` — write-to-temp-then-rename so a crash can't leave a truncated file. Shared by every JSON store. |
+| `keychain.rs` | Secrets (passwords, SSH key passphrases) in the OS keychain, keyed by connection id (SSH secrets under `id::ssh-*`). Configs on disk are credential-free. |
+| `ssh.rs` / `known_hosts.rs` | Optional SSH tunnel (pure-Rust `russh`) with trust-on-first-use host-key verification: unchanged key accepted, new host prompts, changed key refused. |
+| `shell/` | Embedded JS shell ("IntelliShell"): `engine.rs` runs one `boa` context per session on its own worker thread; `bridge.rs` exposes the `db` object that forwards to the driver. |
+| `uri.rs` | `build_uri()` assembles the connection string from a config; `with_timeout()` appends MongoDB timeout params; `tcp_probe()` does a fast TCP check before the MongoDB handshake. |
+| `error.rs` | `AppError` enum serialized as `{ code, message }` so the frontend gets a stable category plus a human-readable message. |
 | `menu.rs` | Native OS menu (source of truth); File → Connect opens a **second Tauri webview window** at `src/pages/connect.html`. See "Native menu" below. |
 
 ### Native menu
