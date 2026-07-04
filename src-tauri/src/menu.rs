@@ -118,12 +118,16 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
         (
             "Edit",
             vec![
-                Spec::Placeholder { id: "edit:copy", label: "Copy" },
-                Spec::Placeholder { id: "edit:copy_value", label: "Copy Value" },
-                Spec::Placeholder { id: "edit:copy_field", label: "Copy Field" },
-                Spec::Placeholder { id: "edit:copy_field_path", label: "Copy Field Path" },
-                Spec::Placeholder { id: "edit:copy_document", label: "Copy Document" },
-                Spec::Placeholder { id: "edit:paste_documents", label: "Paste Document(s)" },
+                // Clipboard copies act on the row/field/value selected in the active
+                // results grid; Paste inserts clipboard document(s) into the active
+                // collection. No accelerators — the predefined Copy/Paste above already
+                // own Ctrl+C / Ctrl+V for text fields.
+                Spec::Action { id: "edit:copy", label: "Copy", accel: None, gate: Some(Gate::Document) },
+                Spec::Action { id: "edit:copy_value", label: "Copy Value", accel: None, gate: Some(Gate::DocumentField) },
+                Spec::Action { id: "edit:copy_field", label: "Copy Field", accel: None, gate: Some(Gate::DocumentField) },
+                Spec::Action { id: "edit:copy_field_path", label: "Copy Field Path", accel: None, gate: Some(Gate::DocumentField) },
+                Spec::Action { id: "edit:copy_document", label: "Copy Document", accel: None, gate: Some(Gate::Document) },
+                Spec::Action { id: "edit:paste_documents", label: "Paste Document(s)", accel: None, gate: Some(Gate::Collection) },
                 Spec::Separator,
                 Spec::Action { id: "edit:preferences", label: "Preferences…", accel: Some("CmdOrCtrl+P"), gate: None },
             ],
@@ -686,6 +690,20 @@ mod tests {
         for id in ["coll:insert_document", "coll:update_dialog", "coll:delete_dialog", "coll:clear"] {
             assert_eq!(gate_of(id), Gate::Collection, "{id} should gate on a collection");
         }
+    }
+
+    #[test]
+    fn edit_menu_clipboard_items_have_the_expected_gates() {
+        // Whole-document copies enable when a document row is selected.
+        for id in ["edit:copy", "edit:copy_document"] {
+            assert_eq!(gate_of(id), Gate::Document, "{id} should gate on a document");
+        }
+        // Field-scoped copies enable when a field/cell is selected.
+        for id in ["edit:copy_value", "edit:copy_field", "edit:copy_field_path"] {
+            assert_eq!(gate_of(id), Gate::DocumentField, "{id} should gate on a field");
+        }
+        // Paste inserts into the active collection.
+        assert_eq!(gate_of("edit:paste_documents"), Gate::Collection);
     }
 
     #[test]

@@ -125,6 +125,7 @@ pub fn run() {
             get_settings,
             update_settings,
             insert_document,
+            insert_documents,
             replace_document,
             delete_document,
             update_many,

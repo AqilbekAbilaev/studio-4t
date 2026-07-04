@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
+import { valueToClipboard } from '../utils/clipboardCopy'
 import BaseIcon from './BaseIcon.vue'
 
 const props = defineProps({
@@ -337,28 +338,17 @@ function selectCell(rowIdx, col) {
   cellCtx.value = null
 }
 
-function cellCopyValue(col, val) {
-  if (val === null || val === undefined) return ''
-  if (typeof val === 'string')  return val
-  if (typeof val === 'number' || typeof val === 'boolean') return String(val)
-  if (typeof val === 'object') {
-    if ('$oid'  in val) return val.$oid
-    if ('$date' in val) {
-      const d = val.$date
-      if (typeof d === 'string') return d
-      if (typeof d === 'object' && '$numberLong' in d) return new Date(parseInt(d.$numberLong)).toISOString()
-    }
-    if ('$numberLong'    in val) return val.$numberLong
-    if ('$numberDecimal' in val) return val.$numberDecimal
-  }
-  return JSON.stringify(val, null, 2)
+// Shell-style serialization of a cell value for the clipboard. Shared with the Edit
+// menu's Copy (see utils/clipboardCopy) so inline and menu copies stay identical.
+function cellCopyValue(val) {
+  return valueToClipboard(val)
 }
 
 function copySelectedCell() {
   const tab = props.activeTab
   if (!tab || tab.selectedRow < 0 || !selectedCol.value) return
   const val = gridDocs.value[tab.selectedRow]?.[selectedCol.value]
-  navigator.clipboard.writeText(cellCopyValue(selectedCol.value, val))
+  navigator.clipboard.writeText(cellCopyValue(val))
 }
 
 function copySelectedDocument() {
@@ -377,7 +367,7 @@ function cellCtxPick(action) {
   const docs = gridDocs.value
   const val = docs[cellCtx.value?.row]?.[cellCtx.value?.col]
   if (action === 'copy-value') {
-    navigator.clipboard.writeText(cellCopyValue(cellCtx.value.col, val))
+    navigator.clipboard.writeText(cellCopyValue(val))
   } else if (action === 'copy-json') {
     navigator.clipboard.writeText(JSON.stringify(val, null, 2))
   } else if (action === 'copy-doc') {

@@ -77,6 +77,44 @@ fn empty_pipeline_decodes_to_no_stages() {
     assert!(parse_pipeline("").unwrap().is_empty());
 }
 
+// Paste Document(s) sends the clipboard text straight to `parse_json_documents`, so
+// these pin the single-object / array / error behavior the paste relies on.
+#[test]
+fn paste_accepts_a_single_object() {
+    let docs = parse_json_documents(r#"{"name":"Jo","n":{"$numberInt":"3"}}"#).unwrap();
+    assert_eq!(docs.len(), 1);
+    assert!(matches!(docs[0].get("n"), Some(bson::Bson::Int32(3))));
+}
+
+#[test]
+fn paste_accepts_an_array_of_objects() {
+    let docs = parse_json_documents(r#"[{"a":1},{"a":2},{"a":3}]"#).unwrap();
+    assert_eq!(docs.len(), 3);
+}
+
+#[test]
+fn paste_preserves_ejson_types_for_each_document() {
+    let docs =
+        parse_json_documents(r#"[{"_id":{"$oid":"507f1f77bcf86cd799439011"}}]"#).unwrap();
+    assert!(matches!(docs[0].get("_id"), Some(bson::Bson::ObjectId(_))));
+}
+
+#[test]
+fn paste_empty_clipboard_yields_no_documents() {
+    assert!(parse_json_documents("").unwrap().is_empty());
+    assert!(parse_json_documents("   ").unwrap().is_empty());
+}
+
+#[test]
+fn paste_rejects_unparseable_and_non_object_input() {
+    // Malformed JSON is a graceful error, not a panic.
+    assert!(parse_json_documents("{not valid").is_err());
+    // A bare scalar is not a document.
+    assert!(parse_json_documents("42").is_err());
+    // An array element that isn't an object is rejected.
+    assert!(parse_json_documents(r#"[{"a":1}, 5]"#).is_err());
+}
+
 #[test]
 fn only_the_id_index_is_protected() {
     // The `_id_` index can never be dropped or hidden; every other name is fair game,

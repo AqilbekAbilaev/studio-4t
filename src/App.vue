@@ -592,6 +592,18 @@ function handleMenuAction(id) {
     case 'coll:clear':
       requestCollectionDocAction(id); return
 
+    // --- edit: clipboard copies act on the selected row/field in the active view ---
+    case 'edit:copy':
+    case 'edit:copy_value':
+    case 'edit:copy_field':
+    case 'edit:copy_field_path':
+    case 'edit:copy_document':
+      requestDocMenuAction(id); return
+
+    // --- edit: paste inserts clipboard document(s) into the active collection ---
+    case 'edit:paste_documents':
+      requestCollectionDocAction(id); return
+
     // --- document: act on the selected row/field in the active results view ---
     case 'doc:edit_value':
     case 'doc:add_field':

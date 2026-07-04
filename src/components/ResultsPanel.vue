@@ -13,7 +13,8 @@ import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
 import StateMessage from './StateMessage.vue'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
-import { inspectField, setFieldValue, addFieldValue, removeField, renameField } from '../utils/docEdit'
+import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
+import { valueToClipboard, valueToEjson, documentToClipboard, fieldPath } from '../utils/clipboardCopy'
 
 const props = defineProps({
   activeTab:   { type: Object,  required: true },
@@ -291,6 +292,7 @@ function runDocMenuAction(action) {
     case 'coll:insert_document': openInsert(); return
     case 'coll:update_dialog':   showUpdateDialog.value = true; return
     case 'coll:delete_dialog':   showDeleteDialog.value = true; return
+    case 'edit:paste_documents': pasteDocuments(); return
     case 'coll:clear':
       clearConfirmText.value = ''
       clearError.value = null
@@ -310,11 +312,39 @@ function runDocMenuAction(action) {
       fieldEditError.value = null
       fieldEdit.value = { mode: 'add', fieldName: '', initialType: 'String', initialRaw: '' }
       return
+    // Edit → Copy Document: the whole selected document as pretty Extended JSON.
+    case 'edit:copy_document':
+      writeClipboard(documentToClipboard(doc), 'Document copied')
+      return
+    // Edit → Copy: context-appropriate — the selected cell's value if a cell is
+    // selected, otherwise the whole document (mirrors the grid's Ctrl+C).
+    case 'edit:copy':
+      if (tab.selectedField) {
+        writeClipboard(valueToClipboard(selectedFieldValue(doc)), 'Copied')
+      } else {
+        writeClipboard(documentToClipboard(doc), 'Copied')
+      }
+      return
   }
 
   // Field-level actions — need a selected field.
   const field = tab.selectedField
   if (!field) { emit('toast', 'Select a field (click a cell) first'); return }
+
+  // Field-level copies are read-only, so they're allowed on any field including _id
+  // (unlike the edits below, which _id blocks).
+  switch (action) {
+    case 'edit:copy_value':
+      writeClipboard(valueToEjson(selectedFieldValue(doc)), 'Value copied')
+      return
+    case 'edit:copy_field':
+      writeClipboard(field, 'Field name copied')
+      return
+    case 'edit:copy_field_path':
+      writeClipboard(fieldPath(drillPath.value, field), 'Field path copied')
+      return
+  }
+
   // The _id field can't be changed: replace_document preserves the original _id, so
   // editing/removing/renaming it would be a silent no-op. Block it here, matching the
   // inline cell editor, which already refuses to edit _id (ResultTable guessType 'id').
@@ -341,6 +371,56 @@ watch(() => props.docMenuRequest && props.docMenuRequest.nonce, (nonce) => {
   if (nonce == null) return
   runDocMenuAction(props.docMenuRequest.action)
 })
+
+// The selected cell's value: the field on the container at the current drill path.
+// (When not drilled the container is the document root.) Returns undefined if the
+// path/field no longer resolves.
+function selectedFieldValue(doc) {
+  const container = getContainer(doc, drillPath.value)
+  if (container === null || typeof container !== 'object') return undefined
+  return container[props.activeTab.selectedField]
+}
+
+// Put `text` on the system clipboard and confirm with a toast, or report failure.
+function writeClipboard(text, okMessage) {
+  navigator.clipboard.writeText(text ?? '')
+    .then(() => emit('toast', okMessage))
+    .catch(() => emit('toast', 'Copy to clipboard failed'))
+}
+
+// Edit → Paste Document(s): read the clipboard, insert its document(s) into the
+// active collection, and refresh. Parse/insert errors surface as a toast (the
+// backend validates the Extended JSON), so a bad paste never crashes.
+async function pasteDocuments() {
+  const tab = props.activeTab
+  if (!tab || tab.kind !== 'collection' || !tab.collectionName) {
+    emit('toast', 'Open a collection first')
+    return
+  }
+  let text
+  try {
+    text = await navigator.clipboard.readText()
+  } catch (e) {
+    emit('toast', 'Cannot read from clipboard')
+    return
+  }
+  if (!text || !text.trim()) {
+    emit('toast', 'Clipboard is empty')
+    return
+  }
+  try {
+    const count = await invoke('insert_documents', {
+      id: tab.connectionId,
+      database: tab.dbName,
+      collection: tab.collectionName,
+      documents: text,
+    })
+    emit('toast', `Pasted ${count} document${count !== 1 ? 's' : ''}`)
+    emit('requery', true)
+  } catch (e) {
+    emit('toast', errMessage(e))
+  }
+}
 
 // Persist a field-op mutation of the selected document via replace_document, then
 // refresh the page so the grid reflects it.

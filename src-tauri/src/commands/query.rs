@@ -4,7 +4,7 @@ use crate::storage::Storage;
 use mongodb::bson;
 use tauri::State;
 
-use super::{parse_ejson_document, parse_pipeline, MAX_QUERY_TIME};
+use super::{parse_ejson_document, parse_json_documents, parse_pipeline, MAX_QUERY_TIME};
 
 #[cfg(test)]
 mod tests {
@@ -239,6 +239,46 @@ pub async fn insert_document(
         Err(e) => return Err(AppError::Mongo(e)),
     };
     Ok(result.inserted_id.to_string())
+}
+
+// Insert one or many documents from a single Extended-JSON string — the Edit menu's
+// "Paste Document(s)". The text may be a single object or a JSON array of objects;
+// `parse_json_documents` validates it and surfaces a human-readable error on bad
+// input (so a failed paste is a toast, not a crash). Returns the number inserted.
+#[tauri::command]
+pub async fn insert_documents(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    documents: String,
+) -> Result<usize, AppError> {
+    let docs = match parse_json_documents(&documents) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    if docs.is_empty() {
+        return Err(AppError::Bson(
+            "Clipboard has no document(s) to paste".to_string(),
+        ));
+    }
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    match col.insert_many(docs).await {
+        Ok(result) => Ok(result.inserted_ids.len()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
 }
 
 #[tauri::command]
