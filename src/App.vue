@@ -6,6 +6,7 @@ import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
 import { errMessage, errCode } from './utils/errors'
 import { deriveMenuContext, resolveMenuTarget } from './utils/menuContext'
+import { isProtectedIndex, indexKeyLabel, indexSpecJson, isIndexHidden } from './utils/indexSpec'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -281,6 +282,20 @@ const newIndexUnique  = ref(false)
 const indexCreating   = ref(false)
 const pendingDropIndex = ref(null)  // index name armed for a confirming second click
 
+// Index-menu selection & dialogs. `selectedIndex` is the index row highlighted in
+// the Indexes dialog; it drives the Index menu's enablement (see menuContext) and
+// is the target of every Index-menu action.
+const selectedIndex        = ref(null)   // the selected index doc | null
+const indexFormMode        = ref('create')  // 'create' | 'edit'
+const indexEditOriginalName = ref('')    // name of the index being edited (edit mode)
+const indexDetailsTarget   = ref(null)   // the index shown in the View Details modal | null
+const indexDetailsStats    = ref(null)   // its $indexStats entry | null
+const indexDetailsLoading  = ref(false)
+const dropIndexTarget      = ref(null)   // { name } armed for the type-to-confirm drop | null
+const dropIndexConfirmText = ref('')
+const dropIndexError       = ref(null)
+const dropIndexBusy        = ref(false)
+
 const contextActiveNodeKey = computed(() => {
   if (!contextMenu.value) return null
   const nd = contextMenu.value.nodeData
@@ -480,6 +495,7 @@ const menuContext = computed(() => deriveMenuContext(
   tabs.value.find(t => t.id === activeTabId.value),
   treeSelection.value,
   treeConnectionCount.value,
+  !!selectedIndex.value,
 ))
 
 // Push the context down to the native menu so gated items enable/disable in step
@@ -492,6 +508,7 @@ watch(menuContext, (ctx) => {
     anyConnection: ctx.anyConnection,
     hasDocument: ctx.hasDocument,
     hasField: ctx.hasField,
+    hasIndex: ctx.hasIndex,
   }).catch(() => {})
 }, { immediate: true })
 
@@ -553,6 +570,14 @@ function handleMenuAction(id) {
     // --- collection scoped ---
     case 'coll:aggregation':   menuNode('Open Aggregation Editor', 'collection'); return
     case 'coll:add_index':     menuNode('Indexes…', 'collection'); return
+
+    // --- index scoped (act on the row selected in the Indexes dialog) ---
+    case 'idx:edit':   startEditIndex(); return
+    case 'idx:view':   openIndexDetails(); return
+    case 'idx:copy':   copyIndex(); return
+    case 'idx:drop':   openDropIndexConfirm(); return
+    case 'idx:hide':   setIndexHidden(true); return
+    case 'idx:unhide': setIndexHidden(false); return
     case 'coll:stats':
     case 'db:collection_stats': menuNode('Collection Stats', 'collection'); return
     case 'coll:schema':        menuNode('View Schema', 'collection'); return
@@ -811,10 +836,9 @@ async function handleContextAction(action) {
       collName: saved.nodeData.collName,
     }
     indexesError.value = null
-    newIndexKeys.value = ''
-    newIndexName.value = ''
-    newIndexUnique.value = false
+    selectedIndex.value = null
     pendingDropIndex.value = null
+    resetIndexForm()
     await loadIndexes()
     return
   }
@@ -1050,6 +1074,11 @@ async function loadIndexes() {
       database: target.dbName,
       collection: target.collName,
     })
+    // Re-point the selection at the reloaded index object (a fresh list replaces
+    // the old references); clear it if that index no longer exists.
+    if (selectedIndex.value) {
+      selectedIndex.value = indexesList.value.find(i => i.name === selectedIndex.value.name) || null
+    }
   } catch (e) {
     indexesError.value = errMessage(e)
     indexesList.value = []
@@ -1058,13 +1087,42 @@ async function loadIndexes() {
   }
 }
 
+// Reset the create/edit form back to a blank create.
+function resetIndexForm() {
+  newIndexKeys.value = ''
+  newIndexName.value = ''
+  newIndexUnique.value = false
+  indexFormMode.value = 'create'
+  indexEditOriginalName.value = ''
+}
+
+// Closes the Indexes dialog and clears its selection/form so the Index menu
+// disables again (and any half-typed edit is discarded).
+function closeIndexesModal() {
+  indexesTarget.value = null
+  selectedIndex.value = null
+  pendingDropIndex.value = null
+  resetIndexForm()
+}
+
 async function confirmCreateIndex() {
   const target = indexesTarget.value
   const keys = newIndexKeys.value.trim()
   if (!target || !keys) return
+  const editing = indexFormMode.value === 'edit' && !!indexEditOriginalName.value
   indexCreating.value = true
   indexesError.value = null
   try {
+    // MongoDB has no in-place index edit, so an edit drops the original first and
+    // recreates it from the (possibly changed) form values.
+    if (editing) {
+      await invoke('drop_index', {
+        id: target.connId,
+        database: target.dbName,
+        collection: target.collName,
+        name: indexEditOriginalName.value,
+      })
+    }
     await invoke('create_index', {
       id: target.connId,
       database: target.dbName,
@@ -1073,11 +1131,9 @@ async function confirmCreateIndex() {
       unique: newIndexUnique.value,
       name: newIndexName.value.trim(),
     })
-    newIndexKeys.value = ''
-    newIndexName.value = ''
-    newIndexUnique.value = false
+    resetIndexForm()
     await loadIndexes()
-    showToast('Index created')
+    showToast(editing ? 'Index updated' : 'Index created')
   } catch (e) {
     indexesError.value = errMessage(e)
   } finally {
@@ -1110,9 +1166,140 @@ async function dropIndex(name) {
   }
 }
 
-function indexKeyLabel(index) {
-  if (!index || !index.key) return ''
-  return Object.entries(index.key).map(([k, v]) => `${k}: ${v}`).join(', ')
+// --- Index menu actions (operate on the selected row in the Indexes dialog) ---
+
+// The selected index, or null with a nudge if somehow invoked without one. The
+// Index-menu gate guarantees a selection, so this is just defensive.
+function requireSelectedIndex() {
+  if (!indexesTarget.value || !selectedIndex.value) {
+    showToast('Select an index first')
+    return null
+  }
+  return selectedIndex.value
+}
+
+// Edit Index…: pre-fill the create form with the selected index as a starting
+// point and switch it to edit mode (save = drop-and-recreate).
+function startEditIndex() {
+  const idx = requireSelectedIndex()
+  if (!idx) return
+  if (isProtectedIndex(idx.name)) {
+    showToast('The _id index cannot be edited')
+    return
+  }
+  newIndexKeys.value = indexKeyLabel(idx) ? JSON.stringify(idx.key) : ''
+  newIndexName.value = idx.name || ''
+  newIndexUnique.value = !!idx.unique
+  indexFormMode.value = 'edit'
+  indexEditOriginalName.value = idx.name
+}
+
+// View Details: show the full spec (read-only) plus usage stats when available.
+async function openIndexDetails() {
+  const idx = requireSelectedIndex()
+  if (!idx) return
+  const target = indexesTarget.value
+  indexDetailsTarget.value = idx
+  indexDetailsStats.value = null
+  indexDetailsLoading.value = true
+  try {
+    const all = await invoke('index_stats', {
+      id: target.connId,
+      database: target.dbName,
+      collection: target.collName,
+    })
+    indexDetailsStats.value = all.find(s => s.name === idx.name) || null
+  } catch (e) {
+    // $indexStats can be unsupported (older server, non-replicated deployment);
+    // the spec is still shown, just without usage numbers.
+    indexDetailsStats.value = null
+  } finally {
+    indexDetailsLoading.value = false
+  }
+}
+
+// $indexStats.accesses.since is a BSON date, which crosses the wire as relaxed
+// Extended JSON (a string, or a { $date } wrapper). Render whichever we get as a
+// plain string rather than "[object Object]".
+function formatIndexSince(value) {
+  if (value == null) return '—'
+  if (typeof value === 'object') {
+    const inner = value.$date
+    if (inner == null) return JSON.stringify(value)
+    return typeof inner === 'object' ? (inner.$numberLong ?? JSON.stringify(inner)) : inner
+  }
+  return value
+}
+
+// Copy Index: put the full index definition on the clipboard as pretty JSON.
+function copyIndex() {
+  const idx = requireSelectedIndex()
+  if (!idx) return
+  navigator.clipboard.writeText(indexSpecJson(idx))
+  showToast('Index copied')
+}
+
+// Drop Index: open the type-to-confirm dialog; never for the _id_ index.
+function openDropIndexConfirm() {
+  const idx = requireSelectedIndex()
+  if (!idx) return
+  if (isProtectedIndex(idx.name)) {
+    showToast('The _id index cannot be dropped')
+    return
+  }
+  dropIndexTarget.value = { name: idx.name }
+  dropIndexConfirmText.value = ''
+  dropIndexError.value = null
+}
+
+async function confirmDropIndex() {
+  const target = indexesTarget.value
+  const drop = dropIndexTarget.value
+  if (!target || !drop) return
+  if (dropIndexConfirmText.value !== drop.name) return
+  dropIndexBusy.value = true
+  dropIndexError.value = null
+  try {
+    await invoke('drop_index', {
+      id: target.connId,
+      database: target.dbName,
+      collection: target.collName,
+      name: drop.name,
+    })
+    dropIndexTarget.value = null
+    await loadIndexes()
+    showToast(`Index "${drop.name}" dropped`)
+  } catch (e) {
+    dropIndexError.value = errMessage(e)
+  } finally {
+    dropIndexBusy.value = false
+  }
+}
+
+// Hide / Unhide Index: toggle the planner-visibility flag without a rebuild.
+async function setIndexHidden(hidden) {
+  const idx = requireSelectedIndex()
+  if (!idx) return
+  if (isProtectedIndex(idx.name)) {
+    showToast('The _id index cannot be hidden')
+    return
+  }
+  const target = indexesTarget.value
+  const name = idx.name
+  indexesError.value = null
+  try {
+    await invoke('set_index_hidden', {
+      id: target.connId,
+      database: target.dbName,
+      collection: target.collName,
+      name: name,
+      hidden: hidden,
+    })
+    await loadIndexes()
+    showToast(hidden ? `Index "${name}" hidden` : `Index "${name}" unhidden`)
+  } catch (e) {
+    indexesError.value = errMessage(e)
+  }
 }
 
 async function exportCollection(nodeData) {
@@ -1932,11 +2119,11 @@ async function runAggregate(tabId, params) {
     </div>
 
     <!-- Indexes modal -->
-    <div v-if="indexesTarget" class="del-overlay" @mousedown.self="indexesTarget = null">
+    <div v-if="indexesTarget" class="del-overlay" @mousedown.self="closeIndexesModal()">
       <div class="del-dialog idx-dialog">
         <div class="del-title">
           <div class="t">Indexes — {{ indexesTarget.collName }}</div>
-          <button class="close-btn" @click="indexesTarget = null">
+          <button class="close-btn" @click="closeIndexesModal()">
             <BaseIcon name="close" :size="14" />
           </button>
         </div>
@@ -1944,28 +2131,36 @@ async function runAggregate(tabId, params) {
           <div v-if="indexesLoading" class="idx-msg">Loading indexes…</div>
           <table v-else-if="indexesList.length" class="idx-table">
             <thead>
-              <tr><th>Name</th><th>Keys</th><th>Unique</th><th></th></tr>
+              <tr><th>Name</th><th>Keys</th><th>Unique</th><th>Hidden</th><th></th></tr>
             </thead>
             <tbody>
-              <tr v-for="idx in indexesList" :key="idx.name">
+              <tr
+                v-for="idx in indexesList"
+                :key="idx.name"
+                class="idx-row"
+                :class="{ selected: selectedIndex && selectedIndex.name === idx.name }"
+                @click="selectedIndex = idx"
+              >
                 <td class="idx-name">{{ idx.name }}</td>
                 <td class="idx-keys">{{ indexKeyLabel(idx) }}</td>
                 <td>{{ idx.unique ? 'Yes' : '—' }}</td>
+                <td>{{ isIndexHidden(idx) ? 'Yes' : '—' }}</td>
                 <td class="idx-actions">
                   <button
                     v-if="idx.name !== '_id_'"
                     class="btn"
                     :class="{ danger: pendingDropIndex === idx.name }"
-                    @click="dropIndex(idx.name)"
+                    @click.stop="dropIndex(idx.name)"
                   >{{ pendingDropIndex === idx.name ? 'Confirm' : 'Drop' }}</button>
                 </td>
               </tr>
             </tbody>
           </table>
           <div v-else class="idx-msg">No indexes.</div>
+          <div class="idx-hint">Select an index row to enable the Index menu.</div>
 
           <div class="idx-create">
-            <div class="idx-create-title">Create index</div>
+            <div class="idx-create-title">{{ indexFormMode === 'edit' ? 'Edit index' : 'Create index' }}</div>
             <input
               v-model="newIndexKeys"
               class="prompt-input"
@@ -1987,16 +2182,83 @@ async function runAggregate(tabId, params) {
               <input type="checkbox" v-model="newIndexUnique" />
               <span>Unique</span>
             </label>
+            <button v-if="indexFormMode === 'edit'" class="btn idx-cancel-edit" @click="resetIndexForm()">
+              Cancel edit
+            </button>
           </div>
 
           <div v-if="indexesError" class="del-error">{{ indexesError }}</div>
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="indexesTarget = null">Close</button>
+          <button class="btn" @click="closeIndexesModal()">Close</button>
           <button class="btn primary" :disabled="!newIndexKeys.trim() || indexCreating" @click="confirmCreateIndex">
-            {{ indexCreating ? 'Creating…' : 'Create index' }}
+            {{ indexCreating ? (indexFormMode === 'edit' ? 'Saving…' : 'Creating…') : (indexFormMode === 'edit' ? 'Save changes' : 'Create index') }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Index: View Details (read-only) -->
+    <div v-if="indexDetailsTarget" class="del-overlay" @mousedown.self="indexDetailsTarget = null">
+      <div class="del-dialog idx-dialog">
+        <div class="del-title">
+          <div class="t">Index Details — {{ indexDetailsTarget.name }}</div>
+          <button class="close-btn" @click="indexDetailsTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <div class="idx-detail-section">Definition</div>
+          <pre class="idx-detail-json">{{ indexSpecJson(indexDetailsTarget) }}</pre>
+          <div class="idx-detail-section">Usage</div>
+          <div v-if="indexDetailsLoading" class="idx-msg">Loading usage…</div>
+          <table v-else-if="indexDetailsStats" class="idx-detail-stats">
+            <tr><td>Operations</td><td>{{ indexDetailsStats.accesses?.ops ?? '—' }}</td></tr>
+            <tr><td>Tracking since</td><td>{{ formatIndexSince(indexDetailsStats.accesses?.since) }}</td></tr>
+          </table>
+          <div v-else class="idx-msg">Usage statistics unavailable.</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="indexDetailsTarget = null">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Index: Drop confirmation (type the name to confirm) -->
+    <div v-if="dropIndexTarget" class="del-overlay" @mousedown.self="dropIndexTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Drop Index</div>
+          <button class="close-btn" @click="dropIndexTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <p>This permanently drops the index
+            <code>{{ dropIndexTarget.name }}</code>. Queries that relied on it may slow down.
+            This cannot be undone.</p>
+          <p class="cc-prompt">Type <code>{{ dropIndexTarget.name }}</code> to confirm:</p>
+          <input
+            class="prompt-input"
+            v-model="dropIndexConfirmText"
+            spellcheck="false"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.enter="confirmDropIndex"
+          />
+          <div v-if="dropIndexError" class="del-error">{{ dropIndexError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="dropIndexTarget = null">Cancel</button>
+          <button
+            class="btn danger"
+            :disabled="dropIndexBusy || dropIndexConfirmText !== dropIndexTarget.name"
+            @click="confirmDropIndex"
+          >{{ dropIndexBusy ? 'Dropping…' : 'Drop Index' }}</button>
         </div>
       </div>
     </div>
@@ -2224,6 +2486,31 @@ async function runAggregate(tabId, params) {
 .idx-create { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 .idx-create-title { font-size: 12px; color: var(--text-faint); margin-bottom: 8px; }
 .idx-unique { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
+.idx-cancel-edit { margin-top: 10px; }
+.idx-row { cursor: pointer; }
+.idx-row:hover { background: var(--bg-hover); }
+.idx-row.selected { background: var(--accent-soft, var(--bg-hover)); }
+.idx-hint { margin-top: 8px; font-size: 11.5px; color: var(--text-faint); }
+.cc-prompt { margin-top: 12px; font-size: 12.5px; color: var(--text-dim); }
+.cc-prompt code, .del-body code { font-family: var(--mono); }
+.idx-detail-section { font-size: 12px; color: var(--text-faint); margin: 14px 0 6px; }
+.idx-detail-section:first-child { margin-top: 0; }
+.idx-detail-json {
+  margin: 0;
+  padding: 10px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  white-space: pre;
+}
+.idx-detail-stats { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.idx-detail-stats td { padding: 4px 8px; border-bottom: 1px solid var(--border-soft); }
+.idx-detail-stats td:first-child { color: var(--text-faint); width: 40%; }
 .del-footer {
   height: 48px;
   flex: none;

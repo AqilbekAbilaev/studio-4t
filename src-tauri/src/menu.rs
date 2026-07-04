@@ -39,6 +39,9 @@ pub enum Gate {
     // A field/cell is selected in the active collection's results view (the
     // Document-menu actions that operate on one field of the selected document).
     DocumentField,
+    // An index row is selected in the open Indexes dialog (the Index-menu actions,
+    // which all operate on the selected index).
+    Index,
 }
 
 // The live selection context, mirrored from the frontend's `menuContext`.
@@ -49,6 +52,7 @@ pub struct MenuContext {
     pub any_connection: bool,
     pub has_document: bool,
     pub has_field: bool,
+    pub has_index: bool,
 }
 
 // Whether an item with the given gate should be enabled in the given context.
@@ -62,6 +66,7 @@ pub fn gate_enabled(gate: Gate, context: &MenuContext) -> bool {
         Gate::AnyConnection => context.any_connection,
         Gate::Document => context.has_document,
         Gate::DocumentField => context.has_field,
+        Gate::Index => context.has_index,
     }
 }
 
@@ -184,13 +189,13 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
         (
             "Index",
             vec![
-                Spec::Placeholder { id: "idx:edit", label: "Edit Index…" },
-                Spec::Placeholder { id: "idx:view", label: "View Details" },
-                Spec::Placeholder { id: "idx:copy", label: "Copy Index" },
-                Spec::Placeholder { id: "idx:drop", label: "Drop Index" },
+                Spec::Action { id: "idx:edit", label: "Edit Index…", accel: None, gate: Some(Gate::Index) },
+                Spec::Action { id: "idx:view", label: "View Details", accel: None, gate: Some(Gate::Index) },
+                Spec::Action { id: "idx:copy", label: "Copy Index", accel: None, gate: Some(Gate::Index) },
+                Spec::Action { id: "idx:drop", label: "Drop Index", accel: None, gate: Some(Gate::Index) },
                 Spec::Separator,
-                Spec::Placeholder { id: "idx:hide", label: "Hide Index" },
-                Spec::Placeholder { id: "idx:unhide", label: "Unhide Index" },
+                Spec::Action { id: "idx:hide", label: "Hide Index", accel: None, gate: Some(Gate::Index) },
+                Spec::Action { id: "idx:unhide", label: "Unhide Index", accel: None, gate: Some(Gate::Index) },
             ],
         ),
         (
@@ -524,6 +529,7 @@ pub fn set_menu_context(
     any_connection: bool,
     has_document: bool,
     has_field: bool,
+    has_index: bool,
 ) -> Result<(), String> {
     let context = MenuContext {
         has_connection: has_connection,
@@ -532,6 +538,7 @@ pub fn set_menu_context(
         any_connection: any_connection,
         has_document: has_document,
         has_field: has_field,
+        has_index: has_index,
     };
     let guard = match items.0.lock() {
         Ok(val) => val,
@@ -584,6 +591,7 @@ mod tests {
             any_connection: any_connection,
             has_document: false,
             has_field: false,
+            has_index: false,
         }
     }
 
@@ -596,6 +604,20 @@ mod tests {
             any_connection: true,
             has_document: has_document,
             has_field: has_field,
+            has_index: false,
+        }
+    }
+
+    // Context with the index-selection flag set, for the Index-menu gate.
+    fn index_context(has_index: bool) -> MenuContext {
+        MenuContext {
+            has_connection: true,
+            has_database: true,
+            has_collection: true,
+            any_connection: true,
+            has_document: false,
+            has_field: false,
+            has_index: has_index,
         }
     }
 
@@ -608,6 +630,7 @@ mod tests {
         assert!(!gate_enabled(Gate::AnyConnection, &all_off));
         assert!(!gate_enabled(Gate::Document, &all_off));
         assert!(!gate_enabled(Gate::DocumentField, &all_off));
+        assert!(!gate_enabled(Gate::Index, &all_off));
 
         assert!(gate_enabled(Gate::Connection, &context(true, false, false, false)));
         assert!(gate_enabled(Gate::Database, &context(false, true, false, false)));
@@ -632,6 +655,21 @@ mod tests {
         let field = doc_context(true, true);
         assert!(gate_enabled(Gate::Document, &field));
         assert!(gate_enabled(Gate::DocumentField, &field));
+    }
+
+    #[test]
+    fn index_gate_tracks_index_selection() {
+        // No index selected: the Index-menu actions stay disabled.
+        assert!(!gate_enabled(Gate::Index, &index_context(false)));
+        // An index row is selected in the open Indexes dialog: they enable.
+        assert!(gate_enabled(Gate::Index, &index_context(true)));
+    }
+
+    #[test]
+    fn index_menu_items_gate_on_a_selected_index() {
+        for id in ["idx:edit", "idx:view", "idx:copy", "idx:drop", "idx:hide", "idx:unhide"] {
+            assert_eq!(gate_of(id), Gate::Index, "{id} should gate on a selected index");
+        }
     }
 
     #[test]

@@ -8,6 +8,13 @@ use tauri::State;
 
 use super::{csv_to_docs, docs_to_csv, parse_ejson_document, parse_json_documents, DatabaseInfo};
 
+/// The `_id_` index is created and required by MongoDB and can never be dropped,
+/// hidden, or otherwise modified. The index-management guards share this check so
+/// the rule lives in one place (kept pure so it can be unit-tested).
+pub fn is_protected_index(name: &str) -> bool {
+    name == "_id_"
+}
+
 #[tauri::command]
 pub async fn list_databases(
     pool: State<'_, ConnectionPool>,
@@ -302,6 +309,13 @@ pub async fn drop_index(
     collection: String,
     name: String,
 ) -> Result<(), AppError> {
+    // The `_id_` index cannot be dropped; reject it before touching the network.
+    if is_protected_index(&name) {
+        return Err(AppError::Validation(format!(
+            "The \"{}\" index cannot be dropped.",
+            name
+        )));
+    }
     let config = match storage.find(&id) {
         Some(val) => val,
         None => return Err(AppError::UnknownConnection(id)),
@@ -318,6 +332,91 @@ pub async fn drop_index(
         Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),
     }
+}
+
+/// Sets or clears an index's `hidden` flag via `collMod`. A hidden index is
+/// ignored by the query planner but kept up to date, so it can be un-hidden
+/// instantly without a rebuild. The `_id_` index cannot be hidden.
+#[tauri::command]
+pub async fn set_index_hidden(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+    name: String,
+    hidden: bool,
+) -> Result<(), AppError> {
+    if is_protected_index(&name) {
+        return Err(AppError::Validation(format!(
+            "The \"{}\" index cannot be hidden.",
+            name
+        )));
+    }
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let command = bson::doc! {
+        "collMod": &collection,
+        "index": { "name": &name, "hidden": hidden },
+    };
+    match client.database(&database).run_command(command).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+/// Returns the `$indexStats` usage entries for a collection (one per index, with
+/// access counts and the time tracking began). Used by the index "View Details"
+/// view; the frontend matches entries to indexes by name. Callers treat an error
+/// as "stats unavailable" (e.g. on a server/deployment that doesn't support it).
+#[tauri::command]
+pub async fn index_stats(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    collection: String,
+) -> Result<Vec<serde_json::Value>, AppError> {
+    let config = match storage.find(&id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id)),
+    };
+    let password = crate::keychain::get(&id);
+    let client = match pool.connect(&config, password.as_deref()).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let pipeline = vec![bson::doc! { "$indexStats": {} }];
+    let mut cursor = match col.aggregate(pipeline).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    let mut stats = Vec::new();
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let entry: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        stats.push(serde_json::Value::from(bson::Bson::Document(entry)));
+    }
+    Ok(stats)
 }
 
 #[tauri::command]

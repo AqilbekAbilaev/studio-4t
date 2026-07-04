@@ -31,6 +31,9 @@ pub enum AppError {
 
     #[error("SQL error: {0}")]
     Sql(String),
+
+    #[error("{0}")]
+    Validation(String),
 }
 
 impl AppError {
@@ -57,6 +60,7 @@ impl AppError {
             AppError::Shell(_) => "shell",
             AppError::Ssh(_) => "ssh",
             AppError::Sql(_) => "sql",
+            AppError::Validation(_) => "validation",
         }
     }
 }

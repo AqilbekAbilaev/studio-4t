@@ -11,7 +11,8 @@
 //   activeTab      { connectionId, dbName, collectionName, kind } | null
 //   treeSelection  { connectionId, dbName, collectionName, kind } | null
 //   connectionCount  number of connections open in the tree
-export function deriveMenuContext(activeTab, treeSelection, connectionCount) {
+//   indexSelected  whether an index row is selected in the open Indexes dialog
+export function deriveMenuContext(activeTab, treeSelection, connectionCount, indexSelected = false) {
   const tab = activeTab || null
   const sel = treeSelection || null
   const tabConnection = !!(tab && tab.connectionId)
@@ -31,6 +32,9 @@ export function deriveMenuContext(activeTab, treeSelection, connectionCount) {
     anyConnection: (connectionCount || 0) > 0 || tabConnection,
     hasDocument: hasDocument,
     hasField: hasField,
+    // Index-menu actions operate on the index selected in the Indexes dialog, which
+    // is independent of the tab/tree selection — so it's passed in directly.
+    hasIndex: !!indexSelected,
   }
 }
 

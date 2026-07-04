@@ -15,7 +15,7 @@ describe('deriveMenuContext', () => {
   it('is all-false with no tab, no selection, no connections', () => {
     expect(deriveMenuContext(null, null, 0)).toEqual({
       hasConnection: false, hasDatabase: false, hasCollection: false, anyConnection: false,
-      hasDocument: false, hasField: false,
+      hasDocument: false, hasField: false, hasIndex: false,
     })
   })
 
@@ -88,6 +88,14 @@ describe('deriveMenuContext', () => {
     const fieldCtx = deriveMenuContext(fieldSelected, null, 1)
     expect(fieldCtx.hasDocument).toBe(true)
     expect(fieldCtx.hasField).toBe(true)
+  })
+
+  it('hasIndex reflects the Indexes-dialog selection, independent of tab/tree', () => {
+    // No index selected → off, even with a full collection context.
+    expect(deriveMenuContext(null, null, 0).hasIndex).toBe(false)
+    expect(deriveMenuContext(null, null, 0, false).hasIndex).toBe(false)
+    // An index selected → on, regardless of the tab/tree selection.
+    expect(deriveMenuContext(null, null, 0, true).hasIndex).toBe(true)
   })
 })
 

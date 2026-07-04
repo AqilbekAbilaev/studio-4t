@@ -134,6 +134,8 @@ pub fn run() {
             list_indexes,
             create_index,
             drop_index,
+            set_index_hidden,
+            index_stats,
             run_aggregate,
             export_collection,
             import_collection,

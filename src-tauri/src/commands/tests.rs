@@ -78,6 +78,17 @@ fn empty_pipeline_decodes_to_no_stages() {
 }
 
 #[test]
+fn only_the_id_index_is_protected() {
+    // The `_id_` index can never be dropped or hidden; every other name is fair game,
+    // including near-misses that merely contain `_id`.
+    assert!(is_protected_index("_id_"));
+    assert!(!is_protected_index("email_1"));
+    assert!(!is_protected_index("_id_2"));
+    assert!(!is_protected_index("user_id_1"));
+    assert!(!is_protected_index(""));
+}
+
+#[test]
 fn sort_document_preserves_key_order() {
     // The link the plan was least sure of: JS EJSON.stringify keeps key order, and
     // bson::Document must keep it through serde_json -> BSON so sort fields apply in
