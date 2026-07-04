@@ -43,19 +43,16 @@ pub fn delete_folder(
     storage: State<'_, Storage>,
     id: String,
 ) -> Result<(), AppError> {
-    let mut connections = storage.load();
-    let mut changed = false;
-    for c in connections.iter_mut() {
-        if c.folder_id.as_deref() == Some(id.as_str()) {
-            c.folder_id = None;
-            changed = true;
+    // Detach any connections that were in this folder, under the storage lock.
+    match storage.update_with(|connections| {
+        for c in connections.iter_mut() {
+            if c.folder_id.as_deref() == Some(id.as_str()) {
+                c.folder_id = None;
+            }
         }
-    }
-    if changed {
-        match storage.save(&connections) {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        }
+    }) {
+        Ok(_) => {}
+        Err(e) => return Err(e),
     }
     folders.delete(&id)
 }
@@ -68,9 +65,9 @@ pub fn move_connection_to_folder(
     id: String,
     folder_id: Option<String>,
 ) -> Result<(), AppError> {
-    let mut connections = storage.load();
-    if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
-        c.folder_id = folder_id;
-    }
-    storage.save(&connections)
+    storage.update_with(|connections| {
+        if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+            c.folder_id = folder_id;
+        }
+    })
 }

@@ -463,11 +463,11 @@ pub fn set_connection_tag(
     id: String,
     tag: String,
 ) -> Result<(), AppError> {
-    let mut connections = storage.load();
-    if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
-        c.tag = if tag.is_empty() { None } else { Some(tag) };
-    }
-    storage.save(&connections)
+    storage.update_with(|connections| {
+        if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+            c.tag = if tag.is_empty() { None } else { Some(tag) };
+        }
+    })
 }
 
 #[tauri::command]
@@ -476,11 +476,11 @@ pub fn set_connection_open(
     id: String,
     open: bool,
 ) -> Result<(), AppError> {
-    let mut connections = storage.load();
-    if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
-        c.open = open;
-    }
-    storage.save(&connections)
+    storage.update_with(|connections| {
+        if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+            c.open = open;
+        }
+    })
 }
 
 #[tauri::command]
@@ -489,11 +489,11 @@ pub fn update_last_accessed(
     id: String,
     timestamp: String,
 ) -> Result<(), AppError> {
-    let mut connections = storage.load();
-    if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
-        c.last_accessed = Some(timestamp);
-    }
-    storage.save(&connections)
+    storage.update_with(|connections| {
+        if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+            c.last_accessed = Some(timestamp);
+        }
+    })
 }
 
 #[tauri::command]

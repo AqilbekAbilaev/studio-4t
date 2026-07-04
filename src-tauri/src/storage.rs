@@ -141,12 +141,33 @@ impl Storage {
         serde_json::from_str(&migrated).unwrap_or_default()
     }
 
-    pub fn save(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
+    // Private: every persisting path holds `lock` first (see `add`/`update`/
+    // `remove`/`update_with`). Keeping this private is what stops a command from
+    // doing an unlocked `load()` + `save()`, which would race and lose updates.
+    fn save(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
         let content = match serde_json::to_string_pretty(connections) {
             Ok(val) => val,
             Err(e) => return Err(AppError::Serde(e)),
         };
         crate::persist::atomic_write(&self.path, &content)
+    }
+
+    /// Apply `mutate` to the loaded connection list under the storage lock, then
+    /// persist. The safe path for commands that change a field or two on an
+    /// existing connection (tag, open, last-accessed, folder membership): it
+    /// serializes with `add`/`update`/`remove` so two concurrent field updates
+    /// can't lose each other — a bare `load()` + `save()` holds no lock and races.
+    pub fn update_with<F>(&self, mutate: F) -> Result<(), AppError>
+    where
+        F: FnOnce(&mut Vec<ConnectionConfig>),
+    {
+        let _guard = match self.lock.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let mut connections = self.load();
+        mutate(&mut connections);
+        self.save(&connections)
     }
 
     pub fn add(&self, config: ConnectionConfig) -> Result<(), AppError> {
