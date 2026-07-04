@@ -110,7 +110,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "file:load", label: "Load", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "file:save", label: "Save", accel: None, gate: Some(Gate::Collection) },
                 Spec::Separator,
-                Spec::Placeholder { id: "file:server_charts", label: "Server Status Charts" },
+                Spec::Action { id: "file:server_charts", label: "Server Status Charts", accel: None, gate: Some(Gate::Connection) },
                 Spec::Action { id: "file:server_status", label: "Server Status", accel: None, gate: Some(Gate::Connection) },
                 Spec::Action { id: "file:server_build", label: "Server Build Info", accel: None, gate: Some(Gate::Connection) },
                 Spec::Separator,

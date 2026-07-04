@@ -22,6 +22,7 @@ import UsersModal from './components/UsersModal.vue'
 import RolesModal from './components/RolesModal.vue'
 import FunctionsModal from './components/FunctionsModal.vue'
 import MapReduceModal from './components/MapReduceModal.vue'
+import ServerChartsModal from './components/ServerChartsModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
@@ -211,6 +212,7 @@ const rolesTarget = ref(null)         // { connId, connName, dbName } when the R
 const functionsTarget = ref(null)     // { connId, connName, dbName } when the Stored Functions modal is open
 const mapReduceTarget = ref(null)     // { connId, connName, dbName, collName } when the Map-Reduce modal is open
 const dbClipboard = ref(null)         // Copy/Paste: { kind: 'collection'|'database', connId, connName, dbName, collName? }
+const serverChartsTarget = ref(null)  // { connId, connName } when the Server Status Charts modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
@@ -607,6 +609,7 @@ function handleMenuAction(id) {
 
     // --- server / connection scoped ---
     case 'file:server_status': menuNode('Server Status', 'connection'); return
+    case 'file:server_charts': menuNode('Server Status Charts', 'connection'); return
     case 'file:server_build':  menuNode('Build Info', 'connection'); return
     case 'db:database_stats':  menuNode('Database Statistics', 'database'); return
     case 'db:current_ops':     menuNode('Current Operations', 'connection'); return
@@ -1060,6 +1063,11 @@ async function handleContextAction(action) {
       connId: saved.nodeData.connId,
       connName: saved.nodeData.connName,
     }
+    return
+  }
+
+  if (action === 'Server Status Charts' && saved.type === 'connection') {
+    serverChartsTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName }
     return
   }
 
@@ -2315,6 +2323,12 @@ async function runAggregate(tabId, params) {
       v-if="mapReduceTarget"
       :target="mapReduceTarget"
       @close="mapReduceTarget = null"
+    />
+
+    <ServerChartsModal
+      v-if="serverChartsTarget"
+      :target="serverChartsTarget"
+      @close="serverChartsTarget = null"
     />
 
     <!-- Schema (View Schema) modal -->
