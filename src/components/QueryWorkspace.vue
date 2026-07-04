@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, defineAsyncComponent } from 'vue'
+import { ref, computed, nextTick, watch, defineAsyncComponent } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import BaseIcon from './BaseIcon.vue'
@@ -20,6 +20,8 @@ const props = defineProps({
   clipboardQuery: { type: Object,  default: null },
   docMenuRequest: { type: Object,  default: null },
   historyRequest: { type: Object,  default: null },
+  browserRequest: { type: Object,  default: null },
+  saveQueryRequest: { type: Object, default: null },
 })
 const emit = defineEmits(['activate-tab', 'close-tab', 'tab-context', 'run-query', 'run-aggregate', 'toggle-vqb', 'open-vqb', 'close-vqb', 'toast', 'copy-query', 'paste-query', 'cancel-query'])
 
@@ -164,6 +166,12 @@ function openQueryBrowser() {
   showQueryBrowser.value = true
 }
 
+// File → Load: open the saved-query browser on request from the native menu.
+watch(() => props.browserRequest && props.browserRequest.nonce, (nonce) => {
+  if (nonce == null) return
+  openQueryBrowser()
+})
+
 async function applyFromBrowser(entry) {
   const tab = activeTab.value
   if (!tab) return
@@ -223,6 +231,7 @@ async function applyFromBrowser(entry) {
         :vqb-open="vqbOpen"
         :clipboard-query="clipboardQuery"
         :history-request="historyRequest"
+        :save-request="saveQueryRequest"
         @run="run"
         @copy-query="emit('copy-query')"
         @paste-query="emit('paste-query')"

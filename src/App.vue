@@ -195,6 +195,8 @@ const treeConnectionCount = ref(0)
 const docMenuRequest = ref(null)      // { action, nonce } | null
 const toolbarHidden = ref(false)      // View → Hide Global Toolbar toggle
 const historyRequest = ref(null)      // View → History Manager: { nonce } signal to the QueryBar
+const browserRequest = ref(null)      // File → Load: { nonce } signal to open the saved-query browser
+const saveQueryRequest = ref(null)    // File → Save: { nonce } signal to open the save-query form
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const dbStatsTarget = ref(null)       // { connId, connName, dbName } when the Database Statistics modal is open
@@ -571,6 +573,16 @@ function handleMenuAction(id) {
     // --- toolbar dispatcher (targets the sidebar selection, else the active tab) ---
     case 'file:intellishell': handleTool('shell', menuTarget('database')); return
     case 'file:sql':          handleTool('sql'); return
+    // File → Load / Save: the saved-query browser and save-query form live in the
+    // active collection tab's QueryBar; signal it (no-op with a toast otherwise).
+    case 'file:load':
+    case 'file:save': {
+      const tab = tabs.value.find(t => t.id === activeTabId.value)
+      if (!tab || tab.kind !== 'collection') { showToast('Open a collection tab first'); return }
+      if (id === 'file:load') browserRequest.value = { nonce: Date.now() }
+      else saveQueryRequest.value = { nonce: Date.now() }
+      return
+    }
     case 'file:search':       handleTool('search', menuTarget('database')); return
     case 'coll:open_tab':     handleTool('collection'); return
     case 'coll:export':       handleTool('export', menuTarget('collection')); return
@@ -1956,6 +1968,8 @@ async function runAggregate(tabId, params) {
         :clipboard-query="clipboardQuery"
         :doc-menu-request="docMenuRequest"
         :history-request="historyRequest"
+        :browser-request="browserRequest"
+        :save-query-request="saveQueryRequest"
         @activate-tab="activateTab"
         @close-tab="closeTab"
         @tab-context="onTabContext"

@@ -105,8 +105,10 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "file:search", label: "Search in…", accel: None, gate: Some(Gate::Database) },
                 Spec::Placeholder { id: "file:manage_sql", label: "Manage SQL Connections" },
                 Spec::Separator,
-                Spec::Placeholder { id: "file:load", label: "Load" },
-                Spec::Placeholder { id: "file:save", label: "Save" },
+                // Load opens the saved-query browser; Save opens the save-query form.
+                // Both act on the active collection tab's query.
+                Spec::Action { id: "file:load", label: "Load", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "file:save", label: "Save", accel: None, gate: Some(Gate::Collection) },
                 Spec::Separator,
                 Spec::Placeholder { id: "file:server_charts", label: "Server Status Charts" },
                 Spec::Action { id: "file:server_status", label: "Server Status", accel: None, gate: Some(Gate::Connection) },

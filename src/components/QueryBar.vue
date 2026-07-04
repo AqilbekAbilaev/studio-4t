@@ -12,6 +12,7 @@ const props = defineProps({
   vqbOpen:        { type: Boolean, default: false },
   clipboardQuery: { type: Object,  default: null },
   historyRequest: { type: Object,  default: null },
+  saveRequest:    { type: Object,  default: null },
 })
 const emit = defineEmits(['run', 'copy-query', 'paste-query', 'toggle-vqb', 'toast', 'open-browser'])
 
@@ -63,6 +64,12 @@ async function openHistoryMenu() {
 watch(() => props.historyRequest && props.historyRequest.nonce, (nonce) => {
   if (nonce == null) return
   if (!historyMenu.value) openHistoryMenu()
+})
+
+// File → Save: open the save-query form on request from the native menu.
+watch(() => props.saveRequest && props.saveRequest.nonce, (nonce) => {
+  if (nonce == null) return
+  showSaveForm.value = true
 })
 
 async function applyHistoryEntry(entry) {
