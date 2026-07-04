@@ -1,15 +1,17 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errMessage, errCode } from '../utils/errors'
+import { parseField } from '../utils/queryParser'
 import BaseIcon from './BaseIcon.vue'
 import StateMessage from './StateMessage.vue'
 
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
-// upload / download / delete files. Roadmap P2 item.
+// upload / download / delete / rename / edit-metadata files, plus bucket copy/drop.
 const props = defineProps({
   target: { type: Object, required: true },  // { connId, connName, dbName }
+  menuRequest: { type: Object, default: null },  // { action, nonce } from the GridFS menu
 })
 const emit = defineEmits(['close', 'toast'])
 
@@ -21,6 +23,141 @@ const busy = ref(false)
 const error = ref(null)
 const errorCode = ref(null)
 const pendingDelete = ref(null)  // file id armed for a confirming second click
+
+// Row selection, so the GridFS menu actions have a target file.
+const selectedId = ref(null)
+const selectedFile = computed(() => files.value.find(f => f.id === selectedId.value) || null)
+function selectFile(f) { selectedId.value = f.id }
+
+// Inline sub-forms driven by the menu actions.
+const renameTarget = ref(null)   // file being renamed
+const renameName = ref('')
+const metaTarget = ref(null)     // file whose metadata is being edited
+const metaText = ref('')
+const viewTarget = ref(null)     // file whose details are shown
+const copyBucketOpen = ref(false)
+const copyBucketName = ref('')
+const subError = ref(null)       // error for the active sub-form
+
+// The GridFS menu emits { action, nonce }; dispatch each to the matching operation.
+watch(() => props.menuRequest && props.menuRequest.nonce, (nonce) => {
+  if (nonce == null) return
+  handleGridfsMenu(props.menuRequest.action)
+})
+
+function needFile() {
+  if (!selectedFile.value) { emit('toast', 'Select a file first'); return false }
+  return true
+}
+
+function handleGridfsMenu(action) {
+  subError.value = null
+  switch (action) {
+    case 'gridfs:add':    upload(); return
+    case 'gridfs:save':   if (needFile()) download(selectedFile.value); return
+    case 'gridfs:remove': if (needFile()) confirmDelete(selectedFile.value); return
+    case 'gridfs:view_file': if (needFile()) viewTarget.value = selectedFile.value; return
+    case 'gridfs:rename':
+      if (needFile()) { renameTarget.value = selectedFile.value; renameName.value = selectedFile.value.filename }
+      return
+    case 'gridfs:meta':
+      if (needFile()) { metaTarget.value = selectedFile.value; metaText.value = '' }
+      return
+    case 'gridfs:copy_bucket': copyBucketName.value = ''; copyBucketOpen.value = true; return
+    case 'gridfs:drop_bucket': dropBucket(); return
+  }
+}
+
+async function doRename() {
+  const file = renameTarget.value
+  const name = renameName.value.trim()
+  if (!file || !name) return
+  busy.value = true
+  subError.value = null
+  try {
+    await invoke('gridfs_rename', {
+      id: props.target.connId, database: props.target.dbName,
+      bucket: selectedBucket.value, fileId: file.id, newName: name,
+    })
+    emit('toast', 'File renamed')
+    renameTarget.value = null
+    await loadFiles()
+  } catch (e) {
+    subError.value = errMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function doSetMeta() {
+  const file = metaTarget.value
+  if (!file) return
+  // Validate the metadata document up front (empty clears it).
+  const raw = metaText.value.trim()
+  let ejson = ''
+  if (raw !== '' && raw !== '{}') {
+    const pf = parseField(raw)
+    if (!pf.ok) { subError.value = pf.error; return }
+    ejson = pf.ejson
+  }
+  busy.value = true
+  subError.value = null
+  try {
+    await invoke('gridfs_set_metadata', {
+      id: props.target.connId, database: props.target.dbName,
+      bucket: selectedBucket.value, fileId: file.id, metadata: ejson,
+    })
+    emit('toast', 'Metadata saved')
+    metaTarget.value = null
+    await loadFiles()
+  } catch (e) {
+    subError.value = errMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function doCopyBucket() {
+  const name = copyBucketName.value.trim()
+  if (!name) return
+  busy.value = true
+  subError.value = null
+  try {
+    await invoke('gridfs_copy_bucket', {
+      id: props.target.connId, database: props.target.dbName,
+      bucket: selectedBucket.value, newBucket: name,
+    })
+    emit('toast', `Bucket copied to "${name}"`)
+    copyBucketOpen.value = false
+    await loadBuckets()
+  } catch (e) {
+    subError.value = errMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+// Drop the selected bucket after a confirm. Uses the OS confirm dialog rather than a
+// bespoke UI since it's rare and irreversible.
+async function dropBucket() {
+  const bucket = selectedBucket.value
+  const ok = window.confirm(`Drop GridFS bucket "${bucket}" and all its files? This cannot be undone.`)
+  if (!ok) return
+  busy.value = true
+  try {
+    await invoke('gridfs_drop_bucket', {
+      id: props.target.connId, database: props.target.dbName, bucket: bucket,
+    })
+    emit('toast', `Dropped bucket "${bucket}"`)
+    selectedBucket.value = 'fs'
+    await loadBuckets()
+    await loadFiles()
+  } catch (e) {
+    error.value = errMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
 
 // Always offer the default "fs" bucket even if it doesn't exist yet (an upload
 // creates it), plus any discovered buckets.
@@ -193,7 +330,13 @@ function fmtDate(iso) {
             <span></span>
           </div>
           <div class="gf-rows">
-            <div v-for="f in files" :key="f.id" class="gf-row">
+            <div
+              v-for="f in files"
+              :key="f.id"
+              class="gf-row"
+              :class="{ selected: selectedId === f.id }"
+              @click="selectFile(f)"
+            >
               <span class="gf-name" :title="f.filename">{{ f.filename }}</span>
               <span class="gf-size">{{ fmtBytes(f.length) }}</span>
               <span class="gf-date">{{ fmtDate(f.upload_date) }}</span>
@@ -214,6 +357,79 @@ function fmtDate(iso) {
             </div>
           </div>
         </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename file -->
+  <div v-if="renameTarget" class="overlay sub" @mousedown.self="renameTarget = null">
+    <div class="sub-dialog">
+      <div class="dlg-title"><div class="t">Rename File</div>
+        <button class="close-btn" @click="renameTarget = null"><BaseIcon name="close" :size="14" /></button>
+      </div>
+      <div class="sub-body">
+        <input v-model="renameName" class="sub-input" placeholder="New filename" spellcheck="false" @keydown.enter="doRename" />
+        <div v-if="subError" class="sub-error">{{ subError }}</div>
+      </div>
+      <div class="sub-footer">
+        <button class="btn" @click="renameTarget = null">Cancel</button>
+        <button class="btn primary" :disabled="!renameName.trim() || busy" @click="doRename">Rename</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit metadata -->
+  <div v-if="metaTarget" class="overlay sub" @mousedown.self="metaTarget = null">
+    <div class="sub-dialog">
+      <div class="dlg-title"><div class="t">Edit Metadata — {{ metaTarget.filename }}</div>
+        <button class="close-btn" @click="metaTarget = null"><BaseIcon name="close" :size="14" /></button>
+      </div>
+      <div class="sub-body">
+        <textarea v-model="metaText" class="sub-input sub-area" spellcheck="false" placeholder='{ "author": "…", "tags": [ … ] }'></textarea>
+        <div class="sub-hint">Sets the file's <code>metadata</code> document. Leave empty to clear.</div>
+        <div v-if="subError" class="sub-error">{{ subError }}</div>
+      </div>
+      <div class="sub-footer">
+        <button class="btn" @click="metaTarget = null">Cancel</button>
+        <button class="btn primary" :disabled="busy" @click="doSetMeta">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View file details -->
+  <div v-if="viewTarget" class="overlay sub" @mousedown.self="viewTarget = null">
+    <div class="sub-dialog">
+      <div class="dlg-title"><div class="t">File Details</div>
+        <button class="close-btn" @click="viewTarget = null"><BaseIcon name="close" :size="14" /></button>
+      </div>
+      <div class="sub-body">
+        <dl class="vf-list">
+          <dt>Filename</dt><dd>{{ viewTarget.filename }}</dd>
+          <dt>Size</dt><dd>{{ fmtBytes(viewTarget.length) }}</dd>
+          <dt>Uploaded</dt><dd>{{ fmtDate(viewTarget.upload_date) }}</dd>
+          <dt>Content type</dt><dd>{{ viewTarget.content_type || '—' }}</dd>
+          <dt>File ID</dt><dd class="mono">{{ viewTarget.id }}</dd>
+        </dl>
+      </div>
+      <div class="sub-footer">
+        <button class="btn primary" @click="viewTarget = null">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Copy bucket -->
+  <div v-if="copyBucketOpen" class="overlay sub" @mousedown.self="copyBucketOpen = false">
+    <div class="sub-dialog">
+      <div class="dlg-title"><div class="t">Copy Bucket "{{ selectedBucket }}"</div>
+        <button class="close-btn" @click="copyBucketOpen = false"><BaseIcon name="close" :size="14" /></button>
+      </div>
+      <div class="sub-body">
+        <input v-model="copyBucketName" class="sub-input" placeholder="New bucket name" spellcheck="false" @keydown.enter="doCopyBucket" />
+        <div v-if="subError" class="sub-error">{{ subError }}</div>
+      </div>
+      <div class="sub-footer">
+        <button class="btn" @click="copyBucketOpen = false">Cancel</button>
+        <button class="btn primary" :disabled="!copyBucketName.trim() || busy" @click="doCopyBucket">Copy</button>
       </div>
     </div>
   </div>
@@ -350,4 +566,59 @@ function fmtDate(iso) {
 .gf-act:hover { background: var(--bg-hover); color: var(--text); }
 .gf-act.danger { color: var(--danger-text); border-color: var(--danger-text); }
 .gf-act:disabled { opacity: .5; cursor: default; }
+
+.gf-row.selected { background: var(--bg-selected, var(--bg-hover)); box-shadow: inset 2px 0 0 var(--accent); }
+
+/* Sub-form overlays (rename / metadata / view / copy bucket) sit above the modal. */
+.overlay.sub { z-index: 80; }
+.sub-dialog {
+  width: 440px;
+  max-width: 92vw;
+  background: var(--bg-window);
+  border-radius: 10px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sub-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.sub-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+}
+.sub-input:focus { outline: none; border-color: var(--accent); }
+.sub-area { min-height: 120px; font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; }
+.sub-hint { font-size: 11.5px; color: var(--text-faint); }
+.sub-hint code { font-family: var(--mono); }
+.sub-error { font-size: 12px; color: var(--danger-text); }
+.sub-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.btn {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn:hover { background: var(--bg-hover); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:disabled { opacity: .55; cursor: default; }
+.vf-list { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 12.5px; }
+.vf-list dt { color: var(--text-faint); }
+.vf-list dd { margin: 0; color: var(--text); user-select: text; word-break: break-word; }
+.vf-list dd.mono { font-family: var(--mono); font-size: 11.5px; }
 </style>

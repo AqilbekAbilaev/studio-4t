@@ -205,6 +205,7 @@ const validatorTarget = ref(null)     // { connId, connName, dbName, collName } 
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
+const gridfsRequest = ref(null)       // { action, nonce } signal to the open GridFS modal
 const compareTarget = ref(null)       // { connId, connName, dbName } for the Data Compare modal
 const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
@@ -613,6 +614,15 @@ function handleMenuAction(id) {
     case 'db:add_bucket':      menuNode('Add GridFS Bucket…', 'database'); return
     case 'db:drop_database':   menuNode('Drop Database…', 'database'); return
     case 'gridfs:open':        menuNode('GridFS…', 'database'); return
+    case 'gridfs:add':
+    case 'gridfs:save':
+    case 'gridfs:remove':
+    case 'gridfs:view_file':
+    case 'gridfs:rename':
+    case 'gridfs:meta':
+    case 'gridfs:copy_bucket':
+    case 'gridfs:drop_bucket':
+      requestGridfsAction(id); return
 
     // --- collection scoped ---
     case 'coll:aggregation':   menuNode('Open Aggregation Editor', 'collection'); return
@@ -1731,6 +1741,29 @@ function activateTab(id) {
   if (tab && tab._restored) runRestoredTab(tab)
 }
 
+// GridFS menu actions operate inside the GridFS modal on its selected file/bucket.
+// Ensure the modal is open for the resolved database (preserving any existing
+// selection when it's already showing that db), then signal the requested action.
+async function requestGridfsAction(action) {
+  const target = menuTarget('database')
+  if (!target || !target.connectionId || !target.dbName) {
+    showToast('Open a database first')
+    return
+  }
+  const sameOpen = gridfsTarget.value
+    && gridfsTarget.value.connId === target.connectionId
+    && gridfsTarget.value.dbName === target.dbName
+  if (!sameOpen) {
+    gridfsTarget.value = {
+      connId: target.connectionId,
+      connName: target.connectionName,
+      dbName: target.dbName,
+    }
+  }
+  await nextTick()
+  gridfsRequest.value = { action: action, nonce: Date.now() }
+}
+
 // Help → Quickstart: focus the existing Quickstart tab, or open one if it was closed.
 function openQuickstart() {
   const existing = tabs.value.find(t => t.kind === 'quickstart')
@@ -2208,6 +2241,7 @@ async function runAggregate(tabId, params) {
     <GridFsModal
       v-if="gridfsTarget"
       :target="gridfsTarget"
+      :menu-request="gridfsRequest"
       @toast="showToast"
       @close="gridfsTarget = null"
     />

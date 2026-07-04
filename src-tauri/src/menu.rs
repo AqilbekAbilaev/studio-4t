@@ -222,15 +222,17 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
             vec![
                 Spec::Action { id: "gridfs:open", label: "Open GridFS View", accel: None, gate: Some(Gate::Database) },
                 Spec::Separator,
-                Spec::Placeholder { id: "gridfs:view_file", label: "View File" },
-                Spec::Placeholder { id: "gridfs:rename", label: "Rename File…" },
-                Spec::Placeholder { id: "gridfs:meta", label: "Edit Meta Data…" },
-                Spec::Placeholder { id: "gridfs:save", label: "Save To Disk…" },
-                Spec::Placeholder { id: "gridfs:remove", label: "Remove File(s)" },
-                Spec::Placeholder { id: "gridfs:add", label: "Add File(s)…" },
+                // GridFS file/bucket ops act inside the GridFS view on its selected
+                // file/bucket; enabled whenever a database is resolvable.
+                Spec::Action { id: "gridfs:view_file", label: "View File", accel: None, gate: Some(Gate::Database) },
+                Spec::Action { id: "gridfs:rename", label: "Rename File…", accel: None, gate: Some(Gate::Database) },
+                Spec::Action { id: "gridfs:meta", label: "Edit Meta Data…", accel: None, gate: Some(Gate::Database) },
+                Spec::Action { id: "gridfs:save", label: "Save To Disk…", accel: None, gate: Some(Gate::Database) },
+                Spec::Action { id: "gridfs:remove", label: "Remove File(s)", accel: None, gate: Some(Gate::Database) },
+                Spec::Action { id: "gridfs:add", label: "Add File(s)…", accel: None, gate: Some(Gate::Database) },
                 Spec::Separator,
-                Spec::Placeholder { id: "gridfs:copy_bucket", label: "Copy Bucket" },
-                Spec::Placeholder { id: "gridfs:drop_bucket", label: "Drop Bucket" },
+                Spec::Action { id: "gridfs:copy_bucket", label: "Copy Bucket", accel: None, gate: Some(Gate::Database) },
+                Spec::Action { id: "gridfs:drop_bucket", label: "Drop Bucket", accel: None, gate: Some(Gate::Database) },
             ],
         ),
         (

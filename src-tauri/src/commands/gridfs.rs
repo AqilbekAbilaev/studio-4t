@@ -7,6 +7,8 @@ use mongodb::options::GridFsBucketOptions;
 use serde::Serialize;
 use tauri::State;
 
+use super::parse_ejson_document;
+
 // A GridFS file's display metadata, normalized from its `.files` document.
 #[derive(Serialize)]
 pub struct GridFsFile {
@@ -83,12 +85,7 @@ async fn connect(
     storage: &State<'_, Storage>,
     id: &str,
 ) -> Result<mongodb::Client, AppError> {
-    let config = match storage.find(id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id.to_string())),
-    };
-    let password = crate::keychain::get(id);
-    pool.connect(&config, password.as_deref()).await
+    super::client_for(pool, storage, id).await
 }
 
 /// List the GridFS buckets in a database (derived from its `*.files` collections).
@@ -253,6 +250,139 @@ pub async fn gridfs_delete(
         Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),
     }
+}
+
+/// Rename a GridFS file by updating the `filename` field on its `.files` document.
+#[tauri::command]
+pub async fn gridfs_rename(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    bucket: String,
+    file_id: String,
+    new_name: String,
+) -> Result<(), AppError> {
+    let client = match connect(&pool, &storage, &id).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let id_bson = match parse_file_id(&file_id) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let files = client
+        .database(&database)
+        .collection::<bson::Document>(&format!("{bucket}.files"));
+    match files
+        .update_one(bson::doc! { "_id": id_bson }, bson::doc! { "$set": { "filename": new_name } })
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+/// Set a GridFS file's `metadata` document (from an Extended JSON string) on its
+/// `.files` document. An empty string clears the metadata.
+#[tauri::command]
+pub async fn gridfs_set_metadata(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    bucket: String,
+    file_id: String,
+    metadata: String,
+) -> Result<(), AppError> {
+    let metadata_doc = if metadata.trim().is_empty() || metadata.trim() == "{}" {
+        bson::Document::new()
+    } else {
+        match parse_ejson_document(&metadata) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        }
+    };
+    let client = match connect(&pool, &storage, &id).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let id_bson = match parse_file_id(&file_id) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let files = client
+        .database(&database)
+        .collection::<bson::Document>(&format!("{bucket}.files"));
+    match files
+        .update_one(bson::doc! { "_id": id_bson }, bson::doc! { "$set": { "metadata": metadata_doc } })
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+/// Drop a GridFS bucket by dropping its `.files` and `.chunks` collections.
+#[tauri::command]
+pub async fn gridfs_drop_bucket(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    bucket: String,
+) -> Result<(), AppError> {
+    let client = match connect(&pool, &storage, &id).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let db = client.database(&database);
+    for suffix in ["files", "chunks"] {
+        let coll = db.collection::<bson::Document>(&format!("{bucket}.{suffix}"));
+        match coll.drop().await {
+            Ok(_) => {}
+            Err(e) => return Err(AppError::Mongo(e)),
+        }
+    }
+    Ok(())
+}
+
+/// Copy a GridFS bucket to a new bucket name by copying its `.files` and `.chunks`
+/// collections with an aggregation `$out`. The target bucket is replaced if present.
+#[tauri::command]
+pub async fn gridfs_copy_bucket(
+    pool: State<'_, ConnectionPool>,
+    storage: State<'_, Storage>,
+    id: String,
+    database: String,
+    bucket: String,
+    new_bucket: String,
+) -> Result<(), AppError> {
+    let client = match connect(&pool, &storage, &id).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let db = client.database(&database);
+    for suffix in ["files", "chunks"] {
+        let src = db.collection::<bson::Document>(&format!("{bucket}.{suffix}"));
+        let pipeline = vec![
+            bson::doc! { "$match": {} },
+            bson::doc! { "$out": format!("{new_bucket}.{suffix}") },
+        ];
+        // $out runs as the aggregation is driven, so advance the cursor to completion.
+        let mut cursor = match src.aggregate(pipeline).await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        loop {
+            match cursor.advance().await {
+                Ok(true) => continue,
+                Ok(false) => break,
+                Err(e) => return Err(AppError::Mongo(e)),
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
