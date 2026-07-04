@@ -210,6 +210,7 @@ const usersTarget = ref(null)         // { connId, connName, dbName } when the U
 const rolesTarget = ref(null)         // { connId, connName, dbName } when the Roles modal is open
 const functionsTarget = ref(null)     // { connId, connName, dbName } when the Stored Functions modal is open
 const mapReduceTarget = ref(null)     // { connId, connName, dbName, collName } when the Map-Reduce modal is open
+const dbClipboard = ref(null)         // Copy/Paste: { kind: 'collection'|'database', connId, connName, dbName, collName? }
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
@@ -624,6 +625,13 @@ function handleMenuAction(id) {
     case 'db:manage_roles':    menuNode('Manage Roles', 'database'); return
     case 'db:functions':       menuNode('Stored Functions', 'database'); return
     case 'coll:mapreduce':     menuNode('Open Map-Reduce', 'collection'); return
+    // Copy/Paste: copy a collection or database to the app clipboard, then paste it
+    // into a target database (same connection). Copy All == Copy Database here.
+    case 'coll:copy':          menuNode('Copy Collection', 'collection'); return
+    case 'db:copy_database':   menuNode('Copy Database', 'database'); return
+    case 'db:copy_all':        menuNode('Copy Database', 'database'); return
+    case 'db:paste':
+    case 'db:paste_database':  menuNode('Paste Into Database', 'database'); return
     case 'db:drop_database':   menuNode('Drop Database…', 'database'); return
     case 'gridfs:open':        menuNode('GridFS…', 'database'); return
     case 'gridfs:add':
@@ -980,6 +988,29 @@ async function handleContextAction(action) {
     return
   }
 
+  if (action === 'Copy Collection' && saved.type === 'collection') {
+    dbClipboard.value = {
+      kind: 'collection', connId: saved.nodeData.connId, connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName, collName: saved.nodeData.collName,
+    }
+    showToast(`Copied collection "${saved.nodeData.collName}"`)
+    return
+  }
+
+  if (action === 'Copy Database' && saved.type === 'database') {
+    dbClipboard.value = {
+      kind: 'database', connId: saved.nodeData.connId, connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+    }
+    showToast(`Copied database "${saved.nodeData.dbName}"`)
+    return
+  }
+
+  if (action === 'Paste Into Database' && saved.type === 'database') {
+    await pasteClipboard(saved.nodeData)
+    return
+  }
+
   if (action === 'Open Aggregation Editor') {
     openCollectionTab({
       connectionId: saved.nodeData.connId,
@@ -1185,6 +1216,45 @@ async function confirmAddView() {
 // The Validator modal owns its own fetch/save; we just confirm the result.
 function onValidatorSaved(collName) {
   showToast(`Validator saved for "${collName}"`)
+}
+
+// Paste the app clipboard (a copied collection or database) into a target database.
+// Same-connection only (uses a server-side $out); cross-connection is rejected.
+async function pasteClipboard(target) {
+  const clip = dbClipboard.value
+  if (!clip) { showToast('Nothing to paste — copy a collection or database first'); return }
+  if (clip.connId !== target.connId) {
+    showToast('Paste is only supported within the same connection')
+    return
+  }
+  try {
+    if (clip.kind === 'collection') {
+      await invoke('copy_collection', {
+        id: clip.connId,
+        sourceDatabase: clip.dbName, sourceCollection: clip.collName,
+        targetDatabase: target.dbName, targetCollection: clip.collName,
+      })
+      showToast(`Pasted "${clip.collName}" into ${target.dbName}`)
+    } else {
+      const dbs = await invoke('list_databases', { id: clip.connId })
+      const collections = (dbs.find(d => d.name === clip.dbName)?.collections) || []
+      let done = 0
+      for (const coll of collections) {
+        try {
+          await invoke('copy_collection', {
+            id: clip.connId,
+            sourceDatabase: clip.dbName, sourceCollection: coll,
+            targetDatabase: target.dbName, targetCollection: coll,
+          })
+          done++
+        } catch (_) { /* skip a collection that fails; report the rest */ }
+      }
+      showToast(`Pasted ${done} collection${done !== 1 ? 's' : ''} into ${target.dbName}`)
+    }
+    await connectionTreeRef.value.refreshConn(target.connId)
+  } catch (e) {
+    showToast('Paste failed: ' + errMessage(e))
+  }
 }
 
 // Database → Add GridFS Bucket…: a bucket is the pair of `<name>.files` and

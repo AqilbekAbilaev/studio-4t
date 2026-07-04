@@ -23,6 +23,7 @@ pub mod gridfs;
 pub mod users;
 pub mod functions;
 pub mod mapreduce;
+pub mod copyops;
 pub mod compare;
 pub mod folders;
 
@@ -43,6 +44,7 @@ pub use gridfs::*;
 pub use users::*;
 pub use functions::*;
 pub use mapreduce::*;
+pub use copyops::*;
 pub use compare::*;
 pub use folders::*;
 
