@@ -21,6 +21,7 @@ pub mod migration;
 pub mod search;
 pub mod gridfs;
 pub mod users;
+pub mod functions;
 pub mod compare;
 pub mod folders;
 
@@ -39,6 +40,7 @@ pub use migration::*;
 pub use search::*;
 pub use gridfs::*;
 pub use users::*;
+pub use functions::*;
 pub use compare::*;
 pub use folders::*;
 

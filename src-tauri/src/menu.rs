@@ -154,7 +154,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Separator,
                 Spec::Action { id: "db:manage_users", label: "Manage Users", accel: None, gate: Some(Gate::Database) },
                 Spec::Action { id: "db:manage_roles", label: "Manage Roles", accel: None, gate: Some(Gate::Database) },
-                Spec::Placeholder { id: "db:functions", label: "Add / Edit Stored Functions" },
+                Spec::Action { id: "db:functions", label: "Add / Edit Stored Functions", accel: None, gate: Some(Gate::Database) },
                 Spec::Separator,
                 Spec::Action { id: "db:database_stats", label: "Database Statistics", accel: None, gate: Some(Gate::Database) },
                 Spec::Action { id: "db:collection_stats", label: "Collection Statistics", accel: None, gate: Some(Gate::Collection) },

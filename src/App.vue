@@ -20,6 +20,7 @@ import ValidatorModal from './components/ValidatorModal.vue'
 import AboutModal from './components/AboutModal.vue'
 import UsersModal from './components/UsersModal.vue'
 import RolesModal from './components/RolesModal.vue'
+import FunctionsModal from './components/FunctionsModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
@@ -206,6 +207,7 @@ const currentOpsTarget = ref(null)    // { connId, connName } when the Current O
 const validatorTarget = ref(null)     // { connId, connName, dbName, collName } when the Validator modal is open
 const usersTarget = ref(null)         // { connId, connName, dbName } when the Users modal is open
 const rolesTarget = ref(null)         // { connId, connName, dbName } when the Roles modal is open
+const functionsTarget = ref(null)     // { connId, connName, dbName } when the Stored Functions modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
@@ -618,6 +620,7 @@ function handleMenuAction(id) {
     case 'db:add_bucket':      menuNode('Add GridFS Bucket…', 'database'); return
     case 'db:manage_users':    menuNode('Manage Users', 'database'); return
     case 'db:manage_roles':    menuNode('Manage Roles', 'database'); return
+    case 'db:functions':       menuNode('Stored Functions', 'database'); return
     case 'db:drop_database':   menuNode('Drop Database…', 'database'); return
     case 'gridfs:open':        menuNode('GridFS…', 'database'); return
     case 'gridfs:add':
@@ -958,6 +961,11 @@ async function handleContextAction(action) {
 
   if (action === 'Manage Roles' && saved.type === 'database') {
     rolesTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName, dbName: saved.nodeData.dbName }
+    return
+  }
+
+  if (action === 'Stored Functions' && saved.type === 'database') {
+    functionsTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName, dbName: saved.nodeData.dbName }
     return
   }
 
@@ -2214,6 +2222,12 @@ async function runAggregate(tabId, params) {
       v-if="rolesTarget"
       :target="rolesTarget"
       @close="rolesTarget = null"
+    />
+
+    <FunctionsModal
+      v-if="functionsTarget"
+      :target="functionsTarget"
+      @close="functionsTarget = null"
     />
 
     <!-- Schema (View Schema) modal -->
