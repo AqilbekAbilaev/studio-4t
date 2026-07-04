@@ -194,6 +194,7 @@ const treeConnectionCount = ref(0)
 // `nonce` re-fires the panel's watcher; `action` is the menu item id.
 const docMenuRequest = ref(null)      // { action, nonce } | null
 const toolbarHidden = ref(false)      // View → Hide Global Toolbar toggle
+const historyRequest = ref(null)      // View → History Manager: { nonce } signal to the QueryBar
 const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const dbStatsTarget = ref(null)       // { connId, connName, dbName } when the Database Statistics modal is open
@@ -678,6 +679,14 @@ function handleMenuAction(id) {
       toolbarHidden.value = !toolbarHidden.value
       showToast(toolbarHidden.value ? 'Toolbar hidden' : 'Toolbar shown')
       return
+
+    // History Manager: open the active collection tab's query-history menu.
+    case 'view:history': {
+      const tab = tabs.value.find(t => t.id === activeTabId.value)
+      if (!tab || tab.kind !== 'collection') { showToast('Open a collection tab first'); return }
+      historyRequest.value = { nonce: Date.now() }
+      return
+    }
   }
 }
 
@@ -1946,6 +1955,7 @@ async function runAggregate(tabId, params) {
         :vqb-open="vqbOpen"
         :clipboard-query="clipboardQuery"
         :doc-menu-request="docMenuRequest"
+        :history-request="historyRequest"
         @activate-tab="activateTab"
         @close-tab="closeTab"
         @tab-context="onTabContext"

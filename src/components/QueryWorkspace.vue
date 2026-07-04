@@ -19,6 +19,7 @@ const props = defineProps({
   vqbOpen:        { type: Boolean, default: false },
   clipboardQuery: { type: Object,  default: null },
   docMenuRequest: { type: Object,  default: null },
+  historyRequest: { type: Object,  default: null },
 })
 const emit = defineEmits(['activate-tab', 'close-tab', 'tab-context', 'run-query', 'run-aggregate', 'toggle-vqb', 'open-vqb', 'close-vqb', 'toast', 'copy-query', 'paste-query', 'cancel-query'])
 
@@ -221,6 +222,7 @@ async function applyFromBrowser(entry) {
         :query-error-text="queryErrorText"
         :vqb-open="vqbOpen"
         :clipboard-query="clipboardQuery"
+        :history-request="historyRequest"
         @run="run"
         @copy-query="emit('copy-query')"
         @paste-query="emit('paste-query')"

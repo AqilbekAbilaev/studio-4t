@@ -258,7 +258,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Separator,
                 Spec::Placeholder { id: "view:split_v", label: "Split Vertically" },
                 Spec::Placeholder { id: "view:split_h", label: "Split Horizontally" },
-                Spec::Placeholder { id: "view:history", label: "History Manager…" },
+                Spec::Action { id: "view:history", label: "History Manager…", accel: None, gate: Some(Gate::Collection) },
                 // Toggles the global toolbar; the label stays "Hide Global Toolbar"
                 // (native menu labels aren't re-titled), a toast reports the new state.
                 Spec::Action { id: "view:hide_toolbar", label: "Hide Global Toolbar", accel: None, gate: None },
