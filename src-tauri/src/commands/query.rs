@@ -6,6 +6,12 @@ use tauri::State;
 
 use super::{parse_ejson_document, parse_json_documents, parse_pipeline, MAX_QUERY_TIME};
 
+/// Fallback page size when a caller sends a non-positive `limit`. MongoDB treats
+/// `limit <= 0` as "no limit", which would stream an entire collection into
+/// memory; the UI always sends a positive page size, so a non-positive value is
+/// out of contract and we clamp it to this bound instead of fetching everything.
+const FIND_LIMIT_FALLBACK: i64 = 1000;
+
 #[cfg(test)]
 mod tests {
     use super::is_operator_update;
@@ -119,9 +125,12 @@ pub async fn find_documents(
         Err(e) => return Err(e),
     };
 
+    // A positive limit is self-bounding; only a non-positive one would fetch the
+    // whole collection, so clamp that case to a safe page (see FIND_LIMIT_FALLBACK).
+    let effective_limit = if limit <= 0 { FIND_LIMIT_FALLBACK } else { limit };
     let mut query = col
         .find(filter_doc)
-        .limit(limit)
+        .limit(effective_limit)
         .skip(skip as u64)
         .max_time(MAX_QUERY_TIME);
     // Tag the op with the run id so kill_query can find and cancel it.
