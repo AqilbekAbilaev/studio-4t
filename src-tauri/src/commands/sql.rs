@@ -499,19 +499,22 @@ fn parse_and(parser: &mut Parser) -> Result<Expr, String> {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
+    // No `AND` follows — a single term, returned as-is (no And wrapper).
+    if !parser.eat_keyword("and") {
+        return Ok(first);
+    }
     let mut parts = vec![first];
-    while parser.eat_keyword("and") {
+    loop {
         let next = match parse_primary(parser) {
             Ok(val) => val,
             Err(e) => return Err(e),
         };
         parts.push(next);
+        if !parser.eat_keyword("and") {
+            break;
+        }
     }
-    if parts.len() == 1 {
-        Ok(parts.into_iter().next().unwrap())
-    } else {
-        Ok(Expr::And(parts))
-    }
+    Ok(Expr::And(parts))
 }
 
 fn parse_or(parser: &mut Parser) -> Result<Expr, String> {
@@ -519,19 +522,22 @@ fn parse_or(parser: &mut Parser) -> Result<Expr, String> {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
+    // No `OR` follows — a single term, returned as-is (no Or wrapper).
+    if !parser.eat_keyword("or") {
+        return Ok(first);
+    }
     let mut parts = vec![first];
-    while parser.eat_keyword("or") {
+    loop {
         let next = match parse_and(parser) {
             Ok(val) => val,
             Err(e) => return Err(e),
         };
         parts.push(next);
+        if !parser.eat_keyword("or") {
+            break;
+        }
     }
-    if parts.len() == 1 {
-        Ok(parts.into_iter().next().unwrap())
-    } else {
-        Ok(Expr::Or(parts))
-    }
+    Ok(Expr::Or(parts))
 }
 
 // ── Expr → JSON ────────────────────────────────────────────────────

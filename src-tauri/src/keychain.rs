@@ -14,8 +14,14 @@ pub fn set(id: &str, password: &str) -> Result<(), AppError> {
 }
 
 pub fn get(id: &str) -> Option<String> {
-    let entry = keyring::Entry::new(SERVICE, id).ok()?;
-    entry.get_password().ok()
+    let entry = match keyring::Entry::new(SERVICE, id) {
+        Ok(entry) => entry,
+        Err(_) => return None,
+    };
+    match entry.get_password() {
+        Ok(password) => Some(password),
+        Err(_) => None,
+    }
 }
 
 pub fn delete(id: &str) {
