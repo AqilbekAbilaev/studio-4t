@@ -18,6 +18,8 @@ import DatabaseStatsModal from './components/DatabaseStatsModal.vue'
 import CurrentOpsModal from './components/CurrentOpsModal.vue'
 import ValidatorModal from './components/ValidatorModal.vue'
 import AboutModal from './components/AboutModal.vue'
+import UsersModal from './components/UsersModal.vue'
+import RolesModal from './components/RolesModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
@@ -202,6 +204,8 @@ const serverStatusTarget = ref(null)  // { connId, connName } when the Server St
 const dbStatsTarget = ref(null)       // { connId, connName, dbName } when the Database Statistics modal is open
 const currentOpsTarget = ref(null)    // { connId, connName } when the Current Operations modal is open
 const validatorTarget = ref(null)     // { connId, connName, dbName, collName } when the Validator modal is open
+const usersTarget = ref(null)         // { connId, connName, dbName } when the Users modal is open
+const rolesTarget = ref(null)         // { connId, connName, dbName } when the Roles modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
@@ -612,6 +616,8 @@ function handleMenuAction(id) {
     case 'db:export':          menuNode('Export Collections…', 'database'); return
     case 'db:import':          menuNode('Import Collections…', 'database'); return
     case 'db:add_bucket':      menuNode('Add GridFS Bucket…', 'database'); return
+    case 'db:manage_users':    menuNode('Manage Users', 'database'); return
+    case 'db:manage_roles':    menuNode('Manage Roles', 'database'); return
     case 'db:drop_database':   menuNode('Drop Database…', 'database'); return
     case 'gridfs:open':        menuNode('GridFS…', 'database'); return
     case 'gridfs:add':
@@ -942,6 +948,16 @@ async function handleContextAction(action) {
     addBucketTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
     newBucketName.value = ''
     addBucketError.value = null
+    return
+  }
+
+  if (action === 'Manage Users' && saved.type === 'database') {
+    usersTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName, dbName: saved.nodeData.dbName }
+    return
+  }
+
+  if (action === 'Manage Roles' && saved.type === 'database') {
+    rolesTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName, dbName: saved.nodeData.dbName }
     return
   }
 
@@ -2186,6 +2202,18 @@ async function runAggregate(tabId, params) {
       :target="validatorTarget"
       @saved="onValidatorSaved"
       @close="validatorTarget = null"
+    />
+
+    <UsersModal
+      v-if="usersTarget"
+      :target="usersTarget"
+      @close="usersTarget = null"
+    />
+
+    <RolesModal
+      v-if="rolesTarget"
+      :target="rolesTarget"
+      @close="rolesTarget = null"
     />
 
     <!-- Schema (View Schema) modal -->
