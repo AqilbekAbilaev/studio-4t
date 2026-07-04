@@ -21,6 +21,7 @@ import AboutModal from './components/AboutModal.vue'
 import UsersModal from './components/UsersModal.vue'
 import RolesModal from './components/RolesModal.vue'
 import FunctionsModal from './components/FunctionsModal.vue'
+import MapReduceModal from './components/MapReduceModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
@@ -208,6 +209,7 @@ const validatorTarget = ref(null)     // { connId, connName, dbName, collName } 
 const usersTarget = ref(null)         // { connId, connName, dbName } when the Users modal is open
 const rolesTarget = ref(null)         // { connId, connName, dbName } when the Roles modal is open
 const functionsTarget = ref(null)     // { connId, connName, dbName } when the Stored Functions modal is open
+const mapReduceTarget = ref(null)     // { connId, connName, dbName, collName } when the Map-Reduce modal is open
 const migrationTarget = ref(null)     // { connId, connName, dbName, collName } for the SQL Migration modal
 const searchTarget = ref(null)        // { connId, connName, dbName } for the Global Search modal
 const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
@@ -621,6 +623,7 @@ function handleMenuAction(id) {
     case 'db:manage_users':    menuNode('Manage Users', 'database'); return
     case 'db:manage_roles':    menuNode('Manage Roles', 'database'); return
     case 'db:functions':       menuNode('Stored Functions', 'database'); return
+    case 'coll:mapreduce':     menuNode('Open Map-Reduce', 'collection'); return
     case 'db:drop_database':   menuNode('Drop Database…', 'database'); return
     case 'gridfs:open':        menuNode('GridFS…', 'database'); return
     case 'gridfs:add':
@@ -966,6 +969,14 @@ async function handleContextAction(action) {
 
   if (action === 'Stored Functions' && saved.type === 'database') {
     functionsTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName, dbName: saved.nodeData.dbName }
+    return
+  }
+
+  if (action === 'Open Map-Reduce' && saved.type === 'collection') {
+    mapReduceTarget.value = {
+      connId: saved.nodeData.connId, connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName, collName: saved.nodeData.collName,
+    }
     return
   }
 
@@ -2228,6 +2239,12 @@ async function runAggregate(tabId, params) {
       v-if="functionsTarget"
       :target="functionsTarget"
       @close="functionsTarget = null"
+    />
+
+    <MapReduceModal
+      v-if="mapReduceTarget"
+      :target="mapReduceTarget"
+      @close="mapReduceTarget = null"
     />
 
     <!-- Schema (View Schema) modal -->

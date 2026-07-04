@@ -185,6 +185,7 @@ pub fn run() {
             list_functions,
             save_function,
             drop_function,
+            map_reduce,
             compare_collections,
             list_folders,
             create_folder,

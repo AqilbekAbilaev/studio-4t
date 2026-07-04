@@ -166,7 +166,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
             vec![
                 Spec::Action { id: "coll:open_tab", label: "Open Collection Tab", accel: Some("F10"), gate: Some(Gate::Connection) },
                 Spec::Action { id: "coll:aggregation", label: "Open Aggregation Editor", accel: Some("F4"), gate: Some(Gate::Collection) },
-                Spec::Placeholder { id: "coll:mapreduce", label: "Open Map-Reduce" },
+                Spec::Action { id: "coll:mapreduce", label: "Open Map-Reduce", accel: None, gate: Some(Gate::Collection) },
                 Spec::Separator,
                 Spec::Action { id: "coll:insert_document", label: "Insert Document…", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:update_dialog", label: "Update Dialog…", accel: None, gate: Some(Gate::Collection) },
