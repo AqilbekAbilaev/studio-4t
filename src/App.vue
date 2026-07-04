@@ -268,6 +268,11 @@ const newViewPipeline = ref('')         // aggregation pipeline (JSON array, opt
 const addViewError    = ref(null)
 const addViewSaving   = ref(false)
 
+const addBucketTarget = ref(null)       // { connId, dbName } | null
+const newBucketName   = ref('')
+const addBucketError  = ref(null)
+const addBucketSaving = ref(false)
+
 const dropDatabaseTarget   = ref(null)  // { connId, dbName } | null
 const dropDatabaseError    = ref(null)
 const dropDatabaseDeleting = ref(false)
@@ -605,6 +610,7 @@ function handleMenuAction(id) {
     case 'coll:validator':     menuNode('Add / Edit Validator…', 'collection'); return
     case 'db:export':          menuNode('Export Collections…', 'database'); return
     case 'db:import':          menuNode('Import Collections…', 'database'); return
+    case 'db:add_bucket':      menuNode('Add GridFS Bucket…', 'database'); return
     case 'db:drop_database':   menuNode('Drop Database…', 'database'); return
     case 'gridfs:open':        menuNode('GridFS…', 'database'); return
 
@@ -922,6 +928,13 @@ async function handleContextAction(action) {
     return
   }
 
+  if (action === 'Add GridFS Bucket…' && saved.type === 'database') {
+    addBucketTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
+    newBucketName.value = ''
+    addBucketError.value = null
+    return
+  }
+
   if (action === 'Open Aggregation Editor') {
     openCollectionTab({
       connectionId: saved.nodeData.connId,
@@ -1127,6 +1140,32 @@ async function confirmAddView() {
 // The Validator modal owns its own fetch/save; we just confirm the result.
 function onValidatorSaved(collName) {
   showToast(`Validator saved for "${collName}"`)
+}
+
+// Database → Add GridFS Bucket…: a bucket is the pair of `<name>.files` and
+// `<name>.chunks` collections; create both so it appears in the GridFS view.
+async function confirmAddBucket() {
+  const target = addBucketTarget.value
+  const name = newBucketName.value.trim()
+  if (!target || !name) return
+  addBucketSaving.value = true
+  addBucketError.value = null
+  try {
+    for (const suffix of ['files', 'chunks']) {
+      await invoke('create_collection', {
+        id: target.connId,
+        database: target.dbName,
+        name: `${name}.${suffix}`,
+      })
+    }
+    await connectionTreeRef.value.refreshConn(target.connId)
+    showToast(`GridFS bucket "${name}" created`)
+    addBucketTarget.value = null
+  } catch (e) {
+    addBucketError.value = errMessage(e)
+  } finally {
+    addBucketSaving.value = false
+  }
 }
 
 async function confirmDropDatabase() {
@@ -2282,6 +2321,37 @@ async function runAggregate(tabId, params) {
           <button class="btn" @click="addViewTarget = null">Cancel</button>
           <button class="btn primary" :disabled="!newViewName.trim() || !newViewSource.trim() || addViewSaving" @click="confirmAddView">
             {{ addViewSaving ? 'Creating…' : 'Create' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add GridFS Bucket modal -->
+    <div v-if="addBucketTarget" class="del-overlay" @mousedown.self="addBucketTarget = null">
+      <div class="del-dialog">
+        <div class="del-title">
+          <div class="t">Add GridFS Bucket</div>
+          <button class="close-btn" @click="addBucketTarget = null">
+            <BaseIcon name="close" :size="14" />
+          </button>
+        </div>
+        <div class="del-body">
+          <input
+            v-model="newBucketName"
+            class="prompt-input"
+            placeholder="Bucket name (e.g. fs)"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.enter="confirmAddBucket"
+          />
+          <div v-if="addBucketError" class="del-error">{{ addBucketError }}</div>
+        </div>
+        <div class="del-footer">
+          <span class="spacer"></span>
+          <button class="btn" @click="addBucketTarget = null">Cancel</button>
+          <button class="btn primary" :disabled="!newBucketName.trim() || addBucketSaving" @click="confirmAddBucket">
+            {{ addBucketSaving ? 'Creating…' : 'Create' }}
           </button>
         </div>
       </div>

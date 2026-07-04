@@ -150,7 +150,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Separator,
                 Spec::Action { id: "db:add_collection", label: "Add Collection…", accel: None, gate: Some(Gate::Database) },
                 Spec::Action { id: "db:add_view", label: "Add View…", accel: None, gate: Some(Gate::Database) },
-                Spec::Placeholder { id: "db:add_bucket", label: "Add GridFS Bucket…" },
+                Spec::Action { id: "db:add_bucket", label: "Add GridFS Bucket…", accel: None, gate: Some(Gate::Database) },
                 Spec::Separator,
                 Spec::Placeholder { id: "db:manage_users", label: "Manage Users" },
                 Spec::Placeholder { id: "db:manage_roles", label: "Manage Roles" },
