@@ -222,7 +222,9 @@ pub async fn save_connection(
     };
 
     // Create and cache the client immediately so the first expand is instant.
-    match pool.connect(&config, pw_ref).await {
+    // The password was just written to the keychain above, so the pool reads it
+    // back when it opens the connection.
+    match pool.connect(&config).await {
         Ok(_) => {}
         Err(e) => return Err(e),
     };

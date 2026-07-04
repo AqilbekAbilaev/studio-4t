@@ -87,28 +87,38 @@ impl ConnectionPool {
     }
 
     /// Single entry point every command uses to obtain a client for a
-    /// connection: builds the URI from the stored config (+ keychain password)
-    /// and returns a cached-or-new client keyed by the connection id.
-    pub async fn connect(
-        &self,
-        config: &ConnectionConfig,
-        password: Option<&str>,
-    ) -> Result<Client, AppError> {
-        // SSH: ensure the tunnel and point the driver at the local forwarded port.
+    /// connection. Returns the cached client when one exists; only on a cache
+    /// miss does it read the password from the keychain and build the URI — so a
+    /// hot query path (find/count on an already-open connection) pays no keychain
+    /// round-trip. The pool owns credential resolution end to end (it already
+    /// reads the SSH secrets in `ensure_tunnel`).
+    pub async fn connect(&self, config: &ConnectionConfig) -> Result<Client, AppError> {
+        // SSH: ensure the tunnel first (this re-establishes a dead one and evicts
+        // the stale client, so the liveness check must run before the cache read).
         if config.ssh_enabled {
             let tunnel = match self.ensure_tunnel(config).await {
                 Ok(value) => value,
                 Err(e) => return Err(e),
             };
+            // Cached client for the live tunnel — no credential lookup needed.
+            if let Some(client) = self.get(&config.id).await {
+                return Ok(client);
+            }
+            let password = crate::keychain::get(&config.id);
             let host = String::from("127.0.0.1");
             let port = tunnel.local_addr.port();
-            let built_uri = uri::build_uri_to(config, password, &host, port);
+            let built_uri = uri::build_uri_to(config, password.as_deref(), &host, port);
             return self
                 .get_or_create(&config.id, &uri::with_timeout(&built_uri))
                 .await;
         }
 
-        let built_uri = uri::build_uri(config, password);
+        // Non-SSH fast path: a cached client needs no keychain read or URI build.
+        if let Some(client) = self.get(&config.id).await {
+            return Ok(client);
+        }
+        let password = crate::keychain::get(&config.id);
+        let built_uri = uri::build_uri(config, password.as_deref());
         self.get_or_create(&config.id, &uri::with_timeout(&built_uri))
             .await
     }

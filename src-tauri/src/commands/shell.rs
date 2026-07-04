@@ -24,12 +24,7 @@ pub async fn run_shell_command(
 ) -> Result<ShellResult, AppError> {
     // Resolve the connection exactly like find_documents so the shell shares the
     // same pooled client and credential flow.
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

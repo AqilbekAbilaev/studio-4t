@@ -41,12 +41,7 @@ pub async fn kill_query(
     id: String,
     comment: String,
 ) -> Result<usize, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -103,12 +98,7 @@ pub async fn find_documents(
     limit: i64,
     comment: Option<String>,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -180,12 +170,7 @@ pub async fn count_documents(
     collection: String,
     filter: String,
 ) -> Result<i64, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -218,12 +203,7 @@ pub async fn insert_document(
     collection: String,
     document: String,
 ) -> Result<String, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -263,12 +243,7 @@ pub async fn insert_documents(
             "Clipboard has no document(s) to paste".to_string(),
         ));
     }
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -291,12 +266,7 @@ pub async fn replace_document(
     id_filter: String,
     document: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -329,12 +299,7 @@ pub async fn delete_document(
     collection: String,
     id_filter: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -372,12 +337,7 @@ pub async fn update_many(
     filter: String,
     update: String,
 ) -> Result<i64, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -418,12 +378,7 @@ pub async fn delete_many(
     collection: String,
     filter: String,
 ) -> Result<i64, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -452,12 +407,7 @@ pub async fn clear_collection(
     database: String,
     collection: String,
 ) -> Result<i64, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -485,12 +435,7 @@ pub async fn explain_query(
     skip: i64,
     limit: i64,
 ) -> Result<serde_json::Value, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -548,12 +493,7 @@ pub async fn run_aggregate(
     pipeline: String,
     comment: Option<String>,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

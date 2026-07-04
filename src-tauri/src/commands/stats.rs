@@ -88,12 +88,7 @@ pub async fn collection_stats(
     database: String,
     collection: String,
 ) -> Result<CollectionStats, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

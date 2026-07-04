@@ -25,16 +25,11 @@ pub async fn server_info(
     id: String,
     kind: String,
 ) -> Result<serde_json::Value, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
     let command = match info_command(&kind) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Bson(e)),
     };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

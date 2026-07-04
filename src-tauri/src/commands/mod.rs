@@ -1,5 +1,8 @@
 use crate::error::AppError;
+use crate::pool::ConnectionPool;
+use crate::storage::Storage;
 use mongodb::bson;
+use mongodb::Client;
 use serde::Serialize;
 use std::time::Duration;
 
@@ -40,6 +43,23 @@ pub use folders::*;
 // Server-side time cap on user queries so a runaway find/aggregate aborts on the
 // server instead of hanging the UI (Tauri commands can't be cancelled in-flight).
 pub(crate) const MAX_QUERY_TIME: Duration = Duration::from_secs(60);
+
+/// Resolve the live MongoDB client for a saved connection: look up its config and
+/// hand off to the pool, which caches the client and reads credentials from the
+/// keychain only when it actually opens a new connection. Every command that
+/// operates on a connection goes through here, so the config-lookup + connect
+/// dance lives in exactly one place (and the keychain read stays off the hot path).
+pub(crate) async fn client_for(
+    pool: &ConnectionPool,
+    storage: &Storage,
+    id: &str,
+) -> Result<Client, AppError> {
+    let config = match storage.find(id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id.to_string())),
+    };
+    pool.connect(&config).await
+}
 
 #[derive(Serialize)]
 pub struct DatabaseInfo {

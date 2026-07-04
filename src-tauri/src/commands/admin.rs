@@ -22,12 +22,7 @@ pub async fn list_databases(
     storage: State<'_, Storage>,
     id: String,
 ) -> Result<Vec<DatabaseInfo>, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -66,12 +61,7 @@ pub async fn create_collection(
     database: String,
     name: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -93,18 +83,13 @@ pub async fn create_view(
     view_on: String,
     pipeline: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
     // Parse and validate the pipeline before opening a connection, so a bad pipeline
     // fails fast with a clear message rather than a driver error.
     let stages = match parse_pipeline(&pipeline) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -139,12 +124,7 @@ pub async fn get_validator(
     database: String,
     collection: String,
 ) -> Result<ValidatorInfo, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -213,10 +193,6 @@ pub async fn set_validator(
     validation_level: String,
     validation_action: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
     // Parse the validator up front; an empty string clears the rule (validator: {}).
     let validator_doc = if validator.trim().is_empty() || validator.trim() == "{}" {
         bson::Document::new()
@@ -226,8 +202,7 @@ pub async fn set_validator(
             Err(e) => return Err(e),
         }
     };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -250,12 +225,7 @@ pub async fn drop_database(
     id: String,
     database: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -273,12 +243,7 @@ pub async fn drop_collection(
     database: String,
     collection: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -300,12 +265,7 @@ pub async fn rename_collection(
     collection: String,
     new_name: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -331,12 +291,7 @@ pub async fn create_database(
     database: String,
     first_collection: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -361,12 +316,7 @@ pub async fn server_status(
     storage: State<'_, Storage>,
     id: String,
 ) -> Result<serde_json::Value, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -387,12 +337,7 @@ pub async fn database_stats(
     id: String,
     database: String,
 ) -> Result<serde_json::Value, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -412,12 +357,7 @@ pub async fn current_ops(
     storage: State<'_, Storage>,
     id: String,
 ) -> Result<serde_json::Value, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -437,12 +377,7 @@ pub async fn list_indexes(
     database: String,
     collection: String,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -479,12 +414,7 @@ pub async fn create_index(
     unique: bool,
     name: String,
 ) -> Result<(), AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -530,12 +460,7 @@ pub async fn drop_index(
             name
         )));
     }
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -567,12 +492,7 @@ pub async fn set_index_hidden(
             name
         )));
     }
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -598,12 +518,7 @@ pub async fn index_stats(
     database: String,
     collection: String,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -643,12 +558,7 @@ pub async fn export_collection(
     path: String,
     format: String,
 ) -> Result<usize, AppError> {
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -720,12 +630,7 @@ pub async fn import_collection(
         return Ok(0);
     }
 
-    let config = match storage.find(&id) {
-        Some(val) => val,
-        None => return Err(AppError::UnknownConnection(id)),
-    };
-    let password = crate::keychain::get(&id);
-    let client = match pool.connect(&config, password.as_deref()).await {
+    let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
