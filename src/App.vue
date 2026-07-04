@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { installInputUndo } from './utils/inputUndo'
 import { parseField, parsePipeline } from './utils/queryParser'
 import { errMessage, errCode } from './utils/errors'
@@ -560,6 +561,21 @@ function menuTarget(requiredLevel = null) {
   )
 }
 
+// Help-menu link targets. Default to the project's real GitHub repo (from the git
+// remote); retarget as needed once dedicated pages exist.
+const HELP_REPO = 'https://github.com/AqilbekAbilaev/studio-4t'
+const HELP_URLS = {
+  'help:license':         HELP_REPO,
+  'help:gallery':         `${HELP_REPO}#readme`,
+  'help:whats_new':       `${HELP_REPO}/releases`,
+  'help:updates':         `${HELP_REPO}/releases`,
+  'help:support':         `${HELP_REPO}/issues`,
+  'help:feature_request': `${HELP_REPO}/issues/new`,
+  'help:feedback':        `${HELP_REPO}/issues/new`,
+  'help:tutorials':       `${HELP_REPO}/wiki`,
+  'help:knowledge_base':  `${HELP_REPO}/wiki`,
+}
+
 // Routes menu-bar actions (emitted by id) to the same handlers the toolbar and
 // right-click menus already use. The menu bar never emits a disabled item.
 function handleMenuAction(id) {
@@ -571,6 +587,19 @@ function handleMenuAction(id) {
     case 'help:shortcuts':   showShortcuts.value = true; return
     case 'help:quickstart':  openQuickstart(); return
     case 'help:about':       showAbout.value = true; return
+    // Help links open the project's GitHub (issues / releases / repo). Configurable —
+    // retarget any URL in HELP_URLS.
+    case 'help:license':
+    case 'help:gallery':
+    case 'help:whats_new':
+    case 'help:updates':
+    case 'help:support':
+    case 'help:feature_request':
+    case 'help:feedback':
+    case 'help:tutorials':
+    case 'help:knowledge_base':
+      openUrl(HELP_URLS[id]).catch(() => showToast('Could not open link'))
+      return
     case 'coll:vqb': {
       const tab = menuTarget('collection')
       if (!tab || tab.kind !== 'collection' || !tab.collectionName) {
