@@ -1,9 +1,11 @@
 [package]
 name = "studio-4t"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "An open-source, free desktop GUI for managing MongoDB — a community alternative to Studio 3T."
+authors = ["Akhilbek Abilaev <abilaevaqil@gmail.com>"]
 edition = "2021"
+license = "GPL-3.0-only"
+repository = "https://github.com/AqilbekAbilaev/studio-4t"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
