@@ -5,7 +5,7 @@ use mongodb::bson;
 use serde::Serialize;
 use tauri::State;
 
-use super::client_for;
+use super::{client_for, next_document};
 
 // A server-side stored function, from a `system.js` document ({ _id, value: Code }).
 #[derive(Serialize)]
@@ -45,16 +45,10 @@ pub async fn list_functions(
     };
     let mut functions: Vec<StoredFunction> = Vec::new();
     loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let doc: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
+        let doc: bson::Document = match next_document(&mut cursor).await {
+            Ok(Some(value)) => value,
+            Ok(None) => break,
+            Err(e) => return Err(e),
         };
         let name = match doc.get("_id") {
             Some(bson::Bson::String(text)) => text.clone(),

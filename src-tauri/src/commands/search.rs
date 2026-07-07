@@ -5,7 +5,7 @@ use mongodb::bson;
 use serde::Serialize;
 use tauri::State;
 
-use super::MAX_QUERY_TIME;
+use super::{next_document, MAX_QUERY_TIME};
 
 const DEFAULT_SCAN: i64 = 1000;
 const MAX_SCAN: i64 = 5000;
@@ -96,16 +96,10 @@ pub async fn search_collections(
         let mut matched: u64 = 0;
         let mut hits: Vec<serde_json::Value> = Vec::new();
         loop {
-            let has_next = match cursor.advance().await {
-                Ok(val) => val,
-                Err(e) => return Err(AppError::Mongo(e)),
-            };
-            if !has_next {
-                break;
-            }
-            let doc: bson::Document = match cursor.deserialize_current() {
-                Ok(val) => val,
-                Err(e) => return Err(AppError::Mongo(e)),
+            let doc: bson::Document = match next_document(&mut cursor).await {
+                Ok(Some(value)) => value,
+                Ok(None) => break,
+                Err(e) => return Err(e),
             };
             scanned += 1;
             if doc_matches(&doc, &needle) {

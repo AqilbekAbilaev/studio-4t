@@ -7,7 +7,7 @@ use mongodb::options::GridFsBucketOptions;
 use serde::Serialize;
 use tauri::State;
 
-use super::parse_ejson_document;
+use super::{next_document, parse_ejson_document};
 
 // A GridFS file's display metadata, normalized from its `.files` document.
 #[derive(Serialize)]
@@ -129,16 +129,10 @@ pub async fn list_gridfs_files(
     };
     let mut out: Vec<GridFsFile> = Vec::new();
     loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let doc: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
+        let doc: bson::Document = match next_document(&mut cursor).await {
+            Ok(Some(value)) => value,
+            Ok(None) => break,
+            Err(e) => return Err(e),
         };
         out.push(extract_file(&doc));
     }
