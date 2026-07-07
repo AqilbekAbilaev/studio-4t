@@ -62,13 +62,58 @@ fn save_overwrites_existing_file() {
     assert_eq!(loaded[0].name, "New");
 }
 
+// Returns the first `*.corrupt-*` sibling in `dir`, if any.
+fn find_corrupt_backup(dir: &std::path::Path) -> Option<PathBuf> {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let entry = entry.unwrap();
+        let file_name = entry.file_name();
+        let file_name = file_name.to_string_lossy();
+        if file_name.contains(".corrupt-") {
+            return Some(entry.path());
+        }
+    }
+    None
+}
+
 #[test]
 fn load_returns_empty_on_corrupt_file() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("connections.json");
     std::fs::write(&path, "not valid json {{ garbage").unwrap();
-    let storage = Storage::new(path);
+    let storage = Storage::new(path.clone());
     assert!(storage.load().is_empty());
+    // The corrupt file is quarantined aside, not left at the target path...
+    assert!(!path.exists());
+    // ...and its original bytes survive in the `.corrupt-*` backup.
+    let backup = find_corrupt_backup(dir.path())
+        .expect("a .corrupt-* backup should exist");
+    assert_eq!(
+        std::fs::read_to_string(&backup).unwrap(),
+        "not valid json {{ garbage"
+    );
+}
+
+#[test]
+fn corrupt_load_then_write_preserves_original() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("connections.json");
+    std::fs::write(&path, "not valid json {{ garbage").unwrap();
+    let storage = Storage::new(path.clone());
+    // Loading a corrupt file yields empty (and quarantines the original).
+    assert!(storage.load().is_empty());
+    // A subsequent write persists a fresh file with the added connection...
+    storage.add(conn("1", "Local")).unwrap();
+    let loaded = storage.load();
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0].id, "1");
+    // ...and the corrupt bytes survive in the backup — the core anti-data-loss
+    // guarantee: the write never overwrote the recoverable original.
+    let backup = find_corrupt_backup(dir.path())
+        .expect("a .corrupt-* backup should exist");
+    assert_eq!(
+        std::fs::read_to_string(&backup).unwrap(),
+        "not valid json {{ garbage"
+    );
 }
 
 #[test]

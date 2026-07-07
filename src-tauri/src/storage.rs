@@ -156,9 +156,34 @@ impl Storage {
         if !self.path.exists() {
             return vec![];
         }
-        let content = std::fs::read_to_string(&self.path).unwrap_or_default();
+        // A file that exists but can't be read/parsed is quarantined aside (not
+        // silently emptied), so the next write persists a fresh file instead of
+        // overwriting the recoverable original. See persist::quarantine_corrupt.
+        let content = match std::fs::read_to_string(&self.path) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!(
+                    "storage: failed to read {}: {}",
+                    self.path.display(),
+                    error
+                );
+                crate::persist::quarantine_corrupt(&self.path);
+                return vec![];
+            }
+        };
         let migrated = migrate_legacy_hosts(&content);
-        serde_json::from_str(&migrated).unwrap_or_default()
+        match serde_json::from_str(&migrated) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!(
+                    "storage: failed to parse {}: {}",
+                    self.path.display(),
+                    error
+                );
+                crate::persist::quarantine_corrupt(&self.path);
+                vec![]
+            }
+        }
     }
 
     // Serializes and atomically writes the list. Pure disk write, no lock.
