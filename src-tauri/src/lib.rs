@@ -1,3 +1,11 @@
+// Guard against a subtle async bug: holding a synchronous `std::sync::Mutex`
+// (or `RwLock`) guard across an `.await` can stall or deadlock the runtime. The
+// stores here are deliberately written to lock-clone-drop *before* awaiting; this
+// lint keeps that invariant from silently regressing as new async code is added.
+// `deny` (not `warn`) so a regression fails `cargo clippy` outright instead of
+// being lost among the crate's other (intentional, house-style) lint warnings.
+#![deny(clippy::await_holding_lock)]
+
 mod commands;
 mod default_queries;
 mod error;
