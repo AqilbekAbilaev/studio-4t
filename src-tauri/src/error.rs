@@ -77,10 +77,19 @@ struct WireError<'a> {
 }
 
 impl serde::Serialize for AppError {
+    // This is the deliberate single funnel: every error returned to the frontend
+    // passes through here, so it's the one place we log. Gate the log by category —
+    // expected user-input errors (`validation`, `bson`) surface to the user as calm
+    // toasts, so logging them here is just noise. Everything else is genuinely
+    // unexpected / server-side, so we log it for diagnosis.
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        eprintln!("[studio-4t] error [{}]: {}", self.code(), self);
+        let code = self.code();
+        match code {
+            "validation" | "bson" => {}
+            _ => eprintln!("[studio-4t] error [{}]: {}", code, self),
+        }
         let wire = WireError {
-            code: self.code(),
+            code: code,
             message: self.to_string(),
         };
         wire.serialize(s)
