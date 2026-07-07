@@ -2837,8 +2837,10 @@ async function runAggregate(tabId, params) {
           <div class="idx-detail-section">Usage</div>
           <div v-if="indexDetailsLoading" class="idx-msg">Loading usage…</div>
           <table v-else-if="indexDetailsStats" class="idx-detail-stats">
-            <tr><td>Operations</td><td>{{ indexDetailsStats.accesses?.ops ?? '—' }}</td></tr>
-            <tr><td>Tracking since</td><td>{{ formatIndexSince(indexDetailsStats.accesses?.since) }}</td></tr>
+            <tbody>
+              <tr><td>Operations</td><td>{{ indexDetailsStats.accesses?.ops ?? '—' }}</td></tr>
+              <tr><td>Tracking since</td><td>{{ formatIndexSince(indexDetailsStats.accesses?.since) }}</td></tr>
+            </tbody>
           </table>
           <div v-else class="idx-msg">Usage statistics unavailable.</div>
         </div>

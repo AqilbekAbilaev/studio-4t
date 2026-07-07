@@ -351,7 +351,7 @@ fn build_submenu(
                     Err(e) => return Err(e),
                 };
             }
-            Spec::Placeholder { id: id, label: label } => {
+            Spec::Placeholder { id, label } => {
                 let item = match MenuItem::with_id(app, *id, *label, false, None::<&str>) {
                     Ok(val) => val,
                     Err(e) => return Err(e),
@@ -361,7 +361,7 @@ fn build_submenu(
                     Err(e) => return Err(e),
                 };
             }
-            Spec::Action { id: id, label: label, accel: accel, gate: gate } => {
+            Spec::Action { id, label, accel, gate } => {
                 // On macOS the app menu's predefined Quit already owns ⌘Q, so the
                 // File → Exit item must not register it a second time.
                 let is_mac_exit = cfg!(target_os = "macos") && *id == "file:exit";
