@@ -139,3 +139,69 @@ fn sort_document_preserves_key_order() {
     let reversed_keys: Vec<&str> = reversed.keys().map(|k| k.as_str()).collect();
     assert_eq!(reversed_keys, vec!["b", "a"]);
 }
+
+// ── export formatting ──────────────────────────────────────────
+// The streaming exporter (`stream_export`) reads from a live cursor, so its
+// Mongo/file orchestration is exercised by the manual smoke test. These cover the
+// pure formatting primitives it shares with the buffered `docs_to_json_array` /
+// `docs_to_csv` assemblers, so the streamed output is validated byte-for-byte.
+
+#[test]
+fn export_json_empty_is_empty_array() {
+    assert_eq!(docs_to_json_array(&[]).unwrap(), "[]");
+}
+
+#[test]
+fn export_json_multi_doc_is_a_valid_json_array() {
+    let docs = vec![bson::doc! { "a": 1 }, bson::doc! { "b": "x" }];
+    let out = docs_to_json_array(&docs).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let array = parsed.as_array().unwrap();
+    assert_eq!(array.len(), 2);
+    assert_eq!(array[0]["a"], serde_json::json!(1));
+    assert_eq!(array[1]["b"], serde_json::json!("x"));
+}
+
+#[test]
+fn export_csv_header_is_union_of_all_keys() {
+    let docs = vec![
+        bson::doc! { "a": 1, "b": 2 },
+        bson::doc! { "a": 3, "c": 4 },
+    ];
+    let first_line = docs_to_csv(&docs).lines().next().unwrap().to_string();
+    assert_eq!(first_line, "a,b,c");
+}
+
+#[test]
+fn export_csv_missing_key_becomes_an_empty_cell() {
+    let docs = vec![bson::doc! { "a": 1, "b": 2 }, bson::doc! { "a": 3 }];
+    let out = docs_to_csv(&docs);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines[0], "a,b");
+    assert_eq!(lines[1], "1,2");
+    assert_eq!(lines[2], "3,");
+}
+
+#[test]
+fn export_csv_empty_is_a_single_blank_header_line() {
+    // No docs → no headers → a lone newline, matching pre-refactor behavior.
+    assert_eq!(docs_to_csv(&[]), "\n");
+}
+
+#[test]
+fn export_csv_transform_dropping_a_field_removes_its_column() {
+    // A masking rule that removes `secret`: after the transform no document has the
+    // key, so it must not appear as a column. The streaming exporter applies the
+    // transform in its header pass for exactly this reason; here we apply it first,
+    // then assemble.
+    let mut docs = vec![
+        bson::doc! { "name": "ann", "secret": "s1" },
+        bson::doc! { "name": "bob" },
+    ];
+    for doc in docs.iter_mut() {
+        doc.remove("secret");
+    }
+    let out = docs_to_csv(&docs);
+    assert_eq!(out.lines().next().unwrap(), "name");
+    assert!(!out.contains("secret"));
+}

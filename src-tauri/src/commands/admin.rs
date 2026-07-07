@@ -7,7 +7,7 @@ use mongodb::IndexModel;
 use serde::Serialize;
 use tauri::State;
 
-use super::{csv_to_docs, docs_to_csv, parse_ejson_document, parse_json_documents, parse_pipeline, DatabaseInfo};
+use super::{csv_to_docs, parse_ejson_document, parse_json_documents, parse_pipeline, DatabaseInfo};
 
 /// The `_id_` index is created and required by MongoDB and can never be dropped,
 /// hidden, or otherwise modified. The index-management guards share this check so
@@ -565,43 +565,18 @@ pub async fn export_collection(
     let col = client
         .database(&database)
         .collection::<bson::Document>(&collection);
-    let mut cursor = match col.find(bson::doc! {}).await {
-        Ok(val) => val,
-        Err(e) => return Err(AppError::Mongo(e)),
-    };
-    let mut docs = Vec::new();
-    loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let doc: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        docs.push(doc);
-    }
-    let count = docs.len();
-
-    let contents = if format == "csv" {
-        docs_to_csv(&docs)
-    } else {
-        let values: Vec<serde_json::Value> = docs
-            .into_iter()
-            .map(|doc| serde_json::Value::from(bson::Bson::Document(doc)))
-            .collect();
-        match serde_json::to_string_pretty(&values) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Serde(e)),
-        }
-    };
-    match std::fs::write(&path, contents) {
-        Ok(_) => Ok(count),
-        Err(e) => Err(AppError::Io(e)),
-    }
+    // Plain export: no filter, no limit, no time cap (a large export legitimately
+    // takes a while), no per-document transform.
+    super::stream_export(
+        &col,
+        bson::doc! {},
+        None,
+        None,
+        &path,
+        &format,
+        |_doc: &mut bson::Document| -> Result<(), AppError> { Ok(()) },
+    )
+    .await
 }
 
 #[tauri::command]

@@ -3,7 +3,9 @@ use crate::pool::ConnectionPool;
 use crate::storage::Storage;
 use mongodb::bson;
 use mongodb::Client;
+use mongodb::Collection;
 use serde::Serialize;
+use std::io::Write;
 use std::time::Duration;
 
 pub mod connection;
@@ -197,32 +199,279 @@ fn bson_to_csv_cell(value: &bson::Bson) -> String {
     }
 }
 
+// Adds any of `doc`'s keys not already present to `headers`, in first-seen order.
+// Called once per document while building the CSV header union.
+fn csv_collect_headers(headers: &mut Vec<String>, doc: &bson::Document) {
+    for (key, _) in doc {
+        if !headers.iter().any(|existing| existing == key) {
+            headers.push(key.clone());
+        }
+    }
+}
+
+// One CSV row (in `headers` column order) for a document; a key the document
+// lacks becomes an empty cell.
+fn csv_format_row(headers: &[String], doc: &bson::Document) -> String {
+    let row: Vec<String> = headers
+        .iter()
+        .map(|header| match doc.get(header) {
+            Some(value) => csv_escape(&bson_to_csv_cell(value)),
+            None => String::new(),
+        })
+        .collect();
+    row.join(",")
+}
+
+// Pretty-prints one document as an element of a JSON array, prefixed with the
+// separator for its position (the first element has none). Shared by the
+// streaming exporter and the test-only `docs_to_json_array`, so the streamed and
+// the tested output are byte-identical.
+fn json_array_element(doc: &bson::Document, first: bool) -> Result<String, AppError> {
+    let value = serde_json::Value::from(bson::Bson::Document(doc.clone()));
+    let pretty = match serde_json::to_string_pretty(&value) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Serde(e)),
+    };
+    let prefix = if first { "\n" } else { ",\n" };
+    Ok(format!("{}{}", prefix, pretty))
+}
+
+// Buffered whole-slice assemblers built from the same primitives the streaming
+// exporter uses. Compiled in test builds only — the app streams via
+// `stream_export`; these exist so the CSV/JSON formatting can be unit-tested
+// without a live MongoDB cursor.
+#[cfg(test)]
 pub(crate) fn docs_to_csv(docs: &[bson::Document]) -> String {
-    // Collect the column set as the union of all keys, in first-seen order.
     let mut headers: Vec<String> = Vec::new();
     for doc in docs {
-        for (key, _) in doc {
-            if !headers.iter().any(|existing| existing == key) {
-                headers.push(key.clone());
-            }
-        }
+        csv_collect_headers(&mut headers, doc);
     }
     let mut out = String::new();
     let header_line: Vec<String> = headers.iter().map(|h| csv_escape(h)).collect();
     out.push_str(&header_line.join(","));
     out.push('\n');
     for doc in docs {
-        let row: Vec<String> = headers
-            .iter()
-            .map(|header| match doc.get(header) {
-                Some(value) => csv_escape(&bson_to_csv_cell(value)),
-                None => String::new(),
-            })
-            .collect();
-        out.push_str(&row.join(","));
+        out.push_str(&csv_format_row(&headers, doc));
         out.push('\n');
     }
     out
+}
+
+#[cfg(test)]
+pub(crate) fn docs_to_json_array(docs: &[bson::Document]) -> Result<String, AppError> {
+    let mut out = String::from("[");
+    for (index, doc) in docs.iter().enumerate() {
+        let element = match json_array_element(doc, index == 0) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        out.push_str(&element);
+    }
+    if !docs.is_empty() {
+        out.push('\n');
+    }
+    out.push(']');
+    Ok(out)
+}
+
+// Writes `bytes` to `writer`, mapping any I/O error to `AppError`. Keeps the
+// streaming exporter free of repeated match blocks.
+fn write_bytes<W: Write>(writer: &mut W, bytes: &[u8]) -> Result<(), AppError> {
+    match writer.write_all(bytes) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Io(e)),
+    }
+}
+
+// Opens a fresh cursor for one export pass, applying the optional server-side
+// time cap and row limit. A separate function so the CSV two-pass path can
+// re-open an identical cursor for its second scan.
+async fn export_cursor(
+    col: &Collection<bson::Document>,
+    filter: bson::Document,
+    limit: Option<i64>,
+    max_time: Option<Duration>,
+) -> Result<mongodb::Cursor<bson::Document>, AppError> {
+    let mut query = col.find(filter);
+    if let Some(duration) = max_time {
+        query = query.max_time(duration);
+    }
+    if let Some(value) = limit {
+        if value > 0 {
+            query = query.limit(value);
+        }
+    }
+    match query.await {
+        Ok(val) => Ok(val),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+/// Streams a collection to `path` as JSON or CSV without ever holding the whole
+/// result set in memory: documents are read from the cursor one at a time,
+/// transformed, and written straight to a buffered file. `transform` lets the
+/// masked export apply its rules; plain export passes a no-op. Returns the number
+/// of documents written.
+///
+/// JSON is a single streaming pass. CSV needs the full header union up front, so
+/// it makes two passes over the collection (pass 1 collects headers, pass 2 writes
+/// rows) — this assumes the collection isn't mutated between the passes.
+/// `transform` runs in both CSV passes because a rule can drop a key, which must
+/// be reflected in the header union.
+pub(crate) async fn stream_export<F>(
+    col: &Collection<bson::Document>,
+    filter: bson::Document,
+    limit: Option<i64>,
+    max_time: Option<Duration>,
+    path: &str,
+    format: &str,
+    mut transform: F,
+) -> Result<usize, AppError>
+where
+    F: FnMut(&mut bson::Document) -> Result<(), AppError>,
+{
+    if format == "csv" {
+        return stream_export_csv(col, filter, limit, max_time, path, &mut transform).await;
+    }
+    let file = match std::fs::File::create(path) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Io(e)),
+    };
+    let mut writer = std::io::BufWriter::new(file);
+    match write_bytes(&mut writer, b"[") {
+        Ok(_) => {}
+        Err(e) => return Err(e),
+    }
+    let mut cursor = match export_cursor(col, filter, limit, max_time).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let mut count: usize = 0;
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let mut doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        match transform(&mut doc) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+        let element = match json_array_element(&doc, count == 0) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        match write_bytes(&mut writer, element.as_bytes()) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+        count += 1;
+    }
+    if count > 0 {
+        match write_bytes(&mut writer, b"\n") {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    match write_bytes(&mut writer, b"]") {
+        Ok(_) => {}
+        Err(e) => return Err(e),
+    }
+    match writer.flush() {
+        Ok(_) => Ok(count),
+        Err(e) => Err(AppError::Io(e)),
+    }
+}
+
+// CSV branch of `stream_export`: two passes (headers, then rows). Split out to
+// keep `stream_export` readable.
+async fn stream_export_csv<F>(
+    col: &Collection<bson::Document>,
+    filter: bson::Document,
+    limit: Option<i64>,
+    max_time: Option<Duration>,
+    path: &str,
+    transform: &mut F,
+) -> Result<usize, AppError>
+where
+    F: FnMut(&mut bson::Document) -> Result<(), AppError>,
+{
+    // Pass 1: header union (transform applied, since a rule can drop keys).
+    let mut headers: Vec<String> = Vec::new();
+    let mut cursor = match export_cursor(col, filter.clone(), limit, max_time).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let mut doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        match transform(&mut doc) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+        csv_collect_headers(&mut headers, &doc);
+    }
+    // Pass 2: header line, then one row per document.
+    let file = match std::fs::File::create(path) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Io(e)),
+    };
+    let mut writer = std::io::BufWriter::new(file);
+    let header_line: Vec<String> = headers.iter().map(|h| csv_escape(h)).collect();
+    let mut header_out = header_line.join(",");
+    header_out.push('\n');
+    match write_bytes(&mut writer, header_out.as_bytes()) {
+        Ok(_) => {}
+        Err(e) => return Err(e),
+    }
+    let mut count: usize = 0;
+    let mut cursor = match export_cursor(col, filter, limit, max_time).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        let mut doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        match transform(&mut doc) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+        let mut row = csv_format_row(&headers, &doc);
+        row.push('\n');
+        match write_bytes(&mut writer, row.as_bytes()) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+        count += 1;
+    }
+    match writer.flush() {
+        Ok(_) => Ok(count),
+        Err(e) => Err(AppError::Io(e)),
+    }
 }
 
 // Minimal RFC-4180 CSV reader: handles quoted fields, doubled quotes, and embedded

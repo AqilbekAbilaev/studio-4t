@@ -5,7 +5,7 @@ use mongodb::bson;
 use serde::Deserialize;
 use tauri::State;
 
-use super::{docs_to_csv, parse_ejson_document, MAX_QUERY_TIME};
+use super::{parse_ejson_document, MAX_QUERY_TIME};
 
 // A per-field masking instruction. `field` is a dotted path (e.g. "contact.email").
 // Only fields the user chose to mask are sent; everything else is exported as-is.
@@ -173,54 +173,23 @@ pub async fn export_masked_collection(
         Err(e) => return Err(e),
     };
 
-    let mut query = col.find(filter_doc).max_time(MAX_QUERY_TIME);
-    if let Some(value) = limit {
-        if value > 0 {
-            query = query.limit(value);
-        }
-    }
-    let mut cursor = match query.await {
-        Ok(val) => val,
-        Err(e) => return Err(AppError::Mongo(e)),
-    };
-
-    let mut docs: Vec<bson::Document> = Vec::new();
-    loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let mut doc: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        match apply_rules(&mut doc, &rules) {
-            Ok(_) => {}
-            Err(e) => return Err(AppError::Bson(e)),
-        }
-        docs.push(doc);
-    }
-    let count = docs.len();
-
-    let contents = if format == "csv" {
-        docs_to_csv(&docs)
-    } else {
-        let values: Vec<serde_json::Value> = docs
-            .into_iter()
-            .map(|doc| serde_json::Value::from(bson::Bson::Document(doc)))
-            .collect();
-        match serde_json::to_string_pretty(&values) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Serde(e)),
-        }
-    };
-    match std::fs::write(&path, contents) {
-        Ok(_) => Ok(count),
-        Err(e) => Err(AppError::Io(e)),
-    }
+    // Stream to disk, applying the masking rules per document. The rules can drop
+    // a key, so the shared exporter runs this transform in both CSV passes.
+    super::stream_export(
+        &col,
+        filter_doc,
+        limit,
+        Some(MAX_QUERY_TIME),
+        &path,
+        &format,
+        |doc: &mut bson::Document| -> Result<(), AppError> {
+            match apply_rules(doc, &rules) {
+                Ok(_) => Ok(()),
+                Err(e) => Err(AppError::Bson(e)),
+            }
+        },
+    )
+    .await
 }
 
 #[cfg(test)]
