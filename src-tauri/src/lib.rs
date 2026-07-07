@@ -5,6 +5,7 @@ mod folders;
 mod history;
 #[cfg(test)]
 mod integration_tests;
+mod json_store;
 mod keychain;
 mod known_hosts;
 mod menu;
