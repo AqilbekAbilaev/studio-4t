@@ -1,8 +1,8 @@
 use crate::error::AppError;
+use crate::json_store::JsonStore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DefaultQuery {
@@ -16,51 +16,27 @@ pub struct DefaultQuery {
 }
 
 pub struct DefaultQueryStorage {
-    path: PathBuf,
-    lock: Mutex<()>,
+    inner: JsonStore<HashMap<String, DefaultQuery>>,
 }
 
 impl DefaultQueryStorage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path, lock: Mutex::new(()) }
-    }
-
-    fn load_all(&self) -> HashMap<String, DefaultQuery> {
-        // Missing file -> empty; a present-but-corrupt file is quarantined aside
-        // (not silently emptied) so the next save can't overwrite it. See
-        // persist::read_json.
-        crate::persist::read_json(&self.path).unwrap_or_else(HashMap::new)
-    }
-
-    fn save_all(&self, map: &HashMap<String, DefaultQuery>) -> Result<(), AppError> {
-        let content = match serde_json::to_string_pretty(map) {
-            Ok(val) => val,
-            Err(e)  => return Err(AppError::Serde(e)),
-        };
-        crate::persist::atomic_write(&self.path, &content)
+        Self { inner: JsonStore::new(path) }
     }
 
     pub fn get(&self, key: &str) -> Option<DefaultQuery> {
-        self.load_all().remove(key)
+        self.inner.load().remove(key)
     }
 
     pub fn set(&self, key: &str, entry: DefaultQuery) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut map = self.load_all();
-        map.insert(key.to_string(), entry);
-        self.save_all(&map)
+        self.inner.update(|map| {
+            map.insert(key.to_string(), entry);
+        })
     }
 
     pub fn clear(&self, key: &str) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut map = self.load_all();
-        map.remove(key);
-        self.save_all(&map)
+        self.inner.update(|map| {
+            map.remove(key);
+        })
     }
 }
