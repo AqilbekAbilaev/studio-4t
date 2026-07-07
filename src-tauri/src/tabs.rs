@@ -1,6 +1,9 @@
 use crate::error::AppError;
 use std::path::PathBuf;
 
+// Intentionally bespoke — not a JsonStore<T>: this store has no read-modify-write
+// lock, and `load` returns `Option` (missing file -> `None`, not a `Default`
+// value) so the caller can tell "no saved session" from "empty session".
 pub struct TabStorage {
     path: PathBuf,
 }
