@@ -2181,16 +2181,21 @@ async function runAggregate(tabId, params) {
   tab.runId = runId
   const t0 = Date.now()
   try {
-    tab.results = await invoke('run_aggregate', {
+    const res = await invoke('run_aggregate', {
       id:         tab.connectionId,
       database:   tab.dbName,
       collection: tab.collectionName,
       ...params,
       comment:    runId,
     })
+    tab.results = res.documents
     tab.hasRun = true
     tab.elapsedMs = Date.now() - t0
-    showToast(`Aggregation returned ${tab.results.length} document${tab.results.length !== 1 ? 's' : ''} in ${(tab.elapsedMs / 1000).toFixed(3)}s`)
+    if (res.truncated) {
+      showToast(`Showing the first ${res.documents.length.toLocaleString()} results — add a $limit stage to narrow it down.`)
+    } else {
+      showToast(`Aggregation returned ${res.documents.length} document${res.documents.length !== 1 ? 's' : ''} in ${(tab.elapsedMs / 1000).toFixed(3)}s`)
+    }
     invoke('push_query_history', {
       connectionId: tab.connectionId,
       database:     tab.dbName,

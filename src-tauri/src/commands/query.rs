@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::pool::ConnectionPool;
 use crate::storage::Storage;
 use mongodb::bson;
+use serde::Serialize;
 use tauri::State;
 
 use super::{parse_ejson_document, parse_json_documents, parse_pipeline, MAX_QUERY_TIME};
@@ -11,6 +12,20 @@ use super::{parse_ejson_document, parse_json_documents, parse_pipeline, MAX_QUER
 /// memory; the UI always sends a positive page size, so a non-positive value is
 /// out of contract and we clamp it to this bound instead of fetching everything.
 const FIND_LIMIT_FALLBACK: i64 = 1000;
+
+/// Cap on how many aggregate result documents we pull into memory and hand to the
+/// UI. A pipeline with no `$limit` could otherwise stream millions of documents
+/// the result grid can't render anyway. Could become a setting later; a constant
+/// is enough today.
+const AGG_RESULT_CAP: usize = 10_000;
+
+/// What `run_aggregate` returns: the (possibly capped) result documents plus a
+/// `truncated` flag the UI uses to warn that results were cut at `AGG_RESULT_CAP`.
+#[derive(Serialize)]
+pub struct AggregateResult {
+    pub documents: Vec<serde_json::Value>,
+    pub truncated: bool,
+}
 
 #[cfg(test)]
 mod tests {
@@ -501,7 +516,7 @@ pub async fn run_aggregate(
     collection: String,
     pipeline: String,
     comment: Option<String>,
-) -> Result<Vec<serde_json::Value>, AppError> {
+) -> Result<AggregateResult, AppError> {
     let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
@@ -522,7 +537,8 @@ pub async fn run_aggregate(
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };
-    let mut docs = Vec::new();
+    let mut documents = Vec::new();
+    let mut truncated = false;
     loop {
         let has_next = match cursor.advance().await {
             Ok(val) => val,
@@ -531,11 +547,18 @@ pub async fn run_aggregate(
         if !has_next {
             break;
         }
+        // We already hold CAP docs and the cursor still has more: mark truncated
+        // and stop, without keeping this extra doc — bounds memory to CAP docs
+        // regardless of pipeline size.
+        if documents.len() >= AGG_RESULT_CAP {
+            truncated = true;
+            break;
+        }
         let doc: bson::Document = match cursor.deserialize_current() {
             Ok(val) => val,
             Err(e) => return Err(AppError::Mongo(e)),
         };
-        docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
+        documents.push(serde_json::Value::from(bson::Bson::Document(doc)));
     }
-    Ok(docs)
+    Ok(AggregateResult { documents: documents, truncated: truncated })
 }
