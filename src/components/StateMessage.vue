@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import BaseIcon from './BaseIcon.vue'
+import { errTitle } from '../utils/errors'
 
 // A shared loading / empty / error placeholder for result and tree surfaces.
 // For errors, an optional `code` (from errCode) drives an actionable hint + icon.
@@ -24,11 +25,23 @@ const HINTS = {
 
 const hint = computed(() => (props.code ? (HINTS[props.code] || '') : ''))
 
+// The friendly title for this error code (from the shared errors util), if we
+// have one that should replace the raw driver message.
+const friendlyTitle = computed(() =>
+  props.mode === 'error' ? errTitle(props.code) : ''
+)
+
 const title = computed(() => {
   if (props.mode === 'loading') return props.label || 'Loading…'
   if (props.mode === 'empty') return props.label || 'No documents found'
-  return props.message || 'Something went wrong'
+  return friendlyTitle.value || props.message || 'Something went wrong'
 })
+
+// Show the raw driver text behind a disclosure only when a friendly title has
+// replaced it — so it stays available for diagnosis without facing the user.
+const details = computed(() =>
+  friendlyTitle.value && props.message ? props.message : ''
+)
 
 const icon = computed(() => {
   if (props.mode === 'empty') return 'collection'
@@ -45,6 +58,10 @@ const icon = computed(() => {
     <BaseIcon v-else :name="icon" :size="30" class="state-ic" />
     <div class="state-title">{{ title }}</div>
     <div v-if="hint" class="state-hint">{{ hint }}</div>
+    <details v-if="details" class="state-details">
+      <summary>Details</summary>
+      <div class="state-details-body">{{ details }}</div>
+    </details>
     <button v-if="mode === 'error' && retryable" class="state-retry" @click="emit('retry')">
       <BaseIcon name="refresh" :size="13" /> Retry
     </button>
@@ -72,6 +89,27 @@ const icon = computed(() => {
 }
 .state.error .state-title { color: var(--danger-text); }
 .state-hint { font-size: 12px; color: var(--text-faint); max-width: 520px; }
+.state-details { max-width: 520px; font-size: 12px; }
+.state-details summary {
+  cursor: pointer;
+  color: var(--text-faint);
+  user-select: none;
+}
+.state-details summary:hover { color: var(--text-dim); }
+.state-details-body {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--bg-toolbar);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .state-retry {
   margin-top: 4px;
   display: inline-flex;

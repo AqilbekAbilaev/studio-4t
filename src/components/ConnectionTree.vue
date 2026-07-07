@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../utils/errors'
+import { errMessage, errCode, errTitle } from '../utils/errors'
 import { listen } from '@tauri-apps/api/event'
 import BaseIcon from './BaseIcon.vue'
 
@@ -18,7 +18,7 @@ const connections = ref([])
 const expandedConns = ref({})      // connId → boolean
 const loadingConns = ref({})       // connId → boolean
 const connDatabases = ref({})      // connId → DatabaseInfo[]
-const connErrors = ref({})         // connId → string
+const connErrors = ref({})         // connId → { message, code } (or null)
 const expandedDbs = ref({})        // "connId/dbName" → boolean
 const selectedKey = ref(null)      // collection row highlighted by a single click
 // The current single-click sidebar selection, at whatever level was clicked:
@@ -98,7 +98,7 @@ async function toggleConnection(conn) {
     try {
       connDatabases.value[id] = await invoke('list_databases', { id: id })
     } catch (e) {
-      connErrors.value[id] = errMessage(e)
+      connErrors.value[id] = { message: errMessage(e), code: errCode(e) }
       expandedConns.value[id] = false
     } finally {
       loadingConns.value[id] = false
@@ -272,7 +272,7 @@ async function refreshConn(connId) {
   try {
     connDatabases.value[connId] = await invoke('list_databases', { id: connId })
   } catch (e) {
-    connErrors.value[connId] = errMessage(e)
+    connErrors.value[connId] = { message: errMessage(e), code: errCode(e) }
     expandedConns.value[connId] = false
   } finally {
     loadingConns.value[connId] = false
@@ -340,7 +340,11 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
 
         <!-- Error -->
         <div v-if="connErrors[conn.id]" class="tnode err-node" style="padding-left: 36px">
-          <span class="err-msg">{{ connErrors[conn.id] }}</span>
+          <span class="err-msg">{{ errTitle(connErrors[conn.id].code) || connErrors[conn.id].message }}</span>
+          <details v-if="errTitle(connErrors[conn.id].code) && connErrors[conn.id].message" class="err-details">
+            <summary>Details</summary>
+            <div class="err-details-body">{{ connErrors[conn.id].message }}</div>
+          </details>
           <span class="err-retry" @click.stop="toggleConnection(conn)">Retry</span>
         </div>
 
@@ -514,6 +518,22 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
 .err-msg { color: var(--danger-text); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; line-height: 1.5; padding: 2px 0; }
 .err-retry { color: var(--accent); font-size: 11.5px; cursor: pointer; }
 .err-retry:hover { text-decoration: underline; }
+.err-details { font-size: 11px; align-self: stretch; }
+.err-details summary { color: var(--text-faint); cursor: pointer; user-select: none; }
+.err-details summary:hover { color: var(--text-dim); }
+.err-details-body {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--bg-toolbar);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .mini-spin {
   width: 11px;
   height: 11px;

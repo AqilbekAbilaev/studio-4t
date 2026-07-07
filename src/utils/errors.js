@@ -14,3 +14,23 @@ export function errCode(e) {
   if (e && typeof e === 'object' && typeof e.code === 'string') return e.code
   return null
 }
+
+// Friendly primary titles for the error codes whose backend `message` is the
+// database driver's raw internal dump (server-selection topology, auth-failure
+// detail, …). Codes we author ourselves (validation, bson, unreachable,
+// unknown_connection, sql, ssh, keychain) already carry readable messages, so
+// they are intentionally absent and callers fall back to the raw message.
+const FRIENDLY_TITLES = {
+  auth:    'Authentication failed',
+  network: "Can't reach the server",
+  tls:     'TLS / SSL connection problem',
+  mongo:   'The database reported an error',
+}
+
+// A calm, human title for an error code, or '' when we have none for it (the
+// caller should then show the raw message). Kept here so every error surface —
+// the shared StateMessage placeholder and the connection tree's inline errors —
+// presents the same wording.
+export function errTitle(code) {
+  return code ? (FRIENDLY_TITLES[code] || '') : ''
+}
