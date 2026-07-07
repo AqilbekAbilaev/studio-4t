@@ -76,6 +76,70 @@ pub struct ConnectionConfig {
     pub open: bool,
 }
 
+/// The connection scheme, as an exhaustively-matchable view of the stored
+/// `connection_type` string. The string remains the persisted/wire form (the
+/// frontend sends it and it round-trips through `connections.json` untouched);
+/// this enum exists only so internal code can `match` on the meaning without
+/// re-testing string literals in several places.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionKind {
+    /// Direct or multi-host seed list — `mongodb://`.
+    Standalone,
+    /// DNS SRV record — `mongodb+srv://` (single hostname, no port).
+    Srv,
+    /// Replica set (still `mongodb://` today; distinguished for completeness).
+    Replica,
+}
+
+impl ConnectionKind {
+    /// Maps a stored `connection_type` string to a kind. Any unknown or legacy
+    /// value falls back to `Standalone` — the non-SRV path, which is exactly how
+    /// `uri.rs` behaved before this enum existed (only `"srv"` was special-cased,
+    /// everything else took the plain `mongodb://` branch).
+    pub fn from_str(value: &str) -> ConnectionKind {
+        match value {
+            "srv" => ConnectionKind::Srv,
+            "replica" => ConnectionKind::Replica,
+            _ => ConnectionKind::Standalone,
+        }
+    }
+}
+
+/// How an SSH tunnel authenticates, as an exhaustively-matchable view of the
+/// stored `ssh_auth` string. As with `ConnectionKind`, the string stays the
+/// persisted/wire form and this is only the internal view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SshAuthMethod {
+    Password,
+    Key,
+}
+
+impl SshAuthMethod {
+    /// Maps a stored or frontend-supplied `ssh_auth` value to a method. `None`,
+    /// empty, or any unknown string falls back to `Password` — matching the prior
+    /// `_ => Password` default in `pool.rs`.
+    pub fn from_opt(value: Option<&str>) -> SshAuthMethod {
+        match value {
+            Some("key") => SshAuthMethod::Key,
+            _ => SshAuthMethod::Password,
+        }
+    }
+}
+
+impl ConnectionConfig {
+    /// The connection scheme as an exhaustively-matchable enum. Derived from the
+    /// stored `connection_type` string; see `ConnectionKind`.
+    pub fn kind(&self) -> ConnectionKind {
+        ConnectionKind::from_str(&self.connection_type)
+    }
+
+    /// The SSH auth method as an exhaustively-matchable enum. Derived from the
+    /// stored `ssh_auth` string; see `SshAuthMethod`.
+    pub fn ssh_auth_method(&self) -> SshAuthMethod {
+        SshAuthMethod::from_opt(self.ssh_auth.as_deref())
+    }
+}
+
 /// Rewrites legacy pre-multi-host connection JSON so it parses into the current
 /// `ConnectionConfig`: a top-level `host`/`port` pair becomes a one-element
 /// `hosts` array, and the old `"dns"` SRV type tag becomes `"srv"`. Returns the

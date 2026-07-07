@@ -200,3 +200,45 @@ fn save_creates_parent_directories() {
     storage.save(&[conn("1", "Local")]).unwrap();
     assert_eq!(storage.load().len(), 1);
 }
+
+#[test]
+fn connection_kind_maps_known_strings() {
+    assert_eq!(ConnectionKind::from_str("standalone"), ConnectionKind::Standalone);
+    assert_eq!(ConnectionKind::from_str("srv"), ConnectionKind::Srv);
+    assert_eq!(ConnectionKind::from_str("replica"), ConnectionKind::Replica);
+}
+
+#[test]
+fn connection_kind_unknown_falls_back_to_standalone() {
+    // Unknown or legacy values must take the non-SRV path, matching uri.rs's
+    // pre-enum behaviour (only "srv" was ever special-cased).
+    assert_eq!(ConnectionKind::from_str("dns"), ConnectionKind::Standalone);
+    assert_eq!(ConnectionKind::from_str(""), ConnectionKind::Standalone);
+    assert_eq!(ConnectionKind::from_str("whatever"), ConnectionKind::Standalone);
+}
+
+#[test]
+fn config_kind_reads_the_stored_string() {
+    let mut config = conn("1", "Local");
+    config.connection_type = String::from("srv");
+    assert_eq!(config.kind(), ConnectionKind::Srv);
+}
+
+#[test]
+fn ssh_auth_method_maps_key_and_defaults_to_password() {
+    assert_eq!(SshAuthMethod::from_opt(Some("key")), SshAuthMethod::Key);
+    assert_eq!(SshAuthMethod::from_opt(Some("password")), SshAuthMethod::Password);
+    // None and any unknown value default to Password (pool.rs's prior `_` arm).
+    assert_eq!(SshAuthMethod::from_opt(None), SshAuthMethod::Password);
+    assert_eq!(SshAuthMethod::from_opt(Some("")), SshAuthMethod::Password);
+    assert_eq!(SshAuthMethod::from_opt(Some("mystery")), SshAuthMethod::Password);
+}
+
+#[test]
+fn config_ssh_auth_method_reads_the_stored_string() {
+    let mut config = conn("1", "Local");
+    config.ssh_auth = Some(String::from("key"));
+    assert_eq!(config.ssh_auth_method(), SshAuthMethod::Key);
+    config.ssh_auth = None;
+    assert_eq!(config.ssh_auth_method(), SshAuthMethod::Password);
+}

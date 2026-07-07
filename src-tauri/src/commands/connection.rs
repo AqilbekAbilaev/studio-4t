@@ -2,7 +2,7 @@ use crate::error::AppError;
 use crate::known_hosts::KnownHostsStore;
 use crate::ssh::HostKeyPrompts;
 use crate::pool::ConnectionPool;
-use crate::storage::{ConnectionConfig, HostEntry, Storage};
+use crate::storage::{ConnectionConfig, HostEntry, SshAuthMethod, Storage};
 use crate::uri;
 use mongodb::Client;
 use std::sync::Arc;
@@ -48,13 +48,12 @@ pub async fn test_ssh_connection(
     auth_db: Option<String>,
     auth_mechanism: Option<String>,
 ) -> Result<(), AppError> {
-    let auth = if ssh_auth == "key" {
-        crate::ssh::SshAuth::Key {
+    let auth = match SshAuthMethod::from_opt(Some(ssh_auth.as_str())) {
+        SshAuthMethod::Key => crate::ssh::SshAuth::Key {
             path: ssh_key_file.unwrap_or_default(),
             passphrase: ssh_passphrase,
-        }
-    } else {
-        crate::ssh::SshAuth::Password(ssh_password.unwrap_or_default())
+        },
+        SshAuthMethod::Password => crate::ssh::SshAuth::Password(ssh_password.unwrap_or_default()),
     };
     let params = crate::ssh::SshParams {
         ssh_host: ssh_host,

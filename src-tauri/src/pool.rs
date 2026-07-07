@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::known_hosts::KnownHostsStore;
 use crate::ssh::{self, HostKeyPrompts, SshAuth, SshParams, SshTunnel};
-use crate::storage::ConnectionConfig;
+use crate::storage::{ConnectionConfig, SshAuthMethod};
 use crate::uri;
 use mongodb::Client;
 use std::collections::HashMap;
@@ -152,12 +152,12 @@ impl ConnectionPool {
             self.tunnels.lock().await.remove(&config.id);
         }
 
-        let auth = match config.ssh_auth.as_deref() {
-            Some("key") => SshAuth::Key {
+        let auth = match config.ssh_auth_method() {
+            SshAuthMethod::Key => SshAuth::Key {
                 path: config.ssh_key_file.clone().unwrap_or_default(),
                 passphrase: crate::keychain::get(&format!("{}::ssh-key-pass", config.id)),
             },
-            _ => SshAuth::Password(
+            SshAuthMethod::Password => SshAuth::Password(
                 crate::keychain::get(&format!("{}::ssh-pass", config.id)).unwrap_or_default(),
             ),
         };

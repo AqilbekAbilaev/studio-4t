@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::storage::ConnectionConfig;
+use crate::storage::{ConnectionConfig, ConnectionKind};
 
 const TIMEOUT_MS: u64 = 5000;
 const TCP_PROBE_SECS: u64 = 3;
@@ -23,7 +23,7 @@ fn percent_encode(s: &str) -> String {
 /// The resulting URI is suitable for passing to `with_timeout()` and then
 /// to `Client::with_uri_str()`.
 pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
-    let scheme = if config.connection_type == "srv" {
+    let scheme = if config.kind() == ConnectionKind::Srv {
         "mongodb+srv"
     } else {
         "mongodb"
@@ -31,7 +31,7 @@ pub fn build_uri(config: &ConnectionConfig, password: Option<&str>) -> String {
 
     let (creds, has_user) = build_credentials(config, password);
 
-    let host_part = if config.connection_type == "srv" {
+    let host_part = if config.kind() == ConnectionKind::Srv {
         // SRV uses a single hostname and no port; take the first host.
         match config.hosts.first() {
             Some(entry) => entry.host.clone(),
