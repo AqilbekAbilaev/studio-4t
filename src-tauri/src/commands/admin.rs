@@ -7,7 +7,10 @@ use mongodb::IndexModel;
 use serde::Serialize;
 use tauri::State;
 
-use super::{csv_to_docs, parse_ejson_document, parse_json_documents, parse_pipeline, DatabaseInfo};
+use super::{
+    collect_values, csv_to_docs, parse_ejson_document, parse_json_documents, parse_pipeline,
+    DatabaseInfo,
+};
 
 /// The `_id_` index is created and required by MongoDB and can never be dropped,
 /// hidden, or otherwise modified. The index-management guards share this check so
@@ -530,22 +533,7 @@ pub async fn index_stats(
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };
-    let mut stats = Vec::new();
-    loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let entry: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        stats.push(serde_json::Value::from(bson::Bson::Document(entry)));
-    }
-    Ok(stats)
+    collect_values(&mut cursor).await
 }
 
 #[tauri::command]

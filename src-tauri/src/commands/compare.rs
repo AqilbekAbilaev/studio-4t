@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use tauri::State;
 
-use super::MAX_QUERY_TIME;
+use super::{collect_documents, MAX_QUERY_TIME};
 
 const DEFAULT_SCAN: i64 = 2000;
 const MAX_SCAN: i64 = 20_000;
@@ -126,22 +126,7 @@ async fn load_docs(
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };
-    let mut docs: Vec<bson::Document> = Vec::new();
-    loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let doc: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        docs.push(doc);
-    }
-    Ok(docs)
+    collect_documents(&mut cursor).await
 }
 
 /// Compare two collections in a database by `_id`, reporting documents only in the

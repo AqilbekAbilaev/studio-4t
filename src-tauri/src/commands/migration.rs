@@ -4,7 +4,7 @@ use crate::storage::Storage;
 use mongodb::bson;
 use tauri::State;
 
-use super::MAX_QUERY_TIME;
+use super::{collect_documents, MAX_QUERY_TIME};
 
 const DEFAULT_SAMPLE: i64 = 1000;
 const MAX_SAMPLE: i64 = 10_000;
@@ -199,21 +199,10 @@ pub async fn generate_sql_migration(
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };
-    let mut docs: Vec<bson::Document> = Vec::new();
-    loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let doc: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        docs.push(doc);
-    }
+    let docs = match collect_documents(&mut cursor).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     let table = match table_name {
         Some(val) if !val.trim().is_empty() => val.trim().to_string(),
