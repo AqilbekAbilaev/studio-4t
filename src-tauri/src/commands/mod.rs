@@ -474,6 +474,56 @@ where
     }
 }
 
+/// Advance a document cursor by one, returning the next document or `None` at the
+/// end. The single place the advance/deserialize dance lives — every command loop
+/// that reads documents goes through here.
+pub(crate) async fn next_document(
+    cursor: &mut mongodb::Cursor<bson::Document>,
+) -> Result<Option<bson::Document>, AppError> {
+    let has_next = match cursor.advance().await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    if !has_next {
+        return Ok(None);
+    }
+    match cursor.deserialize_current() {
+        Ok(val) => Ok(Some(val)),
+        Err(e) => Err(AppError::Mongo(e)),
+    }
+}
+
+/// Drain a document cursor fully into a `Vec<Document>`. (Shape B.)
+pub(crate) async fn collect_documents(
+    cursor: &mut mongodb::Cursor<bson::Document>,
+) -> Result<Vec<bson::Document>, AppError> {
+    let mut docs = Vec::new();
+    loop {
+        match next_document(cursor).await {
+            Ok(Some(doc)) => docs.push(doc),
+            Ok(None) => break,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(docs)
+}
+
+/// Drain a document cursor fully into JSON values. (Shape A.) Uses bson's own `From`
+/// impl (not `serde_json::to_value`) — matching the existing sites, because bson's
+/// Serialize targets the bson wire format, not JSON.
+pub(crate) async fn collect_values(
+    cursor: &mut mongodb::Cursor<bson::Document>,
+) -> Result<Vec<serde_json::Value>, AppError> {
+    let docs = match collect_documents(cursor).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    Ok(docs
+        .into_iter()
+        .map(|doc| serde_json::Value::from(bson::Bson::Document(doc)))
+        .collect())
+}
+
 // Minimal RFC-4180 CSV reader: handles quoted fields, doubled quotes, and embedded
 // newlines. Returns rows of string fields.
 fn parse_csv_rows(text: &str) -> Vec<Vec<String>> {

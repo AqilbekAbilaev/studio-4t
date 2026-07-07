@@ -5,7 +5,10 @@ use mongodb::bson;
 use serde::Serialize;
 use tauri::State;
 
-use super::{parse_ejson_document, parse_json_documents, parse_pipeline, MAX_QUERY_TIME};
+use super::{
+    collect_values, next_document, parse_ejson_document, parse_json_documents, parse_pipeline,
+    MAX_QUERY_TIME,
+};
 
 /// Fallback page size when a caller sends a non-positive `limit`. MongoDB treats
 /// `limit <= 0` as "no limit", which would stream an entire collection into
@@ -81,16 +84,10 @@ pub async fn kill_query(
 
     let mut killed = 0;
     loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let op: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
+        let op: bson::Document = match next_document(&mut cursor).await {
+            Ok(Some(value)) => value,
+            Ok(None) => break,
+            Err(e) => return Err(e),
         };
         // `opid` is an integer on mongod or a "shard:opid" string on mongos; pass
         // whichever straight back to killOp.
@@ -163,24 +160,7 @@ pub async fn find_documents(
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };
-    let mut docs = Vec::new();
-    loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        if !has_next {
-            break;
-        }
-        let doc: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
-        // Use bson's own From impl (not serde_json::to_value) — bson's Serialize
-        // targets the bson wire format, not JSON, so to_value produces wrong output.
-        docs.push(serde_json::Value::from(bson::Bson::Document(doc)));
-    }
-    Ok(docs)
+    collect_values(&mut cursor).await
 }
 
 /// Count the documents matching `filter` (the same filter shape `find_documents`
@@ -540,24 +520,18 @@ pub async fn run_aggregate(
     let mut documents = Vec::new();
     let mut truncated = false;
     loop {
-        let has_next = match cursor.advance().await {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
+        let doc: bson::Document = match next_document(&mut cursor).await {
+            Ok(Some(value)) => value,
+            Ok(None) => break,
+            Err(e) => return Err(e),
         };
-        if !has_next {
-            break;
-        }
-        // We already hold CAP docs and the cursor still has more: mark truncated
-        // and stop, without keeping this extra doc — bounds memory to CAP docs
+        // We already hold CAP docs and the cursor yielded another: mark truncated
+        // and stop, dropping this extra doc — bounds the result to CAP docs
         // regardless of pipeline size.
         if documents.len() >= AGG_RESULT_CAP {
             truncated = true;
             break;
         }
-        let doc: bson::Document = match cursor.deserialize_current() {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Mongo(e)),
-        };
         documents.push(serde_json::Value::from(bson::Bson::Document(doc)));
     }
     Ok(AggregateResult { documents: documents, truncated: truncated })
