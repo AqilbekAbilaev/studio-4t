@@ -19,8 +19,8 @@ pub struct HostEntry {
 pub struct ConnectionConfig {
     pub id: String,
     pub name: String,
-    /// The seed list. Always holds at least one entry after `load()` migrates
-    /// legacy single-host configs (see `migrate_legacy_hosts`).
+    /// The seed list. Normally populated by the connection editor; `uri::build_uri`
+    /// falls back to `localhost:27017` if it is ever empty.
     #[serde(default)]
     pub hosts: Vec<HostEntry>,
     #[serde(default = "default_connection_type")]
@@ -140,53 +140,9 @@ impl ConnectionConfig {
     }
 }
 
-/// Rewrites legacy pre-multi-host connection JSON so it parses into the current
-/// `ConnectionConfig`: a top-level `host`/`port` pair becomes a one-element
-/// `hosts` array, and the old `"dns"` SRV type tag becomes `"srv"`. Returns the
-/// input unchanged if it isn't the expected array-of-objects shape.
-fn migrate_legacy_hosts(content: &str) -> String {
-    let mut value: serde_json::Value = match serde_json::from_str(content) {
-        Ok(val) => val,
-        Err(_) => return content.to_string(),
-    };
-    let array = match value.as_array_mut() {
-        Some(arr) => arr,
-        None => return content.to_string(),
-    };
-    for item in array.iter_mut() {
-        let obj = match item.as_object_mut() {
-            Some(o) => o,
-            None => continue,
-        };
-        if obj.get("connection_type").and_then(|v| v.as_str()) == Some("dns") {
-            obj.insert(
-                String::from("connection_type"),
-                serde_json::Value::String(String::from("srv")),
-            );
-        }
-        if !obj.contains_key("hosts") {
-            let host = obj
-                .get("host")
-                .and_then(|v| v.as_str())
-                .unwrap_or("localhost")
-                .to_string();
-            let port = obj.get("port").and_then(|v| v.as_u64()).unwrap_or(27017);
-            let entry = serde_json::json!({ "host": host, "port": port });
-            obj.insert(
-                String::from("hosts"),
-                serde_json::Value::Array(vec![entry]),
-            );
-        }
-    }
-    match serde_json::to_string(&value) {
-        Ok(val) => val,
-        Err(_) => content.to_string(),
-    }
-}
-
 // Intentionally bespoke — not a JsonStore<T>: this store owns an in-memory cache
-// (the source of truth once loaded) and runs `migrate_legacy_hosts` on read, so
-// its read/write path diverges from the plain load-mutate-save the generic covers.
+// (the source of truth once loaded), so its read/write path diverges from the
+// plain load-mutate-save the generic covers.
 pub struct Storage {
     path: PathBuf,
     // Cached connection list — the in-memory source of truth once loaded. `None`
@@ -216,9 +172,9 @@ impl Storage {
         }
     }
 
-    // Reads, migrates, and parses the list straight from disk. Does not touch the
-    // lock, so it can run inside a held `lock_cache()` guard without re-entrancy.
-    // Called only on a cache miss / first load.
+    // Reads and parses the list straight from disk. Does not touch the lock, so it
+    // can run inside a held `lock_cache()` guard without re-entrancy. Called only on
+    // a cache miss / first load.
     fn read_from_disk(&self) -> Vec<ConnectionConfig> {
         if !self.path.exists() {
             return vec![];
@@ -238,8 +194,7 @@ impl Storage {
                 return vec![];
             }
         };
-        let migrated = migrate_legacy_hosts(&content);
-        match serde_json::from_str(&migrated) {
+        match serde_json::from_str(&content) {
             Ok(value) => value,
             Err(error) => {
                 eprintln!(

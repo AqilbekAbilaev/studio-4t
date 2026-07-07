@@ -148,37 +148,6 @@ fn remove_nonexistent_id_is_noop() {
 }
 
 #[test]
-fn load_migrates_legacy_single_host() {
-    let dir = tempdir().unwrap();
-    let path = dir.path().join("connections.json");
-    // A pre-multi-host record: top-level host/port, no `hosts` array.
-    std::fs::write(
-        &path,
-        r#"[{"id":"1","name":"Old","host":"db.example.com","port":27018,"connection_type":"standalone"}]"#,
-    ).unwrap();
-    let storage = Storage::new(path);
-    let loaded = storage.load();
-    assert_eq!(loaded.len(), 1);
-    assert_eq!(
-        loaded[0].hosts,
-        vec![HostEntry { host: String::from("db.example.com"), port: 27018 }]
-    );
-}
-
-#[test]
-fn load_migrates_legacy_dns_type_to_srv() {
-    let dir = tempdir().unwrap();
-    let path = dir.path().join("connections.json");
-    std::fs::write(
-        &path,
-        r#"[{"id":"1","name":"Atlas","host":"cluster.example.com","port":27017,"connection_type":"dns"}]"#,
-    ).unwrap();
-    let storage = Storage::new(path);
-    let loaded = storage.load();
-    assert_eq!(loaded[0].connection_type, "srv");
-}
-
-#[test]
 fn load_preserves_existing_hosts_array() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("connections.json");
