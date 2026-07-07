@@ -120,6 +120,9 @@ fn migrate_legacy_hosts(content: &str) -> String {
     }
 }
 
+// Intentionally bespoke — not a JsonStore<T>: this store owns an in-memory cache
+// (the source of truth once loaded) and runs `migrate_legacy_hosts` on read, so
+// its read/write path diverges from the plain load-mutate-save the generic covers.
 pub struct Storage {
     path: PathBuf,
     // Cached connection list — the in-memory source of truth once loaded. `None`

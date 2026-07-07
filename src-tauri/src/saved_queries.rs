@@ -1,7 +1,7 @@
 use crate::error::AppError;
+use crate::json_store::JsonStore;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SavedQueryEntry {
@@ -18,47 +18,23 @@ pub struct SavedQueryEntry {
 }
 
 pub struct SavedQueryStorage {
-    path: PathBuf,
-    lock: Mutex<()>,
+    inner: JsonStore<Vec<SavedQueryEntry>>,
 }
 
 impl SavedQueryStorage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path, lock: Mutex::new(()) }
+        Self { inner: JsonStore::new(path) }
     }
 
     pub fn load(&self) -> Vec<SavedQueryEntry> {
-        // Missing file -> empty; a present-but-corrupt file is quarantined aside
-        // (not silently emptied) so the next save can't overwrite it. See
-        // persist::read_json.
-        crate::persist::read_json(&self.path).unwrap_or_else(Vec::new)
-    }
-
-    fn save(&self, entries: &[SavedQueryEntry]) -> Result<(), AppError> {
-        let content = match serde_json::to_string_pretty(entries) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Serde(e)),
-        };
-        crate::persist::atomic_write(&self.path, &content)
+        self.inner.load()
     }
 
     pub fn insert(&self, entry: SavedQueryEntry) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut entries = self.load();
-        entries.insert(0, entry);
-        self.save(&entries)
+        self.inner.update(|entries| entries.insert(0, entry))
     }
 
     pub fn delete(&self, id: &str) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut entries = self.load();
-        entries.retain(|e| e.id != id);
-        self.save(&entries)
+        self.inner.update(|entries| entries.retain(|e| e.id != id))
     }
 }

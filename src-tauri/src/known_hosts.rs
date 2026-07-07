@@ -10,9 +10,9 @@
 // share one bastion and should trust the same key.
 
 use crate::error::AppError;
+use crate::json_store::JsonStore;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -51,30 +51,18 @@ pub fn classify(stored: Option<&str>, presented: &str) -> HostKeyCheck {
 }
 
 pub struct KnownHostsStore {
-    path: PathBuf,
-    // Serializes the load-modify-save sequence so two first-contact connections
-    // can't lose each other's recorded keys.
-    lock: Mutex<()>,
+    // The JsonStore's lock serializes the load-modify-save sequence so two
+    // first-contact connections can't lose each other's recorded keys.
+    inner: JsonStore<Vec<KnownHost>>,
 }
 
 impl KnownHostsStore {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path, lock: Mutex::new(()) }
+        Self { inner: JsonStore::new(path) }
     }
 
     fn load_all(&self) -> Vec<KnownHost> {
-        // Missing file -> empty; a present-but-corrupt file is quarantined aside
-        // (not silently emptied) so the next save can't overwrite it. See
-        // persist::read_json.
-        crate::persist::read_json(&self.path).unwrap_or_else(Vec::new)
-    }
-
-    fn save_all(&self, hosts: &[KnownHost]) -> Result<(), AppError> {
-        let content = match serde_json::to_string_pretty(hosts) {
-            Ok(value) => value,
-            Err(e) => return Err(AppError::Serde(e)),
-        };
-        crate::persist::atomic_write(&self.path, &content)
+        self.inner.load()
     }
 
     /// Read-only TOFU comparison — does the presented key match, is this a new
@@ -102,32 +90,24 @@ impl KnownHostsStore {
     /// prompt. Replaces any existing entry for this host:port so a deliberate
     /// re-trust (after a `remove`) can't leave a duplicate.
     pub fn record(&self, host: &str, port: u16, key: &str) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut hosts = self.load_all();
-        hosts.retain(|h| !(h.host == host && h.port == port));
-        hosts.push(KnownHost {
-            host: host.to_string(),
-            port: port,
-            key: key.to_string(),
-            added: now_ms(),
-        });
-        self.save_all(&hosts)
+        self.inner.update(|hosts| {
+            hosts.retain(|h| !(h.host == host && h.port == port));
+            hosts.push(KnownHost {
+                host: host.to_string(),
+                port: port,
+                key: key.to_string(),
+                added: now_ms(),
+            });
+        })
     }
 
     /// Drop a host's trusted key ("forget host"), so the next connection is
     /// treated as a fresh first contact. The recovery path after a legitimate
     /// key rotation.
     pub fn remove(&self, host: &str, port: u16) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut hosts = self.load_all();
-        hosts.retain(|h| !(h.host == host && h.port == port));
-        self.save_all(&hosts)
+        self.inner.update(|hosts| {
+            hosts.retain(|h| !(h.host == host && h.port == port));
+        })
     }
 }
 

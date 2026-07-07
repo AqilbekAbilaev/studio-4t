@@ -1,8 +1,8 @@
 use crate::error::AppError;
+use crate::json_store::JsonStore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
 const MAX_HISTORY: usize = 50;
@@ -21,32 +21,16 @@ pub struct QueryHistoryEntry {
 }
 
 pub struct HistoryStorage {
-    path: PathBuf,
-    lock: Mutex<()>,
+    inner: JsonStore<HashMap<String, Vec<QueryHistoryEntry>>>,
 }
 
 impl HistoryStorage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path, lock: Mutex::new(()) }
-    }
-
-    fn load_all(&self) -> HashMap<String, Vec<QueryHistoryEntry>> {
-        // Missing file -> empty; a present-but-corrupt file is quarantined aside
-        // (not silently emptied) so the next save can't overwrite it. See
-        // persist::read_json.
-        crate::persist::read_json(&self.path).unwrap_or_else(HashMap::new)
-    }
-
-    fn save_all(&self, map: &HashMap<String, Vec<QueryHistoryEntry>>) -> Result<(), AppError> {
-        let content = match serde_json::to_string_pretty(map) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Serde(e)),
-        };
-        crate::persist::atomic_write(&self.path, &content)
+        Self { inner: JsonStore::new(path) }
     }
 
     pub fn get(&self, key: &str) -> Vec<QueryHistoryEntry> {
-        let map = self.load_all();
+        let map = self.inner.load();
         match map.get(key) {
             Some(entries) => entries.clone(),
             None => Vec::new(),
@@ -54,26 +38,18 @@ impl HistoryStorage {
     }
 
     pub fn push(&self, key: &str, entry: QueryHistoryEntry) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut map = self.load_all();
-        let entries = map.entry(key.to_string()).or_insert_with(Vec::new);
-        entries.retain(|e| !is_same_query(e, &entry));
-        entries.insert(0, entry);
-        entries.truncate(MAX_HISTORY);
-        self.save_all(&map)
+        self.inner.update(|map| {
+            let entries = map.entry(key.to_string()).or_insert_with(Vec::new);
+            entries.retain(|e| !is_same_query(e, &entry));
+            entries.insert(0, entry);
+            entries.truncate(MAX_HISTORY);
+        })
     }
 
     pub fn clear(&self, key: &str) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut map = self.load_all();
-        map.remove(key);
-        self.save_all(&map)
+        self.inner.update(|map| {
+            map.remove(key);
+        })
     }
 }
 

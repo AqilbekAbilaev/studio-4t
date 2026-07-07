@@ -1,7 +1,7 @@
 use crate::error::AppError;
+use crate::json_store::JsonStore;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Mutex;
 
 /// A connection-organizing folder shown in the Connection Manager grid. Folders
 /// are their own entities (persisted in `folders.json`) so an empty folder can
@@ -17,59 +17,31 @@ pub struct Folder {
 }
 
 pub struct FolderStorage {
-    path: PathBuf,
-    lock: Mutex<()>,
+    inner: JsonStore<Vec<Folder>>,
 }
 
 impl FolderStorage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path, lock: Mutex::new(()) }
+        Self { inner: JsonStore::new(path) }
     }
 
     pub fn load(&self) -> Vec<Folder> {
-        // Missing file -> empty; a present-but-corrupt file is quarantined aside
-        // (not silently emptied) so the next save can't overwrite it. See
-        // persist::read_json.
-        crate::persist::read_json(&self.path).unwrap_or_else(Vec::new)
-    }
-
-    fn save(&self, folders: &[Folder]) -> Result<(), AppError> {
-        let content = match serde_json::to_string_pretty(folders) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Serde(e)),
-        };
-        crate::persist::atomic_write(&self.path, &content)
+        self.inner.load()
     }
 
     pub fn insert(&self, folder: Folder) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut folders = self.load();
-        folders.push(folder);
-        self.save(&folders)
+        self.inner.update(|folders| folders.push(folder))
     }
 
     pub fn rename(&self, id: &str, name: &str) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut folders = self.load();
-        if let Some(f) = folders.iter_mut().find(|f| f.id == id) {
-            f.name = name.to_string();
-        }
-        self.save(&folders)
+        self.inner.update(|folders| {
+            if let Some(f) = folders.iter_mut().find(|f| f.id == id) {
+                f.name = name.to_string();
+            }
+        })
     }
 
     pub fn delete(&self, id: &str) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut folders = self.load();
-        folders.retain(|f| f.id != id);
-        self.save(&folders)
+        self.inner.update(|folders| folders.retain(|f| f.id != id))
     }
 }

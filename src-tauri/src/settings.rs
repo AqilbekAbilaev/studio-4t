@@ -1,7 +1,7 @@
 use crate::error::AppError;
+use crate::json_store::JsonStore;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Mutex;
 
 /// Application-wide preferences. A single JSON object (not keyed), persisted to
 /// `settings.json`. New fields should carry `#[serde(default)]` so older files
@@ -32,31 +32,19 @@ impl Default for Settings {
 }
 
 pub struct SettingsStorage {
-    path: PathBuf,
-    lock: Mutex<()>,
+    inner: JsonStore<Settings>,
 }
 
 impl SettingsStorage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path, lock: Mutex::new(()) }
+        Self { inner: JsonStore::new(path) }
     }
 
     pub fn load(&self) -> Settings {
-        // Missing file -> defaults; a present-but-corrupt file is quarantined
-        // aside (not silently reset) so the next save can't overwrite it. See
-        // persist::read_json.
-        crate::persist::read_json(&self.path).unwrap_or_else(Settings::default)
+        self.inner.load()
     }
 
     pub fn save(&self, settings: &Settings) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let content = match serde_json::to_string_pretty(settings) {
-            Ok(val) => val,
-            Err(e) => return Err(AppError::Serde(e)),
-        };
-        crate::persist::atomic_write(&self.path, &content)
+        self.inner.save(settings)
     }
 }
