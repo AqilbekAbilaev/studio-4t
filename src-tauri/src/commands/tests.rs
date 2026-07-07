@@ -205,3 +205,151 @@ fn export_csv_transform_dropping_a_field_removes_its_column() {
     assert_eq!(out.lines().next().unwrap(), "name");
     assert!(!out.contains("secret"));
 }
+
+// ── streaming import (batching layer) ──────────────────────────
+// These exercise `stream_documents`, the DB-free core of `stream_import`: it parses an
+// import file into batches and hands each batch to a `flush` callback. Here `flush`
+// records each batch so we can assert both the total count and where the batch
+// boundaries fall. The async `stream_import` wrapper (which feeds batches into
+// `insert_many`) needs a live MongoDB and is covered by the manual smoke test.
+
+// Run the streaming importer over `input`, returning the reported total and the list
+// of batches (so a test can inspect batch sizes and per-document content).
+fn collect_import(
+    input: &[u8],
+    format: &str,
+    batch_size: usize,
+) -> Result<(usize, Vec<Vec<bson::Document>>), AppError> {
+    let mut batches: Vec<Vec<bson::Document>> = Vec::new();
+    let total = match stream_documents(input, format, batch_size, |batch| {
+        batches.push(batch);
+        Ok(())
+    }) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    Ok((total, batches))
+}
+
+#[test]
+fn import_json_array_yields_each_document() {
+    let (total, batches) =
+        collect_import(br#"[{"a":1},{"a":2},{"a":3}]"#, "json", IMPORT_BATCH_SIZE).unwrap();
+    assert_eq!(total, 3);
+    // One partial batch of 3.
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches[0].len(), 3);
+}
+
+#[test]
+fn import_json_single_object_yields_one_document() {
+    let (total, batches) = collect_import(br#"{"a":1}"#, "json", IMPORT_BATCH_SIZE).unwrap();
+    assert_eq!(total, 1);
+    assert_eq!(batches[0].len(), 1);
+}
+
+#[test]
+fn import_json_preserves_ejson_types() {
+    let (_total, batches) = collect_import(
+        br#"[{"_id":{"$oid":"507f1f77bcf86cd799439011"}}]"#,
+        "json",
+        IMPORT_BATCH_SIZE,
+    )
+    .unwrap();
+    assert!(matches!(
+        batches[0][0].get("_id"),
+        Some(bson::Bson::ObjectId(_))
+    ));
+}
+
+#[test]
+fn import_empty_json_array_yields_no_documents() {
+    let (total, batches) = collect_import(b"[]", "json", IMPORT_BATCH_SIZE).unwrap();
+    assert_eq!(total, 0);
+    assert!(batches.is_empty());
+}
+
+#[test]
+fn import_malformed_json_is_an_error() {
+    assert!(collect_import(b"{not valid", "json", IMPORT_BATCH_SIZE).is_err());
+    // A bare scalar is not a document.
+    assert!(collect_import(b"42", "json", IMPORT_BATCH_SIZE).is_err());
+    // An array element that isn't an object is rejected.
+    assert!(collect_import(br#"[{"a":1}, 5]"#, "json", IMPORT_BATCH_SIZE).is_err());
+}
+
+#[test]
+fn import_csv_coerces_cells_like_the_old_reader() {
+    let (total, batches) =
+        collect_import(b"a,b\n1,x\ntrue,\n", "csv", IMPORT_BATCH_SIZE).unwrap();
+    assert_eq!(total, 2);
+    let docs = &batches[0];
+    assert!(matches!(docs[0].get("a"), Some(bson::Bson::Int64(1))));
+    match docs[0].get("b") {
+        Some(bson::Bson::String(value)) => assert_eq!(value, "x"),
+        other => panic!("expected a string, got {:?}", other),
+    }
+    assert!(matches!(docs[1].get("a"), Some(bson::Bson::Boolean(true))));
+    // An empty trailing cell coerces to null, matching `coerce_csv_value`.
+    assert!(matches!(docs[1].get("b"), Some(bson::Bson::Null)));
+}
+
+#[test]
+fn import_csv_handles_quoted_embedded_newline() {
+    // A quoted field containing a newline must stay one field / one row — proving the
+    // streaming reader does not naively split on '\n'.
+    let (total, batches) =
+        collect_import(b"name,note\n\"a\",\"line1\nline2\"\n", "csv", IMPORT_BATCH_SIZE)
+            .unwrap();
+    assert_eq!(total, 1);
+    match batches[0][0].get("note") {
+        Some(bson::Bson::String(value)) => assert_eq!(value, "line1\nline2"),
+        other => panic!("expected a string, got {:?}", other),
+    }
+}
+
+#[test]
+fn import_csv_skips_blank_trailing_rows() {
+    // A doubled final newline leaves a blank row that must be skipped, not imported.
+    let (total, _batches) = collect_import(b"a\n1\n\n", "csv", IMPORT_BATCH_SIZE).unwrap();
+    assert_eq!(total, 1);
+}
+
+#[test]
+fn import_empty_csv_yields_no_documents() {
+    let (total, batches) = collect_import(b"", "csv", IMPORT_BATCH_SIZE).unwrap();
+    assert_eq!(total, 0);
+    assert!(batches.is_empty());
+}
+
+#[test]
+fn import_json_flushes_multiple_batches_across_the_boundary() {
+    // 1001 documents at the real batch size must flush as [1000, 1] — proving the
+    // importer crosses a batch boundary instead of buffering everything.
+    let mut json = String::from("[");
+    for i in 0..1001 {
+        if i > 0 {
+            json.push(',');
+        }
+        json.push_str(&format!(r#"{{"n":{i}}}"#));
+    }
+    json.push(']');
+    let (total, batches) = collect_import(json.as_bytes(), "json", IMPORT_BATCH_SIZE).unwrap();
+    assert_eq!(total, 1001);
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0].len(), IMPORT_BATCH_SIZE);
+    assert_eq!(batches[1].len(), 1);
+}
+
+#[test]
+fn import_csv_flushes_multiple_batches_across_the_boundary() {
+    let mut csv = String::from("n\n");
+    for i in 0..1001 {
+        csv.push_str(&format!("{i}\n"));
+    }
+    let (total, batches) = collect_import(csv.as_bytes(), "csv", IMPORT_BATCH_SIZE).unwrap();
+    assert_eq!(total, 1001);
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0].len(), IMPORT_BATCH_SIZE);
+    assert_eq!(batches[1].len(), 1);
+}

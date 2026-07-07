@@ -8,8 +8,7 @@ use serde::Serialize;
 use tauri::State;
 
 use super::{
-    collect_values, csv_to_docs, parse_ejson_document, parse_json_documents, parse_pipeline,
-    DatabaseInfo,
+    collect_values, parse_ejson_document, parse_pipeline, DatabaseInfo,
 };
 
 /// The `_id_` index is created and required by MongoDB and can never be dropped,
@@ -577,22 +576,6 @@ pub async fn import_collection(
     path: String,
     format: String,
 ) -> Result<usize, AppError> {
-    let contents = match std::fs::read_to_string(&path) {
-        Ok(val) => val,
-        Err(e) => return Err(AppError::Io(e)),
-    };
-    let docs = if format == "csv" {
-        csv_to_docs(&contents)
-    } else {
-        match parse_json_documents(&contents) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        }
-    };
-    if docs.is_empty() {
-        return Ok(0);
-    }
-
     let client = match super::client_for(&pool, &storage, &id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
@@ -600,8 +583,7 @@ pub async fn import_collection(
     let col = client
         .database(&database)
         .collection::<bson::Document>(&collection);
-    match col.insert_many(docs).await {
-        Ok(result) => Ok(result.inserted_ids.len()),
-        Err(e) => Err(AppError::Mongo(e)),
-    }
+    // Stream the file in bounded batches instead of loading + parsing + inserting the
+    // whole thing at once, so a large import can't exhaust memory.
+    super::stream_import(&col, &path, &format).await
 }
