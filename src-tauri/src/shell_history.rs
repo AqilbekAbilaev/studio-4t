@@ -19,11 +19,10 @@ impl ShellHistoryStorage {
     }
 
     fn load_all(&self) -> HashMap<String, Vec<String>> {
-        if !self.path.exists() {
-            return HashMap::new();
-        }
-        let content = std::fs::read_to_string(&self.path).unwrap_or_default();
-        serde_json::from_str(&content).unwrap_or_default()
+        // Missing file -> empty; a present-but-corrupt file is quarantined aside
+        // (not silently emptied) so the next save can't overwrite it. See
+        // persist::read_json.
+        crate::persist::read_json(&self.path).unwrap_or_else(HashMap::new)
     }
 
     fn save_all(&self, map: &HashMap<String, Vec<String>>) -> Result<(), AppError> {

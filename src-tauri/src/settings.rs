@@ -42,11 +42,10 @@ impl SettingsStorage {
     }
 
     pub fn load(&self) -> Settings {
-        if !self.path.exists() {
-            return Settings::default();
-        }
-        let content = std::fs::read_to_string(&self.path).unwrap_or_default();
-        serde_json::from_str(&content).unwrap_or_default()
+        // Missing file -> defaults; a present-but-corrupt file is quarantined
+        // aside (not silently reset) so the next save can't overwrite it. See
+        // persist::read_json.
+        crate::persist::read_json(&self.path).unwrap_or_else(Settings::default)
     }
 
     pub fn save(&self, settings: &Settings) -> Result<(), AppError> {

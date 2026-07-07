@@ -28,11 +28,10 @@ impl SavedQueryStorage {
     }
 
     pub fn load(&self) -> Vec<SavedQueryEntry> {
-        if !self.path.exists() {
-            return Vec::new();
-        }
-        let content = std::fs::read_to_string(&self.path).unwrap_or_default();
-        serde_json::from_str(&content).unwrap_or_default()
+        // Missing file -> empty; a present-but-corrupt file is quarantined aside
+        // (not silently emptied) so the next save can't overwrite it. See
+        // persist::read_json.
+        crate::persist::read_json(&self.path).unwrap_or_else(Vec::new)
     }
 
     fn save(&self, entries: &[SavedQueryEntry]) -> Result<(), AppError> {
