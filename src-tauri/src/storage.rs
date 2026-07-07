@@ -2,7 +2,7 @@ use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 fn default_connection_type() -> String { String::from("standalone") }
 fn default_ssh_port() -> u16 { 22 }
@@ -122,17 +122,37 @@ fn migrate_legacy_hosts(content: &str) -> String {
 
 pub struct Storage {
     path: PathBuf,
-    // Serializes read-modify-write sequences so concurrent commands can't lose
-    // each other's updates to the same file.
-    lock: Mutex<()>,
+    // Cached connection list — the in-memory source of truth once loaded. `None`
+    // until first access (lazy load) or after a failed write. Every read is served
+    // from here; every mutation updates this and the file together under the lock,
+    // so a read never hits disk on a cache hit. The lock also serializes
+    // read-modify-write sequences so concurrent commands can't lose each other's
+    // updates.
+    //
+    // Tradeoff: external hand-edits to connections.json while the app is running
+    // are not observed until the next mutation or an app restart. Live external
+    // edits are unsupported, so this is acceptable.
+    cache: Mutex<Option<Vec<ConnectionConfig>>>,
 }
 
 impl Storage {
     pub fn new(path: PathBuf) -> Self {
-        Self { path: path, lock: Mutex::new(()) }
+        Self { path: path, cache: Mutex::new(None) }
     }
 
-    pub fn load(&self) -> Vec<ConnectionConfig> {
+    // The poison-tolerant cache guard. A panic in another thread while the lock is
+    // held poisons it; we recover the inner data rather than propagate the panic.
+    fn lock_cache(&self) -> MutexGuard<'_, Option<Vec<ConnectionConfig>>> {
+        match self.cache.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    // Reads, migrates, and parses the list straight from disk. Does not touch the
+    // lock, so it can run inside a held `lock_cache()` guard without re-entrancy.
+    // Called only on a cache miss / first load.
+    fn read_from_disk(&self) -> Vec<ConnectionConfig> {
         if !self.path.exists() {
             return vec![];
         }
@@ -141,10 +161,8 @@ impl Storage {
         serde_json::from_str(&migrated).unwrap_or_default()
     }
 
-    // Private: every persisting path holds `lock` first (see `add`/`update`/
-    // `remove`/`update_with`). Keeping this private is what stops a command from
-    // doing an unlocked `load()` + `save()`, which would race and lose updates.
-    fn save(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
+    // Serializes and atomically writes the list. Pure disk write, no lock.
+    fn write_disk(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
         let content = match serde_json::to_string_pretty(connections) {
             Ok(val) => val,
             Err(e) => return Err(AppError::Serde(e)),
@@ -152,61 +170,82 @@ impl Storage {
         crate::persist::atomic_write(&self.path, &content)
     }
 
-    /// Apply `mutate` to the loaded connection list under the storage lock, then
-    /// persist. The safe path for commands that change a field or two on an
-    /// existing connection (tag, open, last-accessed, folder membership): it
-    /// serializes with `add`/`update`/`remove` so two concurrent field updates
-    /// can't lose each other — a bare `load()` + `save()` holds no lock and races.
-    pub fn update_with<F>(&self, mutate: F) -> Result<(), AppError>
-    where
-        F: FnOnce(&mut Vec<ConnectionConfig>),
-    {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut connections = self.load();
-        mutate(&mut connections);
-        self.save(&connections)
-    }
-
-    pub fn add(&self, config: ConnectionConfig) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut connections = self.load();
-        connections.push(config);
-        self.save(&connections)
-    }
-
-    pub fn update(&self, config: ConnectionConfig) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut connections = self.load();
-        if let Some(c) = connections.iter_mut().find(|c| c.id == config.id) {
-            *c = config;
-        }
-        self.save(&connections)
-    }
-
-    pub fn remove(&self, id: &str) -> Result<(), AppError> {
-        let _guard = match self.lock.lock() {
-            Ok(g) => g,
-            Err(p) => p.into_inner(),
-        };
-        let mut connections = self.load();
-        connections.retain(|c| c.id != id);
-        self.save(&connections)
+    pub fn load(&self) -> Vec<ConnectionConfig> {
+        let mut guard = self.lock_cache();
+        let connections = guard.get_or_insert_with(|| self.read_from_disk());
+        connections.clone()
     }
 
     /// The persisted config for `id`, if any. This is the authoritative source of
     /// a connection's URI — commands resolve it here rather than trusting the
     /// frontend to send the URI on every call.
     pub fn find(&self, id: &str) -> Option<ConnectionConfig> {
-        self.load().into_iter().find(|c| c.id == id)
+        let mut guard = self.lock_cache();
+        let connections = guard.get_or_insert_with(|| self.read_from_disk());
+        connections.iter().find(|c| c.id == id).cloned()
+    }
+
+    /// Apply `mutate` to the connection list under the lock, persist, then sync the
+    /// cache. The one cache-consistent write core: `add`/`update`/`remove` delegate
+    /// here so no mutation path can forget to update the cache, and two concurrent
+    /// field updates (e.g. set-open + set-last-accessed) still serialize on the one
+    /// lock so neither is lost.
+    pub fn update_with<F>(&self, mutate: F) -> Result<(), AppError>
+    where
+        F: FnOnce(&mut Vec<ConnectionConfig>),
+    {
+        let mut guard = self.lock_cache();
+        let mut connections = match guard.take() {
+            Some(connections) => connections,
+            None => self.read_from_disk(),
+        };
+        mutate(&mut connections);
+        match self.write_disk(&connections) {
+            Ok(()) => {
+                *guard = Some(connections);
+                Ok(())
+            }
+            // Persist failed: don't cache the unpersisted change. Leaving the cache
+            // empty forces the next read to reload the last good state from disk.
+            Err(e) => {
+                *guard = None;
+                Err(e)
+            }
+        }
+    }
+
+    pub fn add(&self, config: ConnectionConfig) -> Result<(), AppError> {
+        self.update_with(|connections| connections.push(config))
+    }
+
+    pub fn update(&self, config: ConnectionConfig) -> Result<(), AppError> {
+        self.update_with(|connections| {
+            if let Some(c) = connections.iter_mut().find(|c| c.id == config.id) {
+                *c = config;
+            }
+        })
+    }
+
+    pub fn remove(&self, id: &str) -> Result<(), AppError> {
+        self.update_with(|connections| connections.retain(|c| c.id != id))
+    }
+
+    // Replace the whole list: write to disk, then sync the cache. Only the tests
+    // use this — the app mutates through `update_with` and its `add`/`update`/
+    // `remove` delegates, so it's compiled in test builds only.
+    #[cfg(test)]
+    fn save(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
+        let mut guard = self.lock_cache();
+        match self.write_disk(connections) {
+            Ok(()) => {
+                *guard = Some(connections.to_vec());
+                Ok(())
+            }
+            Err(e) => {
+                *guard = None;
+                Err(e)
+            }
+        }
     }
 }
 
