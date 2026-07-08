@@ -26,6 +26,7 @@ import MapReduceModal from './components/MapReduceModal.vue'
 import ServerChartsModal from './components/ServerChartsModal.vue'
 import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
+import TasksModal from './components/TasksModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
 import StatsModal from './components/StatsModal.vue'
 import ServerInfoModal from './components/ServerInfoModal.vue'
@@ -221,6 +222,7 @@ const gridfsRequest = ref(null)       // { action, nonce } signal to the open Gr
 const compareTarget = ref(null)       // { connId, connName, dbName } for the Data Compare modal
 const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
+const showTasksModal = ref(false)     // Tasks panel (top-bar Tasks button / File → Open Tasks)
 const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
 const statsTarget = ref(null)         // { connId, connName, dbName, collName } for the Collection Stats modal
 const serverInfoTarget = ref(null)    // { connId, connName, kind, title } for Build/Host/Replica info
@@ -389,6 +391,10 @@ function handleTool(name, target = null) {
   }
   if (name === 'sql') {
     showSqlModal.value = true
+    return
+  }
+  if (name === 'tasks') {
+    showTasksModal.value = true
     return
   }
   if (name === 'collection') {
@@ -619,6 +625,7 @@ function handleMenuAction(id) {
     // --- toolbar dispatcher (targets the sidebar selection, else the active tab) ---
     case 'file:intellishell': handleTool('shell', menuTarget('database')); return
     case 'file:sql':          handleTool('sql'); return
+    case 'file:tasks':        showTasksModal.value = true; return
     // File → Load / Save: the saved-query browser and save-query form live in the
     // active collection tab's QueryBar; signal it (no-op with a toast otherwise).
     case 'file:load':
@@ -2376,6 +2383,13 @@ async function runAggregate(tabId, params) {
     <SqlModal
       v-if="showSqlModal"
       @close="showSqlModal = false"
+    />
+
+    <!-- Tasks panel -->
+    <TasksModal
+      v-if="showTasksModal"
+      @toast="showToast"
+      @close="showTasksModal = false"
     />
 
     <!-- Data Masking modal -->
