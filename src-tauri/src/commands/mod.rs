@@ -30,6 +30,7 @@ pub mod compare;
 pub mod folders;
 pub mod tasks;
 pub mod reschema;
+pub mod portmap;
 
 pub use connection::*;
 pub use query::*;
@@ -53,6 +54,7 @@ pub use compare::*;
 pub use folders::*;
 pub use tasks::*;
 pub use reschema::*;
+pub use portmap::*;
 
 // Server-side time cap on user queries so a runaway find/aggregate aborts on the
 // server instead of hanging the UI (Tauri commands can't be cancelled in-flight).
@@ -932,6 +934,11 @@ where
 /// at a time so peak memory is O(batch), not O(file). The symmetric counterpart to
 /// `stream_export`. Returns the total number of documents inserted.
 ///
+/// When `mapping` is `Some`, each parsed document is rewritten through it (rename
+/// source→target, coerce per-field type, drop unmapped columns) before insertion —
+/// this happens on the parse thread, so it adds no work to the async insert side.
+/// `None` inserts documents exactly as parsed (the plain-import / Tasks behavior).
+///
 /// Parsing (sync CPU/file work) runs on a blocking thread and hands each batch to the
 /// async side through a bounded channel; the channel's capacity gives back-pressure so
 /// the parser can't outrun the inserts and buffer the whole file. Because each batch is
@@ -941,6 +948,7 @@ pub(crate) async fn stream_import(
     col: &Collection<bson::Document>,
     path: &str,
     format: &str,
+    mapping: Option<Vec<portmap::FieldMap>>,
 ) -> Result<usize, AppError> {
     // An empty file imports nothing without touching the parser (which would reject
     // zero-length input as malformed JSON).
@@ -957,6 +965,7 @@ pub(crate) async fn stream_import(
     let (sender, receiver) = std::sync::mpsc::sync_channel::<Vec<bson::Document>>(1);
     let path_owned = path.to_string();
     let format_owned = format.to_string();
+    let mapping_owned = mapping;
     let parse_handle = tokio::task::spawn_blocking(move || -> Result<usize, AppError> {
         let file = match std::fs::File::open(&path_owned) {
             Ok(val) => val,
@@ -964,6 +973,16 @@ pub(crate) async fn stream_import(
         };
         let reader = std::io::BufReader::new(file);
         stream_documents(reader, &format_owned, IMPORT_BATCH_SIZE, |batch| {
+            // Apply the field mapping (rename/coerce/select) before handing the
+            // batch over for insertion; without a mapping the batch is inserted
+            // exactly as parsed.
+            let batch = match &mapping_owned {
+                Some(maps) => batch
+                    .into_iter()
+                    .map(|doc| portmap::apply_field_map(&doc, maps))
+                    .collect(),
+                None => batch,
+            };
             match sender.send(batch) {
                 Ok(_) => Ok(()),
                 // The receiver was dropped because an insert failed; stop parsing. The

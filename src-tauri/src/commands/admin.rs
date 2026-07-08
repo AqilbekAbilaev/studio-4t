@@ -5,6 +5,7 @@ use mongodb::IndexModel;
 use serde::Serialize;
 use tauri::State;
 
+use super::portmap::{apply_field_map, FieldMap};
 use super::{
     collect_values, parse_ejson_document, parse_pipeline, DatabaseInfo, AppContext,
 };
@@ -563,6 +564,77 @@ pub async fn import_collection(
         .database(&database)
         .collection::<bson::Document>(&collection);
     // Stream the file in bounded batches instead of loading + parsing + inserting the
-    // whole thing at once, so a large import can't exhaust memory.
-    super::stream_import(&col, &path, &format).await
+    // whole thing at once, so a large import can't exhaust memory. `None` mapping =
+    // insert documents exactly as parsed (also the Tasks import path).
+    super::stream_import(&col, &path, &format, None).await
+}
+
+/// Field-mapping import for the Import/Export wizard: same streaming import as
+/// `import_collection`, but each parsed document is rewritten through `mapping`
+/// (rename source→target, coerce per-field type, drop unmapped columns) before
+/// insertion. An empty `mapping` falls back to a plain import. Returns the number
+/// of documents inserted.
+#[tauri::command]
+pub async fn import_collection_mapped(
+    ctx: State<'_, AppContext>,
+    id: String,
+    database: String,
+    collection: String,
+    path: String,
+    format: String,
+    mapping: Vec<FieldMap>,
+) -> Result<usize, AppError> {
+    let client = match ctx.client(&id).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    let mapping_opt = if mapping.is_empty() {
+        None
+    } else {
+        Some(mapping)
+    };
+    super::stream_import(&col, &path, &format, mapping_opt).await
+}
+
+/// Field-selecting export for the Import/Export wizard: same streaming export as
+/// `export_collection`, but each document is rewritten through `fields`
+/// (select/reorder/rename, with optional per-field coercion) before it's written.
+/// The field order drives the output column/key order. An empty `fields` exports
+/// every field unchanged. Returns the number of documents written.
+#[tauri::command]
+pub async fn export_collection_fields(
+    ctx: State<'_, AppContext>,
+    id: String,
+    database: String,
+    collection: String,
+    path: String,
+    format: String,
+    fields: Vec<FieldMap>,
+) -> Result<usize, AppError> {
+    let client = match ctx.client(&id).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let col = client
+        .database(&database)
+        .collection::<bson::Document>(&collection);
+    super::stream_export(
+        &col,
+        bson::doc! {},
+        None,
+        None,
+        &path,
+        &format,
+        move |doc: &mut bson::Document| -> Result<(), AppError> {
+            // No fields chosen → leave the document untouched (export everything).
+            if !fields.is_empty() {
+                *doc = apply_field_map(doc, &fields);
+            }
+            Ok(())
+        },
+    )
+    .await
 }
