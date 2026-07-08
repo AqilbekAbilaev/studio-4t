@@ -28,6 +28,7 @@ import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import TasksModal from './components/TasksModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
+import ImportExportWizard from './components/ImportExportWizard.vue'
 import ReschemaModal from './components/ReschemaModal.vue'
 import StatsModal from './components/StatsModal.vue'
 import ServerInfoModal from './components/ServerInfoModal.vue'
@@ -225,6 +226,8 @@ const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when t
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
 const showTasksModal = ref(false)     // Tasks panel (top-bar Tasks button / File → Open Tasks)
 const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
+const importWizardTarget = ref(null)  // { connId, connName, dbName, collName } for the Import wizard
+const exportWizardTarget = ref(null)  // { connId, connName, dbName, collName } for the Export wizard
 const reschemaTarget = ref(null)      // { connId, connName, dbName, collName } for the Reschema modal
 const statsTarget = ref(null)         // { connId, connName, dbName, collName } for the Collection Stats modal
 const serverInfoTarget = ref(null)    // { connId, connName, kind, title } for Build/Host/Replica info
@@ -439,9 +442,14 @@ function handleTool(name, target = null) {
         collectionName: tab.collectionName,
       }, 'aggregate')
     } else {
-      const nodeData = { connId: tab.connectionId, dbName: tab.dbName, collName: tab.collectionName }
-      if (name === 'export') exportCollection(nodeData)
-      else importCollection(nodeData)
+      const nodeData = {
+        connId: tab.connectionId,
+        connName: tab.connectionName,
+        dbName: tab.dbName,
+        collName: tab.collectionName,
+      }
+      if (name === 'export') openExportWizard(nodeData)
+      else openImportWizard(nodeData)
     }
     return
   }
@@ -1108,12 +1116,12 @@ async function handleContextAction(action) {
   // Import/Export are wired for collections only; the database/connection-level
   // variants stay stubs for now (they'd need multi-collection handling).
   if (action === 'Export…' && saved.type === 'collection') {
-    await exportCollection(saved.nodeData)
+    openExportWizard(saved.nodeData)
     return
   }
 
   if (action === 'Import…' && saved.type === 'collection') {
-    await importCollection(saved.nodeData)
+    openImportWizard(saved.nodeData)
     return
   }
 
@@ -1696,62 +1704,32 @@ async function setIndexHidden(hidden) {
   }
 }
 
-async function exportCollection(nodeData) {
-  let path
-  try {
-    path = await saveDialog({
-      defaultPath: `${nodeData.collName}.json`,
-      filters: [
-        { name: 'JSON', extensions: ['json'] },
-        { name: 'CSV', extensions: ['csv'] },
-      ],
-    })
-  } catch (e) {
-    showToast('Export failed: ' + errMessage(e))
-    return
-  }
-  if (!path) return  // user cancelled
-  const format = path.toLowerCase().endsWith('.csv') ? 'csv' : 'json'
-  try {
-    const count = await invoke('export_collection', {
-      id: nodeData.connId,
-      database: nodeData.dbName,
-      collection: nodeData.collName,
-      path: path,
-      format: format,
-    })
-    showToast(`Exported ${count} document${count !== 1 ? 's' : ''} to ${format.toUpperCase()}`)
-  } catch (e) {
-    showToast('Export failed: ' + errMessage(e))
+// Open the stepped Import / Export wizard for a single collection. `nodeData` is
+// the sidebar/tab shape ({ connId, connName, dbName, collName }); the wizard maps
+// columns→fields with per-field type coercion and shows a live preview before it
+// runs. The bulk database-level export/import below stay on the plain commands.
+function openExportWizard(nodeData) {
+  exportWizardTarget.value = {
+    connId: nodeData.connId,
+    connName: nodeData.connName,
+    dbName: nodeData.dbName,
+    collName: nodeData.collName,
   }
 }
 
-async function importCollection(nodeData) {
-  let path
-  try {
-    path = await openDialog({
-      multiple: false,
-      filters: [{ name: 'JSON or CSV', extensions: ['json', 'csv'] }],
-    })
-  } catch (e) {
-    showToast('Import failed: ' + errMessage(e))
-    return
+function openImportWizard(nodeData) {
+  importWizardTarget.value = {
+    connId: nodeData.connId,
+    connName: nodeData.connName,
+    dbName: nodeData.dbName,
+    collName: nodeData.collName,
   }
-  if (!path) return  // user cancelled
-  const format = String(path).toLowerCase().endsWith('.csv') ? 'csv' : 'json'
-  try {
-    const count = await invoke('import_collection', {
-      id: nodeData.connId,
-      database: nodeData.dbName,
-      collection: nodeData.collName,
-      path: path,
-      format: format,
-    })
-    await connectionTreeRef.value.refreshConn(nodeData.connId)
-    showToast(`Imported ${count} document${count !== 1 ? 's' : ''}`)
-  } catch (e) {
-    showToast('Import failed: ' + errMessage(e))
-  }
+}
+
+// After a wizard import, refresh the connection so a newly-populated collection
+// shows up in the sidebar.
+async function onWizardImported(connId) {
+  await connectionTreeRef.value.refreshConn(connId)
 }
 
 // Database → Export Collections…: export every collection in the database to a
@@ -2421,6 +2399,23 @@ async function runAggregate(tabId, params) {
       :target="maskingTarget"
       @toast="showToast"
       @close="maskingTarget = null"
+    />
+
+    <!-- Import / Export field-mapping wizard -->
+    <ImportExportWizard
+      v-if="importWizardTarget"
+      mode="import"
+      :target="importWizardTarget"
+      @toast="showToast"
+      @done="onWizardImported"
+      @close="importWizardTarget = null"
+    />
+    <ImportExportWizard
+      v-if="exportWizardTarget"
+      mode="export"
+      :target="exportWizardTarget"
+      @toast="showToast"
+      @close="exportWizardTarget = null"
     />
 
     <!-- Reschema modal -->
