@@ -28,6 +28,7 @@ import SchemaModal from './components/SchemaModal.vue'
 import SqlModal from './components/SqlModal.vue'
 import TasksModal from './components/TasksModal.vue'
 import MaskingModal from './components/MaskingModal.vue'
+import ReschemaModal from './components/ReschemaModal.vue'
 import StatsModal from './components/StatsModal.vue'
 import ServerInfoModal from './components/ServerInfoModal.vue'
 import MigrationModal from './components/MigrationModal.vue'
@@ -224,6 +225,7 @@ const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when t
 const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
 const showTasksModal = ref(false)     // Tasks panel (top-bar Tasks button / File → Open Tasks)
 const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
+const reschemaTarget = ref(null)      // { connId, connName, dbName, collName } for the Reschema modal
 const statsTarget = ref(null)         // { connId, connName, dbName, collName } for the Collection Stats modal
 const serverInfoTarget = ref(null)    // { connId, connName, kind, title } for Build/Host/Replica info
 const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
@@ -456,6 +458,19 @@ function handleTool(name, target = null) {
     }
     return
   }
+  if (name === 'reschema') {
+    if (!tab || tab.kind !== 'collection') {
+      showToast('Open a collection first')
+      return
+    }
+    reschemaTarget.value = {
+      connId: tab.connectionId,
+      connName: tab.connectionName,
+      dbName: tab.dbName,
+      collName: tab.collectionName,
+    }
+    return
+  }
   if (name === 'migration') {
     if (!tab || tab.kind !== 'collection') {
       showToast('Open a collection first')
@@ -495,6 +510,14 @@ function handleTool(name, target = null) {
   }
   const label = TOOLS.find(t => t.name === name)?.label || name
   showToast(`${label} — coming to Studio-4T`)
+}
+
+// After a Reschema apply: a new collection changes the tree, so refresh that
+// connection's node. An in-place rewrite leaves the tree structure untouched.
+async function onReschemaApplied(result) {
+  if (result?.newCollection && result.connId) {
+    await connectionTreeRef.value.refreshConn(result.connId)
+  }
 }
 
 // Bridges a native-menu item into the existing right-click context handler by
@@ -2398,6 +2421,15 @@ async function runAggregate(tabId, params) {
       :target="maskingTarget"
       @toast="showToast"
       @close="maskingTarget = null"
+    />
+
+    <!-- Reschema modal -->
+    <ReschemaModal
+      v-if="reschemaTarget"
+      :target="reschemaTarget"
+      @toast="showToast"
+      @applied="onReschemaApplied"
+      @close="reschemaTarget = null"
     />
 
     <!-- Collection Stats modal -->
