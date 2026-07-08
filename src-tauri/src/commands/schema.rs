@@ -176,20 +176,16 @@ pub async fn analyze_schema(
     collection: String,
     sample_size: Option<i64>,
 ) -> Result<SchemaReport, AppError> {
-    let client = match ctx.client(&id).await {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-
     let requested = match sample_size {
         Some(val) => val,
         None => DEFAULT_SAMPLE_SIZE,
     };
     let size = requested.clamp(MIN_SAMPLE_SIZE, MAX_SAMPLE_SIZE);
 
-    let col = client
-        .database(&database)
-        .collection::<bson::Document>(&collection);
+    let col = match ctx.collection(&id, &database, &collection).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     let pipeline = vec![bson::doc! { "$sample": { "size": size } }];
     let mut cursor = match col.aggregate(pipeline).max_time(MAX_QUERY_TIME).await {

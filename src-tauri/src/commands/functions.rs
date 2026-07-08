@@ -29,13 +29,10 @@ pub async fn list_functions(
     id: String,
     database: String,
 ) -> Result<Vec<StoredFunction>, AppError> {
-    let client = match ctx.client(&id).await {
+    let coll = match ctx.collection(&id, &database, "system.js").await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let coll = client
-        .database(&database)
-        .collection::<bson::Document>("system.js");
     let mut cursor = match coll.find(bson::doc! {}).await {
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
@@ -69,13 +66,10 @@ pub async fn save_function(
     name: String,
     body: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let coll = match ctx.collection(&id, &database, "system.js").await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let coll = client
-        .database(&database)
-        .collection::<bson::Document>("system.js");
     let update = bson::doc! { "$set": { "value": bson::Bson::JavaScriptCode(body) } };
     match coll
         .update_one(bson::doc! { "_id": &name }, update)
@@ -95,13 +89,10 @@ pub async fn drop_function(
     database: String,
     name: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let coll = match ctx.collection(&id, &database, "system.js").await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let coll = client
-        .database(&database)
-        .collection::<bson::Document>("system.js");
     match coll.delete_one(bson::doc! { "_id": &name }).await {
         Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),

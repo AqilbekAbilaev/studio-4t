@@ -157,13 +157,10 @@ pub async fn export_masked_collection(
     format: String,
     limit: Option<i64>,
 ) -> Result<usize, AppError> {
-    let client = match ctx.client(&id).await {
+    let col = match ctx.collection(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let col = client
-        .database(&database)
-        .collection::<bson::Document>(&collection);
 
     let filter_doc = match parse_ejson_document(&filter) {
         Ok(val) => val,

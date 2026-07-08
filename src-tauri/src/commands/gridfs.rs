@@ -104,13 +104,10 @@ pub async fn list_gridfs_files(
     database: String,
     bucket: String,
 ) -> Result<Vec<GridFsFile>, AppError> {
-    let client = match ctx.client(&id).await {
+    let files = match ctx.collection(&id, &database, &format!("{bucket}.files")).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let files = client
-        .database(&database)
-        .collection::<bson::Document>(&format!("{bucket}.files"));
     let mut cursor = match files.find(bson::doc! {}).sort(bson::doc! { "filename": 1 }).await {
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
@@ -241,17 +238,14 @@ pub async fn gridfs_rename(
     file_id: String,
     new_name: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
     let id_bson = match parse_file_id(&file_id) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let files = client
-        .database(&database)
-        .collection::<bson::Document>(&format!("{bucket}.files"));
+    let files = match ctx.collection(&id, &database, &format!("{bucket}.files")).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
     match files
         .update_one(bson::doc! { "_id": id_bson }, bson::doc! { "$set": { "filename": new_name } })
         .await
@@ -280,17 +274,14 @@ pub async fn gridfs_set_metadata(
             Err(e) => return Err(e),
         }
     };
-    let client = match ctx.client(&id).await {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
     let id_bson = match parse_file_id(&file_id) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let files = client
-        .database(&database)
-        .collection::<bson::Document>(&format!("{bucket}.files"));
+    let files = match ctx.collection(&id, &database, &format!("{bucket}.files")).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
     match files
         .update_one(bson::doc! { "_id": id_bson }, bson::doc! { "$set": { "metadata": metadata_doc } })
         .await

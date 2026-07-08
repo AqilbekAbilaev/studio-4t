@@ -178,13 +178,10 @@ pub async fn generate_sql_migration(
     table_name: Option<String>,
     limit: Option<i64>,
 ) -> Result<String, AppError> {
-    let client = match ctx.client(&id).await {
+    let col = match ctx.collection(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let col = client
-        .database(&database)
-        .collection::<bson::Document>(&collection);
 
     let requested = match limit {
         Some(val) if val > 0 => val,

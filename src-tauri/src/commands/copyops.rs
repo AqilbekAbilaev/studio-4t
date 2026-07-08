@@ -17,13 +17,10 @@ pub async fn copy_collection(
     target_database: String,
     target_collection: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let src = match ctx.collection(&id, &source_database, &source_collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let src = client
-        .database(&source_database)
-        .collection::<bson::Document>(&source_collection);
     let pipeline = vec![
         bson::doc! { "$match": {} },
         bson::doc! { "$out": { "db": &target_database, "coll": &target_collection } },
