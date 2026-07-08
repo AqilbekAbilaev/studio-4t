@@ -40,17 +40,20 @@ const viewMenu     = ref(false)
 const pageSizeMenu = ref(false)
 
 // JSON view: rendered by a read-only CodeMirror editor (see utils/jsonView.js),
-// which virtualizes the lines and folds objects/arrays natively. The buffer is the
-// whole result set as one mongosh-style array literal, so every document is a
-// foldable node. `jsonViewEl` is the host div; `jsonView` is the (non-reactive)
-// EditorView instance.
+// which virtualizes the lines and folds objects/arrays natively. The buffer is each
+// document rendered at the top level (mongosh-style), one after another — no enclosing
+// array wrapper. A divider line between documents is drawn by the editor itself (it
+// marks each top-level closing brace). The JS parser still folds every object/array
+// (top-level objects parse as foldable blocks, nested objects/arrays as expressions),
+// and highlighting is identical to the wrapped form. `jsonViewEl` is the host div;
+// `jsonView` is the (non-reactive) EditorView instance.
 const jsonViewEl = ref(null)
 let jsonView = null
 
 const jsonText = computed(() => {
   const results = props.activeTab && props.activeTab.results
   if (!results || !results.length) return ''
-  return mongoStringify(results)
+  return results.map((doc) => mongoStringify(doc)).join('\n')
 })
 
 const jsonViewActive = computed(() =>
