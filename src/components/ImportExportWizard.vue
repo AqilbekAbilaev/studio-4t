@@ -542,6 +542,18 @@ const titleText = computed(
   padding: 3px 6px;
   font-size: 12px;
 }
+/* Native <select> needs appearance:none + a drawn chevron, or WebKitGTK renders
+   the OS widget (white) and ignores the themed background. Mirrors NewConnection's
+   .nc-native so all themed selects look the same. */
+.iew-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a94' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+}
 .iew-input:disabled, .iew-select:disabled { opacity: .5; }
 .iew-order { display: flex; gap: 4px; }
 .iew-move {
