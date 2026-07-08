@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import { parseField } from '../utils/queryParser'
@@ -13,6 +13,7 @@ import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
 import StateMessage from './StateMessage.vue'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
+import { createJsonView, setJsonView } from '../utils/jsonView'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
 import { valueToClipboard, valueToEjson, documentToClipboard, fieldPath } from '../utils/clipboardCopy'
 
@@ -38,28 +39,37 @@ const viewMode     = ref('table')
 const viewMenu     = ref(false)
 const pageSizeMenu = ref(false)
 
-// JSON view: flatten every document's highlighted output into individual lines so
-// the view can show a continuous line-number gutter (line 1..N across all docs),
-// code-editor style. mongoStringify emits newlines only as structural whitespace
-// between tokens and syntaxHighlight never wraps a "\n" inside a <span>, so
-// splitting the highlighted HTML on "\n" yields whole, self-contained line spans.
-// `docEnd` marks each document's final line (except the last document's) so a
-// subtle divider can sit between documents.
-const jsonLines = computed(() => {
+// JSON view: rendered by a read-only CodeMirror editor (see utils/jsonView.js),
+// which virtualizes the lines and folds objects/arrays natively. The buffer is the
+// whole result set as one mongosh-style array literal, so every document is a
+// foldable node. `jsonViewEl` is the host div; `jsonView` is the (non-reactive)
+// EditorView instance.
+const jsonViewEl = ref(null)
+let jsonView = null
+
+const jsonText = computed(() => {
   const results = props.activeTab && props.activeTab.results
-  if (!results || !results.length) return []
-  const lines = []
-  results.forEach((doc, docIndex) => {
-    const docLines = syntaxHighlight(mongoStringify(doc)).split('\n')
-    docLines.forEach((html, lineIndex) => {
-      lines.push({
-        html:   html,
-        docEnd: lineIndex === docLines.length - 1 && docIndex !== results.length - 1,
-      })
-    })
-  })
-  return lines
+  if (!results || !results.length) return ''
+  return mongoStringify(results)
 })
+
+const jsonViewActive = computed(() =>
+  props.rtab === 'Result' && viewMode.value === 'json' && jsonText.value.length > 0)
+
+// Create the editor when the JSON view enters the DOM, push fresh text while it
+// stays (switching tab / re-running a query), and tear it down when it leaves.
+watch([jsonViewActive, jsonText], async ([active, text]) => {
+  if (!active) {
+    if (jsonView) { jsonView.destroy(); jsonView = null }
+    return
+  }
+  await nextTick()
+  if (!jsonViewEl.value) return
+  if (jsonView) setJsonView(jsonView, text)
+  else jsonView = createJsonView(jsonViewEl.value, text)
+}, { immediate: true })
+
+onBeforeUnmount(() => { if (jsonView) { jsonView.destroy(); jsonView = null } })
 
 // Drag-to-VQB signals originate in the grid (ResultTable) and are forwarded to
 // VisualQueryBuilder, which sits beside the grid here. ResultTable owns the gesture;
@@ -754,14 +764,7 @@ const queryCode = computed(() => {
     <!-- JSON view -->
     <div v-else-if="rtab === 'Result' && viewMode === 'json'" class="json-view">
       <div v-if="!activeTab.results?.length" style="padding:32px;color:var(--text-faint);font-size:12px">No documents</div>
-      <div v-else class="json-code">
-        <div
-          v-for="(line, i) in jsonLines"
-          :key="i"
-          class="json-line"
-          :class="{ 'json-line--docend': line.docEnd }"
-        ><span class="json-ln">{{ i + 1 }}</span><span class="json-lc" v-html="line.html || ' '"></span></div>
-      </div>
+      <div v-else ref="jsonViewEl" class="json-cm"></div>
     </div>
 
     <!-- Tree view -->
@@ -1103,8 +1106,11 @@ const queryCode = computed(() => {
     repeating-linear-gradient(to bottom, var(--bg-row) 0 25px, var(--bg-row-alt) 25px 50px);
 }
 
-/* JSON view */
-.json-view { flex: 1; overflow: auto; padding: 12px 16px; }
+/* JSON view — hosts a read-only CodeMirror editor that fills the panel and scrolls
+   internally (see utils/jsonView.js). `.json-doc` below is kept for the single-
+   document Explain / read-only views, which still render as one preformatted block. */
+.json-view { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.json-cm { flex: 1; min-height: 0; overflow: hidden; }
 
 /* Tree view */
 .tree-view { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--bg-window); }
@@ -1124,29 +1130,6 @@ const queryCode = computed(() => {
 }
 .tree-head span { padding: 0 8px; border-right: 1px solid var(--border); height: 100%; display: flex; align-items: center; }
 .tree-head .th-type { border-right: none; }
-/* JSON view — a continuous line-number gutter (code-editor style), one row per
-   line across all documents. `.json-doc` is kept for the single-document Explain
-   view, which still renders as one preformatted block. */
-.json-code { font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
-.json-line { display: flex; align-items: baseline; }
-/* subtle divider between documents — drawn under each document's final line */
-.json-line--docend { border-bottom: 1px solid var(--border-soft); }
-/* line-number gutter — non-selectable so copying documents omits the numbers */
-.json-ln {
-  flex: none;
-  width: 52px;
-  padding-right: 14px;
-  text-align: right;
-  color: var(--text-faint);
-  -webkit-user-select: none;
-  user-select: none;
-}
-.json-lc {
-  white-space: pre;
-  color: var(--text);
-  -webkit-user-select: text;
-  user-select: text;
-}
 .json-doc {
   font-family: var(--mono);
   font-size: 12.5px;
@@ -1158,17 +1141,17 @@ const queryCode = computed(() => {
   -webkit-user-select: text;
   user-select: text;
 }
-/* syntax highlight token classes — shared by the JSON view lines (.json-lc) and
-   the Explain view (.json-doc). The global `*` reset in theme.css sets
-   user-select:none on spans, so re-enable it here or copy only grabs punctuation. */
-.json-doc :deep(span), .json-lc :deep(span)  { -webkit-user-select: text; user-select: text; }
-.json-doc :deep(.jk),   .json-lc :deep(.jk)  { color: var(--cell-key); }
-.json-doc :deep(.jop),  .json-lc :deep(.jop) { color: var(--cell-op); }
-.json-doc :deep(.js),   .json-lc :deep(.js)  { color: var(--cell-str); }
-.json-doc :deep(.jn),   .json-lc :deep(.jn)  { color: var(--cell-num); }
-.json-doc :deep(.jb),   .json-lc :deep(.jb)  { color: var(--cell-num); }
-.json-doc :deep(.jl),   .json-lc :deep(.jl)  { color: var(--text-faint); }
-.json-doc :deep(.joid), .json-lc :deep(.joid){ color: var(--link); }
+/* syntax highlight token classes for the Explain / read-only JSON blocks (.json-doc).
+   The global `*` reset in theme.css sets user-select:none on spans, so re-enable it
+   here or copy only grabs punctuation. */
+.json-doc :deep(span)  { -webkit-user-select: text; user-select: text; }
+.json-doc :deep(.jk)   { color: var(--cell-key); }
+.json-doc :deep(.jop)  { color: var(--cell-op); }
+.json-doc :deep(.js)   { color: var(--cell-str); }
+.json-doc :deep(.jn)   { color: var(--cell-num); }
+.json-doc :deep(.jb)   { color: var(--cell-num); }
+.json-doc :deep(.jl)   { color: var(--text-faint); }
+.json-doc :deep(.joid) { color: var(--link); }
 
 .explain-view { flex: 1; overflow: auto; padding: 12px 16px; }
 .explain-msg { padding: 32px; color: var(--text-faint); font-size: 12px; display: flex; align-items: center; justify-content: center; }
