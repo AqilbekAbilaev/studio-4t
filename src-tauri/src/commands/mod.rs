@@ -29,6 +29,7 @@ pub mod copyops;
 pub mod compare;
 pub mod folders;
 pub mod tasks;
+pub mod reschema;
 
 pub use connection::*;
 pub use query::*;
@@ -51,6 +52,7 @@ pub use copyops::*;
 pub use compare::*;
 pub use folders::*;
 pub use tasks::*;
+pub use reschema::*;
 
 // Server-side time cap on user queries so a runaway find/aggregate aborts on the
 // server instead of hanging the UI (Tauri commands can't be cancelled in-flight).

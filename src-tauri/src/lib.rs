@@ -218,6 +218,8 @@ pub fn run() {
             delete_task,
             run_task,
             get_task_runs,
+            reschema_preview,
+            reschema_apply,
             menu::set_menu_context,
         ])
         .run(tauri::generate_context!())
