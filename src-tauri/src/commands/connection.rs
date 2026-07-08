@@ -456,19 +456,6 @@ pub async fn disconnect(
 }
 
 #[tauri::command]
-pub fn set_connection_tag(
-    ctx: State<'_, AppContext>,
-    id: String,
-    tag: String,
-) -> Result<(), AppError> {
-    ctx.storage.update_with(|connections| {
-        if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
-            c.tag = if tag.is_empty() { None } else { Some(tag) };
-        }
-    })
-}
-
-#[tauri::command]
 pub fn set_connection_open(
     ctx: State<'_, AppContext>,
     id: String,

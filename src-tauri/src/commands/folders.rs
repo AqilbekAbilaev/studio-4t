@@ -58,7 +58,7 @@ pub fn delete_folder(
 }
 
 /// Move a connection into a folder, or back to the root when `folder_id` is
-/// `None`. Mirrors `set_connection_tag`: a single-field update on the connection.
+/// `None`. A single-field update on the connection.
 #[tauri::command]
 pub fn move_connection_to_folder(
     ctx: State<'_, AppContext>,
