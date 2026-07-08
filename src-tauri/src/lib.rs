@@ -211,6 +211,8 @@ pub fn run() {
             list_tasks,
             save_task,
             delete_task,
+            run_task,
+            get_task_runs,
             menu::set_menu_context,
         ])
         .run(tauri::generate_context!())
