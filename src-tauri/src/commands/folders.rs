@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::folders::{Folder, FolderStorage};
-use crate::storage::Storage;
+use super::AppContext;
 use tauri::State;
 use uuid::Uuid;
 
@@ -40,11 +40,11 @@ pub fn rename_folder(
 #[tauri::command]
 pub fn delete_folder(
     folders: State<'_, FolderStorage>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
 ) -> Result<(), AppError> {
     // Detach any connections that were in this folder, under the storage lock.
-    match storage.update_with(|connections| {
+    match ctx.storage.update_with(|connections| {
         for c in connections.iter_mut() {
             if c.folder_id.as_deref() == Some(id.as_str()) {
                 c.folder_id = None;
@@ -61,11 +61,11 @@ pub fn delete_folder(
 /// `None`. Mirrors `set_connection_tag`: a single-field update on the connection.
 #[tauri::command]
 pub fn move_connection_to_folder(
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     folder_id: Option<String>,
 ) -> Result<(), AppError> {
-    storage.update_with(|connections| {
+    ctx.storage.update_with(|connections| {
         if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
             c.folder_id = folder_id;
         }

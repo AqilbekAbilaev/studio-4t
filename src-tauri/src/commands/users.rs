@@ -1,11 +1,9 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use serde::Serialize;
 use tauri::State;
 
-use super::client_for;
+use super::AppContext;
 
 // A database user, normalized from the `usersInfo` result.
 #[derive(Serialize)]
@@ -39,12 +37,11 @@ fn extract_roles(user: &bson::Document) -> Vec<String> {
 /// List the users defined on a database (via `usersInfo`).
 #[tauri::command]
 pub async fn list_users(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
 ) -> Result<Vec<UserInfo>, AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -79,15 +76,14 @@ pub async fn list_users(
 /// `database`) or "role@otherdb".
 #[tauri::command]
 pub async fn create_user(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     username: String,
     password: String,
     roles: Vec<String>,
 ) -> Result<(), AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -117,13 +113,12 @@ pub async fn create_user(
 /// Drop a database user by name.
 #[tauri::command]
 pub async fn drop_user(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     username: String,
 ) -> Result<(), AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -136,12 +131,11 @@ pub async fn drop_user(
 /// List the role names defined on a database (via `rolesInfo`; built-in roles excluded).
 #[tauri::command]
 pub async fn list_roles(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
 ) -> Result<Vec<String>, AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

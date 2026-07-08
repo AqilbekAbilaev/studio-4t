@@ -51,7 +51,6 @@ pub fn run() {
                 Ok(val) => val,
                 Err(e) => return Err(e.into()),
             };
-            app.manage(Storage::new(data_dir.join("connections.json")));
             app.manage(FolderStorage::new(data_dir.join("folders.json")));
             app.manage(HistoryStorage::new(data_dir.join("history.json")));
             app.manage(SavedQueryStorage::new(data_dir.join("saved_queries.json")));
@@ -67,11 +66,13 @@ pub fn run() {
             // the pool so a tunnel established on connect can raise the prompt.
             let host_key_prompts = Arc::new(ssh::HostKeyPrompts::new());
             app.manage(Arc::clone(&host_key_prompts));
-            app.manage(ConnectionPool::new(
+            let pool = ConnectionPool::new(
                 Arc::clone(&known_hosts),
                 Arc::clone(&host_key_prompts),
                 app.handle().clone(),
-            ));
+            );
+            let storage = Storage::new(data_dir.join("connections.json"));
+            app.manage(AppContext { pool: pool, storage: storage });
             app.manage(ShellEngine::new());
             app.manage(ShellHistoryStorage::new(
                 data_dir.join("shell_history.json"),

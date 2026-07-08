@@ -1,11 +1,9 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use serde::Serialize;
 use tauri::State;
 
-use super::{next_document, MAX_QUERY_TIME};
+use super::{next_document, MAX_QUERY_TIME, AppContext};
 
 const DEFAULT_SCAN: i64 = 1000;
 const MAX_SCAN: i64 = 5000;
@@ -53,8 +51,7 @@ pub(crate) fn doc_matches(doc: &bson::Document, needle: &str) -> bool {
 /// collections with at least one match.
 #[tauri::command]
 pub async fn search_collections(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     term: String,
@@ -65,7 +62,7 @@ pub async fn search_collections(
     if needle.is_empty() {
         return Ok(Vec::new());
     }
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

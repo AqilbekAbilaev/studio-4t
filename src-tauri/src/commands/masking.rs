@@ -1,11 +1,9 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use serde::Deserialize;
 use tauri::State;
 
-use super::{parse_ejson_document, MAX_QUERY_TIME};
+use super::{parse_ejson_document, MAX_QUERY_TIME, AppContext};
 
 // A per-field masking instruction. `field` is a dotted path (e.g. "contact.email").
 // Only fields the user chose to mask are sent; everything else is exported as-is.
@@ -149,8 +147,7 @@ pub(crate) fn apply_rules(doc: &mut bson::Document, rules: &[MaskRule]) -> Resul
 /// happens in-memory on the exported copy — the source collection is untouched.
 #[tauri::command]
 pub async fn export_masked_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -160,7 +157,7 @@ pub async fn export_masked_collection(
     format: String,
     limit: Option<i64>,
 ) -> Result<usize, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

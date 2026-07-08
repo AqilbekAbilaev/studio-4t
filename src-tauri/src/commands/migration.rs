@@ -1,10 +1,8 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use tauri::State;
 
-use super::{collect_documents, MAX_QUERY_TIME};
+use super::{collect_documents, MAX_QUERY_TIME, AppContext};
 
 const DEFAULT_SAMPLE: i64 = 1000;
 const MAX_SAMPLE: i64 = 10_000;
@@ -173,15 +171,14 @@ pub(crate) fn generate_sql(table: &str, columns: &[Column], docs: &[bson::Docume
 /// returns the script. `table_name` defaults to the collection name.
 #[tauri::command]
 pub async fn generate_sql_migration(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     table_name: Option<String>,
     limit: Option<i64>,
 ) -> Result<String, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

@@ -1,6 +1,4 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use mongodb::options::IndexOptions;
 use mongodb::IndexModel;
@@ -8,7 +6,7 @@ use serde::Serialize;
 use tauri::State;
 
 use super::{
-    collect_values, parse_ejson_document, parse_pipeline, DatabaseInfo,
+    collect_values, parse_ejson_document, parse_pipeline, DatabaseInfo, AppContext,
 };
 
 /// The `_id_` index is created and required by MongoDB and can never be dropped,
@@ -20,11 +18,10 @@ pub fn is_protected_index(name: &str) -> bool {
 
 #[tauri::command]
 pub async fn list_databases(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
 ) -> Result<Vec<DatabaseInfo>, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -57,13 +54,12 @@ pub async fn list_databases(
 
 #[tauri::command]
 pub async fn create_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     name: String,
 ) -> Result<(), AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -77,8 +73,7 @@ pub async fn create_collection(
 /// source collection (`view_on`). Uses the `create` command with viewOn + pipeline.
 #[tauri::command]
 pub async fn create_view(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     name: String,
@@ -91,7 +86,7 @@ pub async fn create_view(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -120,13 +115,12 @@ pub struct ValidatorInfo {
 /// validator editor can prefill. Returns empty fields when no validator is set.
 #[tauri::command]
 pub async fn get_validator(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
 ) -> Result<ValidatorInfo, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -186,8 +180,7 @@ pub async fn get_validator(
 /// clears the rule. `validation_level`/`validation_action` are passed through.
 #[tauri::command]
 pub async fn set_validator(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -204,7 +197,7 @@ pub async fn set_validator(
             Err(e) => return Err(e),
         }
     };
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -222,12 +215,11 @@ pub async fn set_validator(
 
 #[tauri::command]
 pub async fn drop_database(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
 ) -> Result<(), AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -239,13 +231,12 @@ pub async fn drop_database(
 
 #[tauri::command]
 pub async fn drop_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
 ) -> Result<(), AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -260,14 +251,13 @@ pub async fn drop_collection(
 
 #[tauri::command]
 pub async fn rename_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     new_name: String,
 ) -> Result<(), AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -287,13 +277,12 @@ pub async fn rename_collection(
 
 #[tauri::command]
 pub async fn create_database(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     first_collection: String,
 ) -> Result<(), AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -314,11 +303,10 @@ pub async fn create_database(
 /// headline fields it cares about.
 #[tauri::command]
 pub async fn server_status(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
 ) -> Result<serde_json::Value, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -334,12 +322,11 @@ pub async fn server_status(
 /// sizes. Returned raw as JSON; the frontend surfaces the headline fields.
 #[tauri::command]
 pub async fn database_stats(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
 ) -> Result<serde_json::Value, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -355,11 +342,10 @@ pub async fn database_stats(
 /// the server. Returned raw as JSON; the frontend lists the `inprog` array.
 #[tauri::command]
 pub async fn current_ops(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
 ) -> Result<serde_json::Value, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -373,13 +359,12 @@ pub async fn current_ops(
 
 #[tauri::command]
 pub async fn list_indexes(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -407,8 +392,7 @@ pub async fn list_indexes(
 
 #[tauri::command]
 pub async fn create_index(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -416,7 +400,7 @@ pub async fn create_index(
     unique: bool,
     name: String,
 ) -> Result<(), AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -448,8 +432,7 @@ pub async fn create_index(
 
 #[tauri::command]
 pub async fn drop_index(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -462,7 +445,7 @@ pub async fn drop_index(
             name
         )));
     }
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -480,8 +463,7 @@ pub async fn drop_index(
 /// instantly without a rebuild. The `_id_` index cannot be hidden.
 #[tauri::command]
 pub async fn set_index_hidden(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -494,7 +476,7 @@ pub async fn set_index_hidden(
             name
         )));
     }
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -514,13 +496,12 @@ pub async fn set_index_hidden(
 /// as "stats unavailable" (e.g. on a server/deployment that doesn't support it).
 #[tauri::command]
 pub async fn index_stats(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -537,15 +518,14 @@ pub async fn index_stats(
 
 #[tauri::command]
 pub async fn export_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     path: String,
     format: String,
 ) -> Result<usize, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -568,15 +548,14 @@ pub async fn export_collection(
 
 #[tauri::command]
 pub async fn import_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     path: String,
     format: String,
 ) -> Result<usize, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

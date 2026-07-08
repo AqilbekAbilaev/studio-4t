@@ -1,11 +1,10 @@
 // ── IntelliShell (embedded JavaScript shell) ──────────────────────────────
 
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
 use crate::shell::{ShellEngine, ShellResult};
 use crate::shell_history::ShellHistoryStorage;
-use crate::storage::Storage;
 use tauri::State;
+use super::AppContext;
 
 /// Evaluate a block of JavaScript in the shell session identified by
 /// `session_id`. Each session has its own persistent JS context, so variables
@@ -14,8 +13,7 @@ use tauri::State;
 /// completion value, or a JS error message).
 #[tauri::command]
 pub async fn run_shell_command(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     shell: State<'_, ShellEngine>,
     id: String,
     database: String,
@@ -24,7 +22,7 @@ pub async fn run_shell_command(
 ) -> Result<ShellResult, AppError> {
     // Resolve the connection exactly like find_documents so the shell shares the
     // same pooled client and credential flow.
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

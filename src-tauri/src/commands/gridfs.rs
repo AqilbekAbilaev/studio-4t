@@ -1,13 +1,11 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 use mongodb::bson::{self, oid::ObjectId};
 use mongodb::options::GridFsBucketOptions;
 use serde::Serialize;
 use tauri::State;
 
-use super::{next_document, parse_ejson_document};
+use super::{next_document, parse_ejson_document, AppContext};
 
 // A GridFS file's display metadata, normalized from its `.files` document.
 #[derive(Serialize)]
@@ -80,23 +78,14 @@ fn parse_file_id(file_id: &str) -> Result<bson::Bson, AppError> {
     }
 }
 
-async fn connect(
-    pool: &State<'_, ConnectionPool>,
-    storage: &State<'_, Storage>,
-    id: &str,
-) -> Result<mongodb::Client, AppError> {
-    super::client_for(pool, storage, id).await
-}
-
 /// List the GridFS buckets in a database (derived from its `*.files` collections).
 #[tauri::command]
 pub async fn list_gridfs_buckets(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
 ) -> Result<Vec<String>, AppError> {
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -110,13 +99,12 @@ pub async fn list_gridfs_buckets(
 /// List the files in a GridFS bucket (reads the bucket's `.files` collection).
 #[tauri::command]
 pub async fn list_gridfs_files(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     bucket: String,
 ) -> Result<Vec<GridFsFile>, AppError> {
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -142,14 +130,13 @@ pub async fn list_gridfs_files(
 /// Upload a local file into a GridFS bucket. Returns the new file's id (hex).
 #[tauri::command]
 pub async fn gridfs_upload(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     bucket: String,
     path: String,
 ) -> Result<String, AppError> {
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -187,15 +174,14 @@ pub async fn gridfs_upload(
 /// Download a GridFS file (by id) to a local path.
 #[tauri::command]
 pub async fn gridfs_download(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     bucket: String,
     file_id: String,
     dest: String,
 ) -> Result<(), AppError> {
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -223,14 +209,13 @@ pub async fn gridfs_download(
 /// Delete a GridFS file by id.
 #[tauri::command]
 pub async fn gridfs_delete(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     bucket: String,
     file_id: String,
 ) -> Result<(), AppError> {
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -249,15 +234,14 @@ pub async fn gridfs_delete(
 /// Rename a GridFS file by updating the `filename` field on its `.files` document.
 #[tauri::command]
 pub async fn gridfs_rename(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     bucket: String,
     file_id: String,
     new_name: String,
 ) -> Result<(), AppError> {
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -281,8 +265,7 @@ pub async fn gridfs_rename(
 /// `.files` document. An empty string clears the metadata.
 #[tauri::command]
 pub async fn gridfs_set_metadata(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     bucket: String,
@@ -297,7 +280,7 @@ pub async fn gridfs_set_metadata(
             Err(e) => return Err(e),
         }
     };
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -320,13 +303,12 @@ pub async fn gridfs_set_metadata(
 /// Drop a GridFS bucket by dropping its `.files` and `.chunks` collections.
 #[tauri::command]
 pub async fn gridfs_drop_bucket(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     bucket: String,
 ) -> Result<(), AppError> {
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -345,14 +327,13 @@ pub async fn gridfs_drop_bucket(
 /// collections with an aggregation `$out`. The target bucket is replaced if present.
 #[tauri::command]
 pub async fn gridfs_copy_bucket(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     bucket: String,
     new_bucket: String,
 ) -> Result<(), AppError> {
-    let client = match connect(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

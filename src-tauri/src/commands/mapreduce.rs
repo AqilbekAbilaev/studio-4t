@@ -1,10 +1,8 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use tauri::State;
 
-use super::client_for;
+use super::AppContext;
 
 /// Run a `mapReduce` over a collection. `map`/`reduce` (and optional `finalize`) are
 /// JavaScript function sources. An empty `out_collection` runs inline (results
@@ -12,8 +10,7 @@ use super::client_for;
 /// document is returned as JSON.
 #[tauri::command]
 pub async fn map_reduce(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -22,7 +19,7 @@ pub async fn map_reduce(
     finalize: String,
     out_collection: String,
 ) -> Result<serde_json::Value, AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

@@ -71,6 +71,41 @@ pub(crate) async fn client_for(
     pool.connect(&config).await
 }
 
+/// The two connection-facing managed states bundled behind one `State`: every
+/// command that touches a live MongoDB connection takes a single
+/// `ctx: State<'_, AppContext>` instead of the `pool` + `storage` pair, and
+/// resolves its client/collection through the convenience methods below.
+pub struct AppContext {
+    pub pool: ConnectionPool,
+    pub storage: Storage,
+}
+
+impl AppContext {
+    /// Resolve the live client for a saved connection — the method form of
+    /// `client_for`, which stays the single place the config-lookup + connect
+    /// dance lives.
+    pub async fn client(&self, id: &str) -> Result<Client, AppError> {
+        client_for(&self.pool, &self.storage, id).await
+    }
+
+    /// Resolve straight to a collection handle for the common
+    /// connection → database → collection path.
+    pub async fn collection(
+        &self,
+        id: &str,
+        database: &str,
+        collection: &str,
+    ) -> Result<Collection<bson::Document>, AppError> {
+        let client = match self.client(id).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        Ok(client
+            .database(database)
+            .collection::<bson::Document>(collection))
+    }
+}
+
 #[derive(Serialize)]
 pub struct DatabaseInfo {
     pub name: String,

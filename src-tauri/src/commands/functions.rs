@@ -1,11 +1,9 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use serde::Serialize;
 use tauri::State;
 
-use super::{client_for, next_document};
+use super::{next_document, AppContext};
 
 // A server-side stored function, from a `system.js` document ({ _id, value: Code }).
 #[derive(Serialize)]
@@ -27,12 +25,11 @@ fn code_to_string(value: Option<&bson::Bson>) -> String {
 /// List the stored functions in a database (its `system.js` documents).
 #[tauri::command]
 pub async fn list_functions(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
 ) -> Result<Vec<StoredFunction>, AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -66,14 +63,13 @@ pub async fn list_functions(
 /// Create or update a stored function: upsert `{ _id: name, value: Code(body) }`.
 #[tauri::command]
 pub async fn save_function(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     name: String,
     body: String,
 ) -> Result<(), AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -94,13 +90,12 @@ pub async fn save_function(
 /// Delete a stored function by name.
 #[tauri::command]
 pub async fn drop_function(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     name: String,
 ) -> Result<(), AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

@@ -1,13 +1,11 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use serde::Serialize;
 use tauri::State;
 
 use super::{
     collect_values, next_document, parse_ejson_document, parse_json_documents, parse_pipeline,
-    MAX_QUERY_TIME,
+    MAX_QUERY_TIME, AppContext,
 };
 
 /// Fallback page size when a caller sends a non-positive `limit`. MongoDB treats
@@ -60,12 +58,11 @@ mod tests {
 /// Returns the number of operations killed (0 if it already finished).
 #[tauri::command]
 pub async fn kill_query(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     comment: String,
 ) -> Result<usize, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -104,8 +101,7 @@ pub async fn kill_query(
 
 #[tauri::command]
 pub async fn find_documents(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -116,7 +112,7 @@ pub async fn find_documents(
     limit: i64,
     comment: Option<String>,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -167,14 +163,13 @@ pub async fn find_documents(
 /// accepts). Used for the "Count Documents" action and to jump to the last page.
 #[tauri::command]
 pub async fn count_documents(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     filter: String,
 ) -> Result<i64, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -200,14 +195,13 @@ pub async fn count_documents(
 
 #[tauri::command]
 pub async fn insert_document(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     document: String,
 ) -> Result<String, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -231,8 +225,7 @@ pub async fn insert_document(
 // input (so a failed paste is a toast, not a crash). Returns the number inserted.
 #[tauri::command]
 pub async fn insert_documents(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -247,7 +240,7 @@ pub async fn insert_documents(
             "Clipboard has no document(s) to paste".to_string(),
         ));
     }
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -262,15 +255,14 @@ pub async fn insert_documents(
 
 #[tauri::command]
 pub async fn replace_document(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     id_filter: String,
     document: String,
 ) -> Result<(), AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -296,14 +288,13 @@ pub async fn replace_document(
 
 #[tauri::command]
 pub async fn delete_document(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     id_filter: String,
 ) -> Result<(), AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -333,15 +324,14 @@ fn is_operator_update(update: &bson::Document) -> bool {
 /// Update Dialog. Returns the number of documents modified.
 #[tauri::command]
 pub async fn update_many(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     filter: String,
     update: String,
 ) -> Result<i64, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -375,14 +365,13 @@ pub async fn update_many(
 /// documents deleted.
 #[tauri::command]
 pub async fn delete_many(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     filter: String,
 ) -> Result<i64, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -405,13 +394,12 @@ pub async fn delete_many(
 /// is responsible for confirming. Returns the number of documents removed.
 #[tauri::command]
 pub async fn clear_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
 ) -> Result<i64, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -428,8 +416,7 @@ pub async fn clear_collection(
 
 #[tauri::command]
 pub async fn explain_query(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
@@ -439,7 +426,7 @@ pub async fn explain_query(
     skip: i64,
     limit: i64,
 ) -> Result<serde_json::Value, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -489,15 +476,14 @@ pub async fn explain_query(
 
 #[tauri::command]
 pub async fn run_aggregate(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     pipeline: String,
     comment: Option<String>,
 ) -> Result<AggregateResult, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

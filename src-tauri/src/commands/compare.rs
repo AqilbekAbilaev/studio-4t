@@ -1,12 +1,10 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use serde::Serialize;
 use std::collections::HashMap;
 use tauri::State;
 
-use super::{collect_documents, MAX_QUERY_TIME};
+use super::{collect_documents, MAX_QUERY_TIME, AppContext};
 
 const DEFAULT_SCAN: i64 = 2000;
 const MAX_SCAN: i64 = 20_000;
@@ -135,15 +133,14 @@ async fn load_docs(
 /// up to `scan_limit` documents; content equality is order-insensitive.
 #[tauri::command]
 pub async fn compare_collections(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     source: String,
     target: String,
     scan_limit: Option<i64>,
 ) -> Result<DiffResult, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

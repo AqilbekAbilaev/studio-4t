@@ -1,8 +1,7 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use tauri::State;
+use super::AppContext;
 
 // Validate a duplicate target name before touching the server: non-empty, distinct
 // from the source, and not colliding with an existing collection (so we never
@@ -27,14 +26,13 @@ pub(crate) fn validate_target(source: &str, target: &str, existing: &[String]) -
 /// other than `_id` are not carried over (a `$out` limitation).
 #[tauri::command]
 pub async fn duplicate_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     source: String,
     target: String,
 ) -> Result<u64, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

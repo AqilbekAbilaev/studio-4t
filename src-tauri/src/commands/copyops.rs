@@ -1,10 +1,8 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use tauri::State;
 
-use super::client_for;
+use super::AppContext;
 
 /// Copy a collection to another collection (optionally in another database) on the
 /// SAME connection, via an aggregation `$out`. The target collection is replaced if
@@ -12,15 +10,14 @@ use super::client_for;
 /// guards against them).
 #[tauri::command]
 pub async fn copy_collection(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     source_database: String,
     source_collection: String,
     target_database: String,
     target_collection: String,
 ) -> Result<(), AppError> {
-    let client = match client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

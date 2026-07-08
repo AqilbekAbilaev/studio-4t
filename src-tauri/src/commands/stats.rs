@@ -1,9 +1,8 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use serde::Serialize;
 use tauri::State;
+use super::AppContext;
 
 // A single index's on-disk size, pulled from collStats.indexSizes.
 #[derive(Serialize)]
@@ -82,13 +81,12 @@ pub(crate) fn extract_stats(doc: &bson::Document) -> CollectionStats {
 /// numbers in its Collection Stats view.
 #[tauri::command]
 pub async fn collection_stats(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
 ) -> Result<CollectionStats, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

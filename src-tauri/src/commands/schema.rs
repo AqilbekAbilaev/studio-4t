@@ -1,12 +1,10 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use tauri::State;
 
-use super::{collect_documents, MAX_QUERY_TIME};
+use super::{collect_documents, MAX_QUERY_TIME, AppContext};
 
 // The number of documents sampled by default when the frontend does not supply
 // an explicit size. Clamped hard limits keep a huge collection from stalling the
@@ -172,14 +170,13 @@ pub(crate) fn infer_schema(docs: &[bson::Document]) -> SchemaReport {
 /// so a huge collection can't hang the UI.
 #[tauri::command]
 pub async fn analyze_schema(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     database: String,
     collection: String,
     sample_size: Option<i64>,
 ) -> Result<SchemaReport, AppError> {
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

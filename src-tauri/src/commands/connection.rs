@@ -1,8 +1,8 @@
 use crate::error::AppError;
 use crate::known_hosts::KnownHostsStore;
 use crate::ssh::HostKeyPrompts;
-use crate::pool::ConnectionPool;
-use crate::storage::{ConnectionConfig, HostEntry, SshAuthMethod, Storage};
+use crate::storage::{ConnectionConfig, HostEntry, SshAuthMethod};
+use super::AppContext;
 use crate::uri;
 use mongodb::Client;
 use std::sync::Arc;
@@ -139,8 +139,7 @@ pub fn forget_ssh_host(
 
 #[tauri::command]
 pub async fn save_connection(
-    storage: State<'_, Storage>,
-    pool: State<'_, ConnectionPool>,
+    ctx: State<'_, AppContext>,
     name: String,
     hosts: Vec<HostEntry>,
     connection_type: String,
@@ -215,7 +214,7 @@ pub async fn save_connection(
         };
     }
 
-    match storage.add(config.clone()) {
+    match ctx.storage.add(config.clone()) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -223,7 +222,7 @@ pub async fn save_connection(
     // Create and cache the client immediately so the first expand is instant.
     // The password was just written to the keychain above, so the pool reads it
     // back when it opens the connection.
-    match pool.connect(&config).await {
+    match ctx.pool.connect(&config).await {
         Ok(_) => {}
         Err(e) => return Err(e),
     };
@@ -232,16 +231,16 @@ pub async fn save_connection(
 }
 
 #[tauri::command]
-pub fn list_connections(storage: State<'_, Storage>) -> Vec<ConnectionConfig> {
-    storage.load()
+pub fn list_connections(ctx: State<'_, AppContext>) -> Vec<ConnectionConfig> {
+    ctx.storage.load()
 }
 
 /// Assemble the MongoDB connection string for a saved connection. The password is
 /// deliberately omitted — credentials live in the OS keychain and are never handed
 /// to the frontend; the URI carries the username + auth/TLS options only.
 #[tauri::command]
-pub fn connection_uri(storage: State<'_, Storage>, id: String) -> Result<String, AppError> {
-    let config = match storage.find(&id) {
+pub fn connection_uri(ctx: State<'_, AppContext>, id: String) -> Result<String, AppError> {
+    let config = match ctx.storage.find(&id) {
         Some(val) => val,
         None => return Err(AppError::UnknownConnection(id)),
     };
@@ -253,10 +252,10 @@ pub fn connection_uri(storage: State<'_, Storage>, id: String) -> Result<String,
 /// starts closed (not shown in the sidebar) and with no last-accessed time.
 #[tauri::command]
 pub fn duplicate_connection(
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
 ) -> Result<ConnectionConfig, AppError> {
-    let original = match storage.find(&id) {
+    let original = match ctx.storage.find(&id) {
         Some(val) => val,
         None => return Err(AppError::UnknownConnection(id)),
     };
@@ -287,7 +286,7 @@ pub fn duplicate_connection(
         };
     }
 
-    match storage.add(copy.clone()) {
+    match ctx.storage.add(copy.clone()) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -298,8 +297,8 @@ pub fn duplicate_connection(
 /// secrets — passwords and SSH secrets live in the OS keychain, not in the
 /// config — so the exported file is inherently credential-free. Returns the count.
 #[tauri::command]
-pub fn export_connections(storage: State<'_, Storage>, path: String) -> Result<usize, AppError> {
-    let connections = storage.load();
+pub fn export_connections(ctx: State<'_, AppContext>, path: String) -> Result<usize, AppError> {
+    let connections = ctx.storage.load();
     let contents = match serde_json::to_string_pretty(&connections) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Serde(e)),
@@ -316,7 +315,7 @@ pub fn export_connections(storage: State<'_, Storage>, path: String) -> Result<u
 /// password (none was exported), so credentials must be re-entered. Returns the
 /// number imported.
 #[tauri::command]
-pub fn import_connections(storage: State<'_, Storage>, path: String) -> Result<usize, AppError> {
+pub fn import_connections(ctx: State<'_, AppContext>, path: String) -> Result<usize, AppError> {
     let contents = match std::fs::read_to_string(&path) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Io(e)),
@@ -331,7 +330,7 @@ pub fn import_connections(storage: State<'_, Storage>, path: String) -> Result<u
         fresh.id = Uuid::new_v4().to_string();
         fresh.last_accessed = None;
         fresh.open = false;
-        match storage.add(fresh) {
+        match ctx.storage.add(fresh) {
             Ok(_) => count += 1,
             Err(e) => return Err(e),
         };
@@ -341,8 +340,7 @@ pub fn import_connections(storage: State<'_, Storage>, path: String) -> Result<u
 
 #[tauri::command]
 pub async fn update_connection(
-    storage: State<'_, Storage>,
-    pool: State<'_, ConnectionPool>,
+    ctx: State<'_, AppContext>,
     id: String,
     name: String,
     hosts: Vec<HostEntry>,
@@ -369,7 +367,7 @@ pub async fn update_connection(
 ) -> Result<(), AppError> {
     // Preserve last_accessed, folder membership, and the open state from the
     // existing record (the edit dialog doesn't carry these fields).
-    let existing = storage.find(&id);
+    let existing = ctx.storage.find(&id);
     let last_accessed = existing.as_ref().and_then(|c| c.last_accessed.clone());
     let folder_id = existing.as_ref().and_then(|c| c.folder_id.clone());
     let open = existing.as_ref().map(|c| c.open).unwrap_or(true);
@@ -421,28 +419,27 @@ pub async fn update_connection(
         };
     }
 
-    match storage.update(config) {
+    match ctx.storage.update(config) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
 
     // Evict cached client so the next operation reconnects with updated credentials.
-    pool.remove(&id).await;
+    ctx.pool.remove(&id).await;
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn delete_connection(
-    storage: State<'_, Storage>,
-    pool: State<'_, ConnectionPool>,
+    ctx: State<'_, AppContext>,
     id: String,
 ) -> Result<(), AppError> {
-    match storage.remove(&id) {
+    match ctx.storage.remove(&id) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    pool.remove(&id).await;
+    ctx.pool.remove(&id).await;
     crate::keychain::delete(&id);
     crate::keychain::delete(&format!("{}::ssh-pass", id));
     crate::keychain::delete(&format!("{}::ssh-key-pass", id));
@@ -451,20 +448,20 @@ pub async fn delete_connection(
 
 #[tauri::command]
 pub async fn disconnect(
-    pool: State<'_, ConnectionPool>,
+    ctx: State<'_, AppContext>,
     id: String,
 ) -> Result<(), AppError> {
-    pool.remove(&id).await;
+    ctx.pool.remove(&id).await;
     Ok(())
 }
 
 #[tauri::command]
 pub fn set_connection_tag(
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     tag: String,
 ) -> Result<(), AppError> {
-    storage.update_with(|connections| {
+    ctx.storage.update_with(|connections| {
         if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
             c.tag = if tag.is_empty() { None } else { Some(tag) };
         }
@@ -473,11 +470,11 @@ pub fn set_connection_tag(
 
 #[tauri::command]
 pub fn set_connection_open(
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     open: bool,
 ) -> Result<(), AppError> {
-    storage.update_with(|connections| {
+    ctx.storage.update_with(|connections| {
         if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
             c.open = open;
         }
@@ -486,11 +483,11 @@ pub fn set_connection_open(
 
 #[tauri::command]
 pub fn update_last_accessed(
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     timestamp: String,
 ) -> Result<(), AppError> {
-    storage.update_with(|connections| {
+    ctx.storage.update_with(|connections| {
         if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
             c.last_accessed = Some(timestamp);
         }

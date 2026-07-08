@@ -1,8 +1,7 @@
 use crate::error::AppError;
-use crate::pool::ConnectionPool;
-use crate::storage::Storage;
 use mongodb::bson;
 use tauri::State;
+use super::AppContext;
 
 // Map a UI "kind" to the admin diagnostic command to run. Pure, so it's
 // unit-tested; an unknown kind is rejected rather than sending a bogus command.
@@ -20,8 +19,7 @@ pub(crate) fn info_command(kind: &str) -> Result<bson::Document, String> {
 /// (replSetGetStatus). Mirrors the extra entries in Studio-3T's Server Info menu.
 #[tauri::command]
 pub async fn server_info(
-    pool: State<'_, ConnectionPool>,
-    storage: State<'_, Storage>,
+    ctx: State<'_, AppContext>,
     id: String,
     kind: String,
 ) -> Result<serde_json::Value, AppError> {
@@ -29,7 +27,7 @@ pub async fn server_info(
         Ok(val) => val,
         Err(e) => return Err(AppError::Bson(e)),
     };
-    let client = match super::client_for(&pool, &storage, &id).await {
+    let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
