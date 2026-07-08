@@ -56,8 +56,14 @@ const jsonText = computed(() => {
   return results.map((doc) => mongoStringify(doc)).join('\n')
 })
 
+// Active only when the JSON container is actually on screen: while a query is running
+// or errored, other result branches replace it, so the container is gone from the DOM.
+// Tracking those here means the editor is torn down on run-start and rebuilt on
+// completion, instead of leaving a stale instance whose DOM was detached under it.
 const jsonViewActive = computed(() =>
-  props.rtab === 'Result' && viewMode.value === 'json' && jsonText.value.length > 0)
+  props.rtab === 'Result' && viewMode.value === 'json' &&
+  !props.activeTab?.isRunning && !props.activeTab?.runError &&
+  jsonText.value.length > 0)
 
 // Create the editor when the JSON view enters the DOM, push fresh text while it
 // stays (switching tab / re-running a query), and tear it down when it leaves.
@@ -68,6 +74,12 @@ watch([jsonViewActive, jsonText], async ([active, text]) => {
   }
   await nextTick()
   if (!jsonViewEl.value) return
+  // If the previous editor's DOM was detached (its container was swapped out by
+  // another result branch and a fresh one mounted), drop it and rebuild in place.
+  if (jsonView && jsonView.dom.parentElement !== jsonViewEl.value) {
+    jsonView.destroy()
+    jsonView = null
+  }
   if (jsonView) setJsonView(jsonView, text)
   else jsonView = createJsonView(jsonViewEl.value, text)
 }, { immediate: true })
