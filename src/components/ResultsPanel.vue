@@ -38,6 +38,29 @@ const viewMode     = ref('table')
 const viewMenu     = ref(false)
 const pageSizeMenu = ref(false)
 
+// JSON view: flatten every document's highlighted output into individual lines so
+// the view can show a continuous line-number gutter (line 1..N across all docs),
+// code-editor style. mongoStringify emits newlines only as structural whitespace
+// between tokens and syntaxHighlight never wraps a "\n" inside a <span>, so
+// splitting the highlighted HTML on "\n" yields whole, self-contained line spans.
+// `docEnd` marks each document's final line (except the last document's) so a
+// subtle divider can sit between documents.
+const jsonLines = computed(() => {
+  const results = props.activeTab && props.activeTab.results
+  if (!results || !results.length) return []
+  const lines = []
+  results.forEach((doc, docIndex) => {
+    const docLines = syntaxHighlight(mongoStringify(doc)).split('\n')
+    docLines.forEach((html, lineIndex) => {
+      lines.push({
+        html:   html,
+        docEnd: lineIndex === docLines.length - 1 && docIndex !== results.length - 1,
+      })
+    })
+  })
+  return lines
+})
+
 // Drag-to-VQB signals originate in the grid (ResultTable) and are forwarded to
 // VisualQueryBuilder, which sits beside the grid here. ResultTable owns the gesture;
 // these plain refs just relay its latest field / section / drop to the VQB props.
@@ -731,7 +754,14 @@ const queryCode = computed(() => {
     <!-- JSON view -->
     <div v-else-if="rtab === 'Result' && viewMode === 'json'" class="json-view">
       <div v-if="!activeTab.results?.length" style="padding:32px;color:var(--text-faint);font-size:12px">No documents</div>
-      <div v-else class="json-doc" v-for="(doc, i) in activeTab.results" :key="i" v-html="syntaxHighlight(mongoStringify(doc))"></div>
+      <div v-else class="json-code">
+        <div
+          v-for="(line, i) in jsonLines"
+          :key="i"
+          class="json-line"
+          :class="{ 'json-line--docend': line.docEnd }"
+        ><span class="json-ln">{{ i + 1 }}</span><span class="json-lc" v-html="line.html || ' '"></span></div>
+      </div>
     </div>
 
     <!-- Tree view -->
@@ -1094,31 +1124,51 @@ const queryCode = computed(() => {
 }
 .tree-head span { padding: 0 8px; border-right: 1px solid var(--border); height: 100%; display: flex; align-items: center; }
 .tree-head .th-type { border-right: none; }
+/* JSON view — a continuous line-number gutter (code-editor style), one row per
+   line across all documents. `.json-doc` is kept for the single-document Explain
+   view, which still renders as one preformatted block. */
+.json-code { font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+.json-line { display: flex; align-items: baseline; }
+/* subtle divider between documents — drawn under each document's final line */
+.json-line--docend { border-bottom: 1px solid var(--border-soft); }
+/* line-number gutter — non-selectable so copying documents omits the numbers */
+.json-ln {
+  flex: none;
+  width: 52px;
+  padding-right: 14px;
+  text-align: right;
+  color: var(--text-faint);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.json-lc {
+  white-space: pre;
+  color: var(--text);
+  -webkit-user-select: text;
+  user-select: text;
+}
 .json-doc {
   font-family: var(--mono);
   font-size: 12.5px;
   line-height: 1.2;
   color: var(--text);
   white-space: pre;
-  border-left: 2px solid var(--border-soft);
-  padding: 8px 0 8px 14px;
-  margin-bottom: 10px;
+  padding: 10px 0;
   cursor: text;
   -webkit-user-select: text;
   user-select: text;
 }
-/* syntax highlight token classes */
-/* the global `*` reset in theme.css sets user-select:none directly on these
-   spans, which overrides the inherited user-select:text from .json-doc —
-   re-enable it here or selection/copy only picks up the punctuation between tokens */
-.json-doc :deep(span) { -webkit-user-select: text; user-select: text; }
-.json-doc :deep(.jk)  { color: var(--cell-key); }
-.json-doc :deep(.jop) { color: var(--cell-op); }
-.json-doc :deep(.js)  { color: var(--cell-str); }
-.json-doc :deep(.jn)  { color: var(--cell-num); }
-.json-doc :deep(.jb)  { color: var(--cell-num); }
-.json-doc :deep(.jl)  { color: var(--text-faint); }
-.json-doc :deep(.joid) { color: var(--link); }
+/* syntax highlight token classes — shared by the JSON view lines (.json-lc) and
+   the Explain view (.json-doc). The global `*` reset in theme.css sets
+   user-select:none on spans, so re-enable it here or copy only grabs punctuation. */
+.json-doc :deep(span), .json-lc :deep(span)  { -webkit-user-select: text; user-select: text; }
+.json-doc :deep(.jk),   .json-lc :deep(.jk)  { color: var(--cell-key); }
+.json-doc :deep(.jop),  .json-lc :deep(.jop) { color: var(--cell-op); }
+.json-doc :deep(.js),   .json-lc :deep(.js)  { color: var(--cell-str); }
+.json-doc :deep(.jn),   .json-lc :deep(.jn)  { color: var(--cell-num); }
+.json-doc :deep(.jb),   .json-lc :deep(.jb)  { color: var(--cell-num); }
+.json-doc :deep(.jl),   .json-lc :deep(.jl)  { color: var(--text-faint); }
+.json-doc :deep(.joid), .json-lc :deep(.joid){ color: var(--link); }
 
 .explain-view { flex: 1; overflow: auto; padding: 12px 16px; }
 .explain-msg { padding: 32px; color: var(--text-faint); font-size: 12px; display: flex; align-items: center; justify-content: center; }
