@@ -152,3 +152,4 @@ This project is human-delivered, AI-developed. The human must stay in full contr
 - **Never mix refactoring with bug fixes.** Each commit must have a single concern. If a bug fix requires a refactor, do them in separate steps.
 - **Always verify the build compiles** after any Rust change before reporting done. Run `cargo build` inside `src-tauri/` and confirm it succeeds.
 - **Let the user commit.** Do not create git commits unless explicitly asked. Explain the change, then wait.
+- **Never write long and verbose, detailed git commit messages, just include high-level overview of what has been done
