@@ -5992,6 +5992,7 @@ version = "0.1.0"
 dependencies = [
  "boa_engine",
  "boa_gc",
+ "chrono",
  "futures-util",
  "keyring",
  "mongodb",

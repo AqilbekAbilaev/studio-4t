@@ -26,6 +26,7 @@ mod ssh;
 mod shell_history;
 mod storage;
 mod tabs;
+mod tasks;
 mod uri;
 
 use commands::*;
@@ -41,6 +42,7 @@ use shell::ShellEngine;
 use shell_history::ShellHistoryStorage;
 use storage::Storage;
 use tabs::TabStorage;
+use tasks::{TaskRunStore, TaskStore};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -77,6 +79,10 @@ pub fn run() {
             app.manage(ShellHistoryStorage::new(
                 data_dir.join("shell_history.json"),
             ));
+            // Saved tasks and their per-task run log (the scheduler that fires them
+            // is spawned in a later step).
+            app.manage(TaskStore::new(data_dir.join("tasks.json")));
+            app.manage(TaskRunStore::new(data_dir.join("task_runs.json")));
 
             // Install the native OS menu (macOS system menu bar; native in-window
             // menu on Windows/Linux). Item clicks are emitted to the frontend,
@@ -202,6 +208,9 @@ pub fn run() {
             rename_folder,
             delete_folder,
             move_connection_to_folder,
+            list_tasks,
+            save_task,
+            delete_task,
             menu::set_menu_context,
         ])
         .run(tauri::generate_context!())

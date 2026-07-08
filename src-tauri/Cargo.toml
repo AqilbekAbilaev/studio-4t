@@ -42,6 +42,9 @@ futures-util = "0.3"
 serde = { version = "1.0.188", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 thiserror = "1"
+# Local wall-clock date/time math for the task scheduler's daily/weekly schedules
+# (converting stored epoch-ms into the user's timezone to compare against "at HH:MM").
+chrono = { version = "0.4", features = ["clock"] }
 # Pure-Rust async SSH client for the optional SSH tunnel (port-forward to the
 # remote MongoDB host). Integrates with the existing tokio runtime. Use the
 # `ring` crypto backend (already built via mongodb's rustls) instead of the

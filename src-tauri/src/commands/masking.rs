@@ -1,13 +1,13 @@
 use crate::error::AppError;
 use mongodb::bson;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::{parse_ejson_document, MAX_QUERY_TIME, AppContext};
 
 // A per-field masking instruction. `field` is a dotted path (e.g. "contact.email").
 // Only fields the user chose to mask are sent; everything else is exported as-is.
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MaskRule {
     pub field: String,
     // "redact" | "hash" | "partial" | "nullify" | "remove"
