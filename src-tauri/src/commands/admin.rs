@@ -60,7 +60,7 @@ pub async fn create_collection(
     database: String,
     name: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -87,7 +87,7 @@ pub async fn create_view(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -198,7 +198,7 @@ pub async fn set_validator(
             Err(e) => return Err(e),
         }
     };
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -220,7 +220,7 @@ pub async fn drop_database(
     id: String,
     database: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -237,7 +237,7 @@ pub async fn drop_collection(
     database: String,
     collection: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -258,7 +258,7 @@ pub async fn rename_collection(
     collection: String,
     new_name: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -283,7 +283,7 @@ pub async fn create_database(
     database: String,
     first_collection: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -401,7 +401,7 @@ pub async fn create_index(
     unique: bool,
     name: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -446,7 +446,7 @@ pub async fn drop_index(
             name
         )));
     }
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -477,7 +477,7 @@ pub async fn set_index_hidden(
             name
         )));
     }
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -556,7 +556,7 @@ pub async fn import_collection(
     path: String,
     format: String,
 ) -> Result<usize, AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -584,7 +584,7 @@ pub async fn import_collection_mapped(
     format: String,
     mapping: Vec<FieldMap>,
 ) -> Result<usize, AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

@@ -195,7 +195,7 @@ pub async fn insert_document(
     collection: String,
     document: String,
 ) -> Result<String, AppError> {
-    let col = match ctx.collection(&id, &database, &collection).await {
+    let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -231,7 +231,7 @@ pub async fn insert_documents(
             "Clipboard has no document(s) to paste".to_string(),
         ));
     }
-    let col = match ctx.collection(&id, &database, &collection).await {
+    let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -250,7 +250,7 @@ pub async fn replace_document(
     id_filter: String,
     document: String,
 ) -> Result<(), AppError> {
-    let col = match ctx.collection(&id, &database, &collection).await {
+    let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -279,7 +279,7 @@ pub async fn delete_document(
     collection: String,
     id_filter: String,
 ) -> Result<(), AppError> {
-    let col = match ctx.collection(&id, &database, &collection).await {
+    let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -313,7 +313,7 @@ pub async fn update_many(
     filter: String,
     update: String,
 ) -> Result<i64, AppError> {
-    let col = match ctx.collection(&id, &database, &collection).await {
+    let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -350,7 +350,7 @@ pub async fn delete_many(
     collection: String,
     filter: String,
 ) -> Result<i64, AppError> {
-    let col = match ctx.collection(&id, &database, &collection).await {
+    let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -375,7 +375,7 @@ pub async fn clear_collection(
     database: String,
     collection: String,
 ) -> Result<i64, AppError> {
-    let col = match ctx.collection(&id, &database, &collection).await {
+    let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

@@ -77,6 +77,28 @@ pub(crate) async fn client_for(
     pool.connect(&config).await
 }
 
+/// The write-gated sibling of `client_for`: every mutating command resolves its
+/// client through here instead, so a connection flagged `read_only` is refused at a
+/// single choke point before any write reaches the driver. Non-read-only
+/// connections fall straight through to `client_for`.
+///
+/// NOTE: IntelliShell shell writes take a separate path (see shell/bridge.rs) and
+/// are NOT yet gated by this check — a documented known limitation.
+pub(crate) async fn client_for_write(
+    pool: &ConnectionPool,
+    storage: &Storage,
+    id: &str,
+) -> Result<Client, AppError> {
+    let config = match storage.find(id) {
+        Some(val) => val,
+        None => return Err(AppError::UnknownConnection(id.to_string())),
+    };
+    if config.read_only {
+        return Err(AppError::ReadOnly { name: config.name.clone() });
+    }
+    client_for(pool, storage, id).await
+}
+
 /// The two connection-facing managed states bundled behind one `State`: every
 /// command that touches a live MongoDB connection takes a single
 /// `ctx: State<'_, AppContext>` instead of the `pool` + `storage` pair, and
@@ -94,6 +116,13 @@ impl AppContext {
         client_for(&self.pool, &self.storage, id).await
     }
 
+    /// The write-gated form of `client` — the method form of `client_for_write`.
+    /// Mutating commands resolve their client through here so a read-only
+    /// connection is refused before any write reaches the driver.
+    pub async fn client_for_write(&self, id: &str) -> Result<Client, AppError> {
+        client_for_write(&self.pool, &self.storage, id).await
+    }
+
     /// Resolve straight to a collection handle for the common
     /// connection → database → collection path.
     pub async fn collection(
@@ -103,6 +132,23 @@ impl AppContext {
         collection: &str,
     ) -> Result<Collection<bson::Document>, AppError> {
         let client = match self.client(id).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        Ok(client
+            .database(database)
+            .collection::<bson::Document>(collection))
+    }
+
+    /// The write-gated form of `collection`: resolves the collection handle through
+    /// `client_for_write`, so a read-only connection is refused before the write.
+    pub async fn collection_for_write(
+        &self,
+        id: &str,
+        database: &str,
+        collection: &str,
+    ) -> Result<Collection<bson::Document>, AppError> {
+        let client = match self.client_for_write(id).await {
             Ok(val) => val,
             Err(e) => return Err(e),
         };

@@ -32,7 +32,7 @@ pub async fn duplicate_collection(
     source: String,
     target: String,
 ) -> Result<u64, AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

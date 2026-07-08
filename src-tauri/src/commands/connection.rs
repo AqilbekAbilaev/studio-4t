@@ -97,6 +97,7 @@ pub async fn test_ssh_connection(
         ssh_auth: None,
         ssh_key_file: None,
         tag: None,
+        read_only: false,
         folder_id: None,
         last_accessed: None,
         open: false,
@@ -162,6 +163,7 @@ pub async fn save_connection(
     ssh_password: Option<String>,
     ssh_passphrase: Option<String>,
     tag: Option<String>,
+    read_only: bool,
 ) -> Result<String, AppError> {
     let id = Uuid::new_v4().to_string();
     let config = ConnectionConfig {
@@ -185,6 +187,7 @@ pub async fn save_connection(
         ssh_auth: ssh_auth,
         ssh_key_file: ssh_key_file,
         tag: tag,
+        read_only: read_only,
         // A newly saved connection starts at the root (no folder).
         folder_id: None,
         last_accessed: None,
@@ -364,6 +367,7 @@ pub async fn update_connection(
     ssh_password: Option<String>,
     ssh_passphrase: Option<String>,
     tag: Option<String>,
+    read_only: bool,
 ) -> Result<(), AppError> {
     // Preserve last_accessed, folder membership, and the open state from the
     // existing record (the edit dialog doesn't carry these fields).
@@ -393,6 +397,7 @@ pub async fn update_connection(
         ssh_auth: ssh_auth,
         ssh_key_file: ssh_key_file,
         tag: tag,
+        read_only: read_only,
         folder_id: folder_id,
         last_accessed: last_accessed,
         open: open,

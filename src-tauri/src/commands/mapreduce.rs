@@ -19,9 +19,19 @@ pub async fn map_reduce(
     finalize: String,
     out_collection: String,
 ) -> Result<serde_json::Value, AppError> {
-    let client = match ctx.client(&id).await {
-        Ok(val) => val,
-        Err(e) => return Err(e),
+    // An empty `out_collection` runs inline (read-only); a named one writes the
+    // results to that collection, so gate that case on the connection being writable.
+    let writes = !out_collection.trim().is_empty();
+    let client = if writes {
+        match ctx.client_for_write(&id).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        }
+    } else {
+        match ctx.client(&id).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        }
     };
     let out: bson::Bson = if out_collection.trim().is_empty() {
         bson::Bson::Document(bson::doc! { "inline": 1 })

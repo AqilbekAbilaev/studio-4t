@@ -133,7 +133,7 @@ pub async fn gridfs_upload(
     bucket: String,
     path: String,
 ) -> Result<String, AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -212,7 +212,7 @@ pub async fn gridfs_delete(
     bucket: String,
     file_id: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -242,7 +242,7 @@ pub async fn gridfs_rename(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let files = match ctx.collection(&id, &database, &format!("{bucket}.files")).await {
+    let files = match ctx.collection_for_write(&id, &database, &format!("{bucket}.files")).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -278,7 +278,7 @@ pub async fn gridfs_set_metadata(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let files = match ctx.collection(&id, &database, &format!("{bucket}.files")).await {
+    let files = match ctx.collection_for_write(&id, &database, &format!("{bucket}.files")).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -299,7 +299,7 @@ pub async fn gridfs_drop_bucket(
     database: String,
     bucket: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -324,7 +324,7 @@ pub async fn gridfs_copy_bucket(
     bucket: String,
     new_bucket: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

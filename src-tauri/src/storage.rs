@@ -64,6 +64,11 @@ pub struct ConnectionConfig {
     pub ssh_key_file: Option<String>,
     #[serde(default)]
     pub tag: Option<String>,
+    // When true, mutating operations against this connection are refused at the
+    // backend choke point (`client_for_write` in commands/mod.rs) before they reach
+    // the driver — a real lock, not just hidden UI.
+    #[serde(default)]
+    pub read_only: bool,
     // The folder this connection belongs to in the Connection Manager, or `None`
     // for a connection at the root. Folders themselves live in `folders.json`.
     #[serde(default)]

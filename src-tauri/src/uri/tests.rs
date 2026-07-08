@@ -23,6 +23,7 @@ fn base_config() -> ConnectionConfig {
         ssh_auth: None,
         ssh_key_file: None,
         tag: None,
+        read_only: false,
         folder_id: None,
         last_accessed: None,
         open: false,

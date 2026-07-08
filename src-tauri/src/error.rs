@@ -17,6 +17,9 @@ pub enum AppError {
     #[error("Unknown connection: {0}")]
     UnknownConnection(String),
 
+    #[error("This connection is read-only. Writes are disabled for \"{name}\".")]
+    ReadOnly { name: String },
+
     #[error("BSON error: {0}")]
     Bson(String),
 
@@ -55,6 +58,7 @@ impl AppError {
             AppError::Serde(_) => "serde",
             AppError::Unreachable { .. } => "unreachable",
             AppError::UnknownConnection(_) => "unknown_connection",
+            AppError::ReadOnly { .. } => "read_only",
             AppError::Bson(_) => "bson",
             AppError::Keychain(_) => "keychain",
             AppError::Shell(_) => "shell",

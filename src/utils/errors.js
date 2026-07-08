@@ -20,11 +20,14 @@ export function errCode(e) {
 // detail, …). Codes we author ourselves (validation, bson, unreachable,
 // unknown_connection, sql, ssh, keychain) already carry readable messages, so
 // they are intentionally absent and callers fall back to the raw message.
+// `read_only` is the one self-authored exception: its message is already
+// readable, but a distinct title makes a blocked write unmistakable in the toast.
 const FRIENDLY_TITLES = {
-  auth:    'Authentication failed',
-  network: "Can't reach the server",
-  tls:     'TLS / SSL connection problem',
-  mongo:   'The database reported an error',
+  auth:      'Authentication failed',
+  network:   "Can't reach the server",
+  tls:       'TLS / SSL connection problem',
+  mongo:     'The database reported an error',
+  read_only: 'Connection is read-only',
 }
 
 // A calm, human title for an error code, or '' when we have none for it (the

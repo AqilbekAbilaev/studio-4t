@@ -326,6 +326,11 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
           <span class="ti"><BaseIcon name="connect" :size="15" /></span>
           <span class="tt">{{ conn.name }}</span>
           <span
+            v-if="conn.read_only"
+            class="ro-lock"
+            title="Read-only connection — writes are disabled"
+          ><BaseIcon name="lock" :size="12" /></span>
+          <span
             class="status-dot"
             :class="connStatus(conn)"
             :title="STATUS_LABEL[connStatus(conn)]"
@@ -492,6 +497,9 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
 
 .ti { flex: none; color: var(--text-dim); }
 .tt { overflow: hidden; text-overflow: ellipsis; }
+
+/* Faint padlock next to a read-only connection's name. */
+.ro-lock { flex: none; display: inline-flex; align-items: center; color: var(--text-faint); margin-left: 5px; }
 
 .cnt { color: var(--text-faint); font-size: 11.5px; margin-left: 4px; }
 

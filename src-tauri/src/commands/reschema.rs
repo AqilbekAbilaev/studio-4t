@@ -158,7 +158,8 @@ pub async fn reschema_apply(
     ops: Vec<ReschemaOp>,
     target: ReschemaTarget,
 ) -> Result<usize, AppError> {
-    let col = match ctx.collection(&id, &database, &collection).await {
+    // Apply writes back to this connection (via `$merge`/`$out`), so gate it.
+    let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

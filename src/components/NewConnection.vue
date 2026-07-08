@@ -123,6 +123,10 @@ async function pickSshKey() {
 // advanced tab
 const selectedTag = ref(isEditMode ? (props.editConn.tag ?? 'none') : 'none')
 
+// Read-only connection: when set, the backend refuses every mutating operation
+// against this connection (a real lock, see client_for_write in Rust).
+const readOnly = ref(isEditMode ? !!props.editConn.read_only : false)
+
 // Connection-string options (the Advanced tab). Each catalog key maps to a
 // string value; '' means "unset", so the driver default applies. Values come
 // from the stored config in edit mode.
@@ -435,6 +439,7 @@ async function save() {
       sshPassword:   (useSsh.value && sshAuth.value === 'password') ? (sshPassword.value || null) : null,
       sshPassphrase: (useSsh.value && sshAuth.value === 'key') ? (sshKeyPassphrase.value || null) : null,
       tag:             selectedTag.value !== 'none' ? selectedTag.value : null,
+      readOnly:        readOnly.value,
     }
 
     if (isEditMode) {
@@ -460,6 +465,7 @@ async function save() {
         ssh_auth:     fields.sshAuth,
         ssh_key_file: fields.sshKeyFile,
         tag:             fields.tag,
+        read_only:       fields.readOnly,
       }
       emit('updated', updated)
     } else {
@@ -471,6 +477,7 @@ async function save() {
         connection_type: fields.connectionType,
         options:         fields.options,
         tag:             fields.tag,
+        read_only:       fields.readOnly,
         last_accessed:   null,
       }
       emit('saved', conn)
@@ -831,6 +838,12 @@ async function save() {
               ></span>
             </div>
           </div>
+
+          <label class="chk-line nc-readonly" @click="readOnly = !readOnly">
+            <span class="cb" :class="{ on: readOnly }"><BaseIcon v-if="readOnly" name="check" :size="12" /></span>
+            Read-only connection
+          </label>
+          <div class="nc-hint">Blocks every write (insert, update, delete, drop, index changes…) against this connection at the backend.</div>
         </div>
 
       </div>
@@ -1069,6 +1082,7 @@ async function save() {
   display: grid; place-items: center; flex: none;
 }
 .cb.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.nc-readonly { margin-top: 12px; }
 
 /* color tag swatches */
 .tag-row  { display: flex; gap: 8px; }

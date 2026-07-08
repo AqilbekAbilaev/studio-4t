@@ -83,7 +83,7 @@ pub async fn create_user(
     password: String,
     roles: Vec<String>,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -118,7 +118,7 @@ pub async fn drop_user(
     database: String,
     username: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client(&id).await {
+    let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

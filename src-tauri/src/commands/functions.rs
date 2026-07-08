@@ -66,7 +66,7 @@ pub async fn save_function(
     name: String,
     body: String,
 ) -> Result<(), AppError> {
-    let coll = match ctx.collection(&id, &database, "system.js").await {
+    let coll = match ctx.collection_for_write(&id, &database, "system.js").await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -89,7 +89,7 @@ pub async fn drop_function(
     database: String,
     name: String,
 ) -> Result<(), AppError> {
-    let coll = match ctx.collection(&id, &database, "system.js").await {
+    let coll = match ctx.collection_for_write(&id, &database, "system.js").await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };

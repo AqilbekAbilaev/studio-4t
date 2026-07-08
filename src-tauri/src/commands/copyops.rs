@@ -17,7 +17,9 @@ pub async fn copy_collection(
     target_database: String,
     target_collection: String,
 ) -> Result<(), AppError> {
-    let src = match ctx.collection(&id, &source_database, &source_collection).await {
+    // Copy writes into the target collection on this same connection, so gate on
+    // the connection being writable (the `$out` below is the write).
+    let src = match ctx.collection_for_write(&id, &source_database, &source_collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
