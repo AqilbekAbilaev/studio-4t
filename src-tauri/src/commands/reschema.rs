@@ -72,16 +72,16 @@ pub fn build_pipeline(ops: &[ReschemaOp]) -> Vec<bson::Document> {
     let mut stages: Vec<bson::Document> = Vec::new();
     for op in ops {
         match op {
-            ReschemaOp::Rename { from: from, to: to }
-            | ReschemaOp::Move { from: from, to: to } => {
+            ReschemaOp::Rename { from, to }
+            | ReschemaOp::Move { from, to } => {
                 let pair = rename_stages(from, to);
                 stages.push(pair[0].clone());
                 stages.push(pair[1].clone());
             }
-            ReschemaOp::Remove { field: field } => {
+            ReschemaOp::Remove { field } => {
                 stages.push(bson::doc! { "$unset": field.to_string() });
             }
-            ReschemaOp::ChangeType { field: field, to_type: to_type } => {
+            ReschemaOp::ChangeType { field, to_type } => {
                 // onError/onNull fall back to the original value, so a value that
                 // can't be converted is left untouched instead of failing the op.
                 let convert = bson::doc! {
