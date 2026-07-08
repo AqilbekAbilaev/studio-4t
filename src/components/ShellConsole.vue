@@ -172,6 +172,14 @@ function applyHistory(cmd) {
   setEditorDoc(cmd)
   historyMenu.value = false
 }
+async function clearHistory() {
+  const tab = props.activeTab
+  if (!tab) return
+  try {
+    await invoke('clear_shell_history', { connectionId: tab.connectionId })
+    tab.history = []
+  } catch (_) {}
+}
 
 function formatScalar(value) {
   if (value === undefined) return ''
@@ -200,6 +208,10 @@ function formatScalar(value) {
         </button>
         <div v-if="historyMenu" class="hist-backdrop" @mousedown.self="historyMenu = false"></div>
         <div v-if="historyMenu" class="hist-menu">
+          <div class="hist-header">
+            <span class="hist-title">Shell History</span>
+            <button class="hist-clear" @click="clearHistory" :disabled="!activeTab.history.length">Clear</button>
+          </div>
           <div v-if="!activeTab.history.length" class="hist-empty">No history yet.</div>
           <div
             v-for="(cmd, i) in [...activeTab.history].reverse()"
@@ -326,6 +338,19 @@ function formatScalar(value) {
   background: var(--bg-panel); border: 1px solid var(--border-soft);
   border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
 }
+.hist-header {
+  display: flex; align-items: center;
+  padding: 6px 8px 6px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.hist-title { font-size: 12px; font-weight: 600; color: var(--text-dim); flex: 1; }
+.hist-clear {
+  font-size: 11px; color: var(--text-faint);
+  background: none; border: none; padding: 2px 6px;
+  border-radius: 4px; cursor: pointer;
+}
+.hist-clear:hover:not(:disabled) { color: var(--text); background: var(--bg-hover); }
+.hist-clear:disabled { opacity: .4; cursor: default; }
 .hist-empty { padding: 12px; color: var(--text-faint); font-size: 12px; }
 .hist-item {
   padding: 7px 9px; border-radius: 5px; cursor: pointer;
