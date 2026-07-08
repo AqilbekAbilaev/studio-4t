@@ -12,6 +12,8 @@ import VisualQueryBuilder from './VisualQueryBuilder.vue'
 import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
 import StateMessage from './StateMessage.vue'
+import ExplainGraph from './ExplainGraph.vue'
+import { buildExplainTree } from '../utils/explainTree'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
 import { createJsonView, setJsonView } from '../utils/jsonView'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
@@ -591,23 +593,12 @@ function onDeleteDialogDone(message) {
   emit('requery', true)
 }
 
-// Best-effort headline metrics pulled from the explain document; the full plan
-// is always shown below as formatted JSON.
-const explainSummary = computed(() => {
-  const r = props.activeTab && props.activeTab.explainResult
-  if (!r) return null
-  const stats = r.executionStats || {}
-  const winning = (r.queryPlanner && r.queryPlanner.winningPlan) || {}
-  const stage = (stats.executionStages && stats.executionStages.stage) || winning.stage || '—'
-  const fmt = (v) => (v === undefined || v === null ? '—' : v)
-  return {
-    stage:        stage,
-    nReturned:    fmt(stats.nReturned),
-    docsExamined: fmt(stats.totalDocsExamined),
-    keysExamined: fmt(stats.totalKeysExamined),
-    timeMs:       fmt(stats.executionTimeMillis),
-  }
-})
+// The explain document normalized into a render-ready node-graph tree (Result root
+// + stage tree). Parsing lives in the util; the graph component only draws it.
+const explainTree = computed(() => buildExplainTree(props.activeTab && props.activeTab.explainResult))
+
+// Explain sub-tab view mode: 'graph' (default) or 'json' (the raw plan document).
+const explainView = ref('graph')
 
 // ── paging range / count ──────────────────────────────
 // "<from> to <to>" of the current page, skip-aware; appends "of <N>" only when a
@@ -813,14 +804,26 @@ const queryCode = computed(() => {
       <div v-if="activeTab.explainRunning" class="explain-msg">Running explain…</div>
       <div v-else-if="activeTab.explainError" class="run-error">{{ activeTab.explainError }}</div>
       <template v-else-if="activeTab.explainResult">
-        <div class="explain-summary" v-if="explainSummary">
-          <span class="es-item"><span class="es-k">Stage</span><span class="es-v">{{ explainSummary.stage }}</span></span>
-          <span class="es-item"><span class="es-k">Returned</span><span class="es-v">{{ explainSummary.nReturned }}</span></span>
-          <span class="es-item"><span class="es-k">Docs examined</span><span class="es-v">{{ explainSummary.docsExamined }}</span></span>
-          <span class="es-item"><span class="es-k">Keys examined</span><span class="es-v">{{ explainSummary.keysExamined }}</span></span>
-          <span class="es-item"><span class="es-k">Time</span><span class="es-v">{{ explainSummary.timeMs }} ms</span></span>
+        <div class="explain-toolbar">
+          <div class="explain-toggle" role="group" aria-label="Explain view">
+            <button
+              type="button"
+              class="et-btn"
+              :class="{ on: explainView === 'graph' }"
+              :aria-pressed="explainView === 'graph'"
+              @click="explainView = 'graph'"
+            >Graph</button>
+            <button
+              type="button"
+              class="et-btn"
+              :class="{ on: explainView === 'json' }"
+              :aria-pressed="explainView === 'json'"
+              @click="explainView = 'json'"
+            >View JSON</button>
+          </div>
         </div>
-        <div class="json-doc" v-html="syntaxHighlight(mongoStringify(activeTab.explainResult))"></div>
+        <ExplainGraph v-if="explainView === 'graph'" :tree="explainTree" />
+        <div v-else class="json-doc" v-html="syntaxHighlight(mongoStringify(activeTab.explainResult))"></div>
       </template>
       <div v-else class="explain-msg">Run a query, then this tab shows its execution plan.</div>
     </div>
@@ -1168,12 +1171,25 @@ const queryCode = computed(() => {
 .json-doc :deep(.jl)   { color: var(--text-faint); }
 .json-doc :deep(.joid) { color: var(--link); }
 
-.explain-view { flex: 1; overflow: auto; padding: 12px 16px; }
+.explain-view { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.explain-view > .json-doc { flex: 1; overflow: auto; padding: 12px 16px; }
 .explain-msg { padding: 32px; color: var(--text-faint); font-size: 12px; display: flex; align-items: center; justify-content: center; }
-.explain-summary { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 12px; margin-bottom: 12px; background: var(--panel-2, rgba(255,255,255,.03)); border: 1px solid var(--border-soft); border-radius: 6px; }
-.es-item { display: flex; flex-direction: column; gap: 2px; }
-.es-k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-faint); }
-.es-v { font-family: var(--mono); font-size: 13px; color: var(--text); }
+
+/* Graph / View JSON toggle */
+.explain-toolbar { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border-soft); flex: 0 0 auto; }
+.explain-toggle { display: inline-flex; border: 1px solid var(--border-soft); border-radius: 7px; overflow: hidden; }
+.et-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.et-btn + .et-btn { border-left: 1px solid var(--border-soft); }
+.et-btn:hover { background: var(--bg-hover); color: var(--text); }
+.et-btn.on { background: var(--accent); color: #fff; }
 
 /* page size dropdown */
 .page-size-wrap { position: relative; }
