@@ -7,7 +7,7 @@
 use crate::commands::masking::MaskRule;
 use crate::error::AppError;
 use crate::json_store::JsonStore;
-use chrono::{Datelike, Local, TimeZone, Timelike};
+use chrono::{Datelike, Local, TimeZone};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -201,13 +201,18 @@ impl TaskRunStore {
     }
 }
 
-// Current wall-clock as epoch-ms string (same helper shape as history::now_ms).
-pub fn now_ms() -> String {
-    let ms = std::time::SystemTime::now()
+// Current wall-clock as epoch-ms (the integer the schedule math compares against).
+pub fn now_epoch_ms() -> i64 {
+    std::time::SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    format!("{}", ms)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+// Current wall-clock as an epoch-ms string (the shape stored in `created_at` /
+// `last_run` / `ran_at`; same helper shape as history::now_ms).
+pub fn now_ms() -> String {
+    format!("{}", now_epoch_ms())
 }
 
 // ── Schedule math (pure, unit-tested) ─────────────────────────────────────
@@ -362,6 +367,9 @@ fn local_datetime_ms(day: chrono::NaiveDate, hour: u32, minute: u32) -> Option<i
 #[cfg(test)]
 mod tests {
     use super::*;
+    // `.hour()` / `.minute()` on the computed due times are only needed by the
+    // assertions here, so the trait is scoped to the tests.
+    use chrono::Timelike;
     use tempfile::tempdir;
 
     fn export_spec() -> TaskSpec {

@@ -4,11 +4,18 @@
 
 use crate::error::AppError;
 use crate::shell::ShellEngine;
-use crate::tasks::{now_ms, TaskDef, TaskRun, TaskRunStore, TaskSpec, TaskStore};
-use tauri::{AppHandle, Manager, State};
+use crate::tasks::{is_due, now_epoch_ms, now_ms, TaskDef, TaskRun, TaskRunStore, TaskSpec, TaskStore};
+use serde::Serialize;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 use super::AppContext;
+
+// How often the in-app scheduler wakes to look for due tasks.
+const TICK: Duration = Duration::from_secs(30);
 
 /// All saved tasks, newest-first (list order as stored).
 #[tauri::command]
@@ -60,18 +67,22 @@ pub async fn run_task(app: AppHandle, id: String) -> Result<TaskRun, AppError> {
         }
     };
     let run = run_task_now(&app, &task).await;
-    match app.state::<TaskRunStore>().push(&id, run.clone()) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-    match app
-        .state::<TaskStore>()
-        .record_run(&id, &run.ran_at, &run.status)
-    {
+    match persist_run(&app, &id, &run) {
         Ok(()) => {}
         Err(e) => return Err(e),
     }
     Ok(run)
+}
+
+// Append a run to the task's log and stamp its `last_run`/`last_status`. Shared by
+// the manual `run_task` command and the scheduler.
+fn persist_run(app: &AppHandle, id: &str, run: &TaskRun) -> Result<(), AppError> {
+    match app.state::<TaskRunStore>().push(id, run.clone()) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+    app.state::<TaskStore>()
+        .record_run(id, &run.ran_at, &run.status)
 }
 
 /// A task's run log, newest-first.
@@ -254,6 +265,95 @@ fn write_text_file(path: &str, contents: &str) -> Result<(), AppError> {
     match std::fs::write(path, contents.as_bytes()) {
         Ok(()) => Ok(()),
         Err(e) => Err(AppError::Io(e)),
+    }
+}
+
+// ── In-app scheduler ──────────────────────────────────────────────────────
+//
+// A single background task (spawned from `lib.rs` setup) that wakes every `TICK`,
+// runs any scheduled task whose next-due time has arrived, and persists + announces
+// each outcome. Because the very first tick runs immediately (before the first
+// sleep), a task that became due while the app was closed catches up on launch.
+
+// The frontend `task-ran` event payload: which task ran and how it went, so an open
+// Tasks panel can refresh its list and toast the result.
+#[derive(Clone, Serialize)]
+struct TaskRanEvent {
+    task_id: String,
+    run: TaskRun,
+}
+
+/// Start the in-app scheduler. Holds a clone of the `AppHandle` so it can resolve
+/// managed state on each tick; runs for the life of the app.
+pub fn spawn_scheduler(app: AppHandle) {
+    // Task ids currently executing, so a task that outlives a tick isn't started a
+    // second time on the next tick.
+    let in_flight: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+    tauri::async_runtime::spawn(async move {
+        loop {
+            scheduler_tick(&app, &in_flight);
+            tokio::time::sleep(TICK).await;
+        }
+    });
+}
+
+// One scheduler pass: fire every due, not-already-running scheduled task. Each run
+// is spawned so a slow task neither blocks the others nor delays the next tick; the
+// overlap guard keeps the next tick from re-firing a task still in flight.
+fn scheduler_tick(app: &AppHandle, in_flight: &Arc<Mutex<HashSet<String>>>) {
+    let now = now_epoch_ms();
+    let tasks = app.state::<TaskStore>().load();
+    for task in tasks.into_iter() {
+        let schedule = match &task.schedule {
+            Some(value) => value.clone(),
+            None => continue,
+        };
+        let created_at_ms = task.created_at.parse::<i64>().unwrap_or(0);
+        if !is_due(&schedule, task.last_run.as_deref(), created_at_ms, now) {
+            continue;
+        }
+        // Claim the task under the guard; skip if a previous run is still going.
+        {
+            let mut running = lock_set(in_flight);
+            if running.contains(&task.id) {
+                continue;
+            }
+            running.insert(task.id.clone());
+        }
+        let app_handle = app.clone();
+        let guard_handle = Arc::clone(in_flight);
+        tauri::async_runtime::spawn(async move {
+            run_and_announce(&app_handle, &task).await;
+            let mut running = lock_set(&guard_handle);
+            running.remove(&task.id);
+        });
+    }
+}
+
+// Run a scheduled task, persist the outcome, and emit `task-ran`. Errors from
+// persistence/emit are non-fatal to the scheduler, so they are only logged.
+async fn run_and_announce(app: &AppHandle, task: &TaskDef) {
+    let run = run_task_now(app, task).await;
+    match persist_run(app, &task.id, &run) {
+        Ok(()) => {}
+        Err(e) => eprintln!("[studio-4t] task run persist failed: {}", e),
+    }
+    let event = TaskRanEvent {
+        task_id: task.id.clone(),
+        run: run,
+    };
+    match app.emit("task-ran", event) {
+        Ok(()) => {}
+        Err(e) => eprintln!("[studio-4t] task-ran emit failed: {}", e),
+    }
+}
+
+// Lock the overlap-guard set, tolerating a poisoned mutex the same way the JSON
+// stores do (a panic in a holder shouldn't wedge the scheduler).
+fn lock_set(set: &Arc<Mutex<HashSet<String>>>) -> MutexGuard<'_, HashSet<String>> {
+    match set.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
     }
 }
 

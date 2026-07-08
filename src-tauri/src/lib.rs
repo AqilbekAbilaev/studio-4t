@@ -106,6 +106,11 @@ pub fn run() {
             app.manage(menu::MenuItems(std::sync::Mutex::new(gated_items)));
             app.on_menu_event(menu::handle_event);
 
+            // Start the in-app task scheduler now that its stores are managed. It
+            // ticks in the background, runs due scheduled tasks, and catches up any
+            // that came due while the app was closed.
+            commands::tasks::spawn_scheduler(app.handle().clone());
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
