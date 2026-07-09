@@ -61,6 +61,8 @@ const MENUS = {
     { label: 'Copy Name', shortcut: '⌥⌘C' },
     { label: 'Duplicate Database…' },
     { sep: true },
+    { label: 'Query Profiler' },
+    { sep: true },
     { label: 'Import…' },
     { label: 'Export…' },
     { sep: true },

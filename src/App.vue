@@ -17,6 +17,7 @@ import SshHostKeyModal from './components/SshHostKeyModal.vue'
 import ServerStatusModal from './components/ServerStatusModal.vue'
 import DatabaseStatsModal from './components/DatabaseStatsModal.vue'
 import CurrentOpsModal from './components/CurrentOpsModal.vue'
+import ProfilerModal from './components/ProfilerModal.vue'
 import ValidatorModal from './components/ValidatorModal.vue'
 import AboutModal from './components/AboutModal.vue'
 import UsersModal from './components/UsersModal.vue'
@@ -210,6 +211,7 @@ const showConnectionManager = ref(false)
 const serverStatusTarget = ref(null)  // { connId, connName } when the Server Status modal is open
 const dbStatsTarget = ref(null)       // { connId, connName, dbName } when the Database Statistics modal is open
 const currentOpsTarget = ref(null)    // { connId, connName } when the Current Operations modal is open
+const profilerTarget = ref(null)      // { connId, connName, dbName } when the Query Profiler modal is open
 const validatorTarget = ref(null)     // { connId, connName, dbName, collName } when the Validator modal is open
 const usersTarget = ref(null)         // { connId, connName, dbName } when the Users modal is open
 const rolesTarget = ref(null)         // { connId, connName, dbName } when the Roles modal is open
@@ -680,6 +682,7 @@ function handleMenuAction(id) {
     case 'file:server_build':  menuNode('Build Info', 'connection'); return
     case 'db:database_stats':  menuNode('Database Statistics', 'database'); return
     case 'db:current_ops':     menuNode('Current Operations', 'connection'); return
+    case 'db:profiler':        menuNode('Query Profiler', 'database'); return
 
     // --- database scoped ---
     case 'db:add_collection':  menuNode('Add Collection…', 'database'); return
@@ -1148,6 +1151,15 @@ async function handleContextAction(action) {
 
   if (action === 'Database Statistics' && saved.type === 'database') {
     dbStatsTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+    }
+    return
+  }
+
+  if (action === 'Query Profiler' && saved.type === 'database') {
+    profilerTarget.value = {
       connId: saved.nodeData.connId,
       connName: saved.nodeData.connName,
       dbName: saved.nodeData.dbName,
@@ -2334,6 +2346,12 @@ async function runAggregate(tabId, params) {
       v-if="currentOpsTarget"
       :target="currentOpsTarget"
       @close="currentOpsTarget = null"
+    />
+
+    <ProfilerModal
+      v-if="profilerTarget"
+      :target="profilerTarget"
+      @close="profilerTarget = null"
     />
 
     <ValidatorModal

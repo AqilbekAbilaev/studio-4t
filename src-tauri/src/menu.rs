@@ -157,6 +157,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "db:functions", label: "Add / Edit Stored Functions", accel: None, gate: Some(Gate::Database) },
                 Spec::Separator,
                 Spec::Action { id: "db:database_stats", label: "Database Statistics", accel: None, gate: Some(Gate::Database) },
+                Spec::Action { id: "db:profiler", label: "Query Profiler", accel: None, gate: Some(Gate::Database) },
                 Spec::Action { id: "db:collection_stats", label: "Collection Statistics", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "db:current_ops", label: "Current Operations", accel: None, gate: Some(Gate::Connection) },
             ],
