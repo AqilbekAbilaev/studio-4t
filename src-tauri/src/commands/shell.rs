@@ -27,8 +27,15 @@ pub async fn run_shell_command(
         Err(e) => return Err(e),
     };
 
+    // A read-only connection must refuse shell writes (insertOne/drop/…) just like
+    // the rest of the app; reads still pass through.
+    let read_only = match ctx.storage.find(&id) {
+        Some(config) => config.read_only,
+        None => false,
+    };
+
     let handle = tokio::runtime::Handle::current();
-    let receiver = shell.submit_eval(session_id, code, client, database, handle);
+    let receiver = shell.submit_eval(session_id, code, client, read_only, database, handle);
     match receiver.await {
         Ok(result) => Ok(result),
         Err(_) => Err(AppError::Shell(String::from(

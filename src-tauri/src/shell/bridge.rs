@@ -37,6 +37,7 @@ pub(super) struct DbInner {
     pub client: Client,
     pub db_name: String,
     pub handle: Handle,
+    pub read_only: bool,
 }
 
 /// Capture handed to the native `__mongo` function. Holds only an `Rc` to the
@@ -169,13 +170,18 @@ fn mongo_call(args: &[JsValue], captures: &DbContext, context: &mut Context) -> 
     let bound = {
         let slot = captures.slot.borrow();
         match slot.as_ref() {
-            Some(inner) => (inner.client.clone(), inner.db_name.clone(), inner.handle.clone()),
+            Some(inner) => (
+                inner.client.clone(),
+                inner.db_name.clone(),
+                inner.handle.clone(),
+                inner.read_only,
+            ),
             None => return Err(throw("no database is bound to this shell session")),
         }
     };
-    let (client, db_name, handle) = bound;
+    let (client, db_name, handle, read_only) = bound;
 
-    match run_op(&client, &db_name, &handle, &op_json) {
+    match run_op(&client, &db_name, &handle, read_only, &op_json) {
         Ok(value) => JsValue::from_json(&value, context),
         Err(message) => Err(throw(&message)),
     }
@@ -187,18 +193,38 @@ fn throw(message: &str) -> JsError {
     JsNativeError::error().with_message(message.to_string()).into()
 }
 
+/// Shell methods that mutate data or schema. On a read-only connection these are
+/// refused before they reach the driver (see the gate in `run_op`).
+pub(crate) fn is_write_method(method: &str) -> bool {
+    matches!(
+        method,
+        "insertOne" | "insertMany" | "updateOne" | "updateMany" | "replaceOne"
+            | "deleteOne" | "deleteMany" | "drop" | "createIndex" | "dropIndex"
+            | "renameCollection"
+    )
+}
+
 /// Dispatch one decoded `{ collection, method, args }` operation to the driver,
 /// blocking on the async call via the provided runtime handle.
 fn run_op(
     client: &Client,
     db_name: &str,
     handle: &Handle,
+    read_only: bool,
     op: &serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let method = match op.get("method").and_then(|value| value.as_str()) {
         Some(value) => value,
         None => return Err(String::from("operation has no method")),
     };
+
+    // TODO: read-only — a runCommand write-command denylist (drop/insert/createUser/…) is a fast-follow.
+    if read_only && is_write_method(method) {
+        return Err(String::from(
+            "This connection is read-only — writes are disabled in the shell.",
+        ));
+    }
+
     let empty: Vec<serde_json::Value> = Vec::new();
     let args = match op.get("args").and_then(|value| value.as_array()) {
         Some(value) => value,

@@ -41,3 +41,41 @@ fn arg_doc_defaults_to_empty_when_missing() {
     let doc = arg_doc(&args, 0).unwrap();
     assert!(doc.is_empty());
 }
+
+#[test]
+fn is_write_method_flags_mutations() {
+    for method in [
+        "insertOne",
+        "insertMany",
+        "updateOne",
+        "updateMany",
+        "replaceOne",
+        "deleteOne",
+        "deleteMany",
+        "drop",
+        "createIndex",
+        "dropIndex",
+        "renameCollection",
+    ] {
+        assert!(is_write_method(method), "{} should be a write", method);
+    }
+}
+
+#[test]
+fn is_write_method_allows_reads() {
+    for method in [
+        "find",
+        "findOne",
+        "aggregate",
+        "countDocuments",
+        "distinct",
+        "estimatedDocumentCount",
+    ] {
+        assert!(!is_write_method(method), "{} should be a read", method);
+    }
+}
+
+#[test]
+fn is_write_method_rejects_unknown() {
+    assert!(!is_write_method("bogusMethod"));
+}

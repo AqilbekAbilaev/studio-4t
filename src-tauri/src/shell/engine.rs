@@ -43,6 +43,7 @@ pub struct ShellResult {
 struct EvalMsg {
     code: String,
     client: Client,
+    read_only: bool,
     default_db: String,
     handle: Handle,
     reply: oneshot::Sender<ShellResult>,
@@ -76,6 +77,7 @@ impl ShellEngine {
         session_id: String,
         code: String,
         client: Client,
+        read_only: bool,
         default_db: String,
         handle: Handle,
     ) -> oneshot::Receiver<ShellResult> {
@@ -83,6 +85,7 @@ impl ShellEngine {
         let message = EvalMsg {
             code: code,
             client: client,
+            read_only: read_only,
             default_db: default_db,
             handle: handle,
             reply: reply,
@@ -135,6 +138,7 @@ fn session_loop(mut receiver: UnboundedReceiver<EvalMsg>) {
             client: message.client,
             db_name: message.default_db,
             handle: message.handle,
+            read_only: message.read_only,
         });
         let result = eval_in(&mut session.context, &message.code);
         let _ = message.reply.send(result);
