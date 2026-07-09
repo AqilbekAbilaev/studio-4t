@@ -261,8 +261,10 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "view:close_tab", label: "Close Tab", accel: None, gate: None },
                 Spec::Action { id: "view:close_tab_np", label: "Close Tab (No Prompt)", accel: None, gate: None },
                 Spec::Separator,
-                Spec::Placeholder { id: "view:split_v", label: "Split Vertically" },
-                Spec::Placeholder { id: "view:split_h", label: "Split Horizontally" },
+                // Split the workspace into two panes; always enabled (they toggle
+                // the current layout), so no gate.
+                Spec::Action { id: "view:split_v", label: "Split Vertically", accel: None, gate: None },
+                Spec::Action { id: "view:split_h", label: "Split Horizontally", accel: None, gate: None },
                 Spec::Action { id: "view:history", label: "History Manager…", accel: None, gate: Some(Gate::Collection) },
                 // Toggles the global toolbar; the label stays "Hide Global Toolbar"
                 // (native menu labels aren't re-titled), a toast reports the new state.
@@ -767,8 +769,8 @@ mod tests {
     #[test]
     fn placeholders_are_carried_over_but_ungated() {
         // A representative built:false placeholder is present and never gated on.
-        assert!(matches!(spec_of("view:split_v"), Some(Spec::Placeholder { .. })));
-        assert!(gate_of_opt("view:split_v").is_none());
+        assert!(matches!(spec_of("file:manage_sql"), Some(Spec::Placeholder { .. })));
+        assert!(gate_of_opt("file:manage_sql").is_none());
     }
 
     // Test helpers: look an item up by id in the logical menu table.

@@ -11,6 +11,7 @@ import { isProtectedIndex, indexKeyLabel, indexSpecJson, isIndexHidden } from '.
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
+import SplitContainer from './components/SplitContainer.vue'
 import ConnectionManager from './components/ConnectionManager.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import SshHostKeyModal from './components/SshHostKeyModal.vue'
@@ -63,16 +64,21 @@ appWindow.listen('window-focus', async (event) => {
 function projectSession() {
   return {
     activeTabId: activeTabId.value,
+    panes: panes.value.map(p => ({ id: p.id, activeTabId: p.activeTabId })),
+    splitOrientation: splitOrientation.value,
+    focusedPaneId: focusedPaneId.value,
     tabs: tabs.value
       .filter(t => t.kind === 'collection' || t.kind === 'shell')
       .map(t => t.kind === 'shell'
         ? {
             id: t.id, kind: 'shell', title: t.title, color: t.color,
+            paneId: t.paneId || 'p0',
             connectionId: t.connectionId, connectionName: t.connectionName,
             dbName: t.dbName, code: t.code,
           }
         : {
             id: t.id, kind: 'collection', title: t.title, color: t.color,
+            paneId: t.paneId || 'p0',
             connectionId: t.connectionId, connectionName: t.connectionName,
             dbName: t.dbName, collectionName: t.collectionName,
             filter: t.filter, sort: t.sort, projection: t.projection,
@@ -139,6 +145,7 @@ onMounted(async () => {
               // Rebuild a shell tab with a fresh backend session (JS contexts are
               // ephemeral); the editor text is restored, history loads on mount.
               id: t.id, kind: 'shell', title: t.title, color: t.color,
+              paneId: t.paneId || 'p0',
               connectionId: t.connectionId, connectionName: t.connectionName,
               dbName: t.dbName,
               sessionId: (crypto.randomUUID ? crypto.randomUUID() : t.id),
@@ -157,8 +164,22 @@ onMounted(async () => {
         if (restored.some(t => t.id === session.activeTabId)) {
           activeTabId.value = session.activeTabId
         }
-        const active = tabs.value.find(t => t.id === activeTabId.value)
-        if (active && active._restored) runRestoredTab(active)
+        // Restore a saved two-pane split when both panes still point at live tabs.
+        if (session.splitOrientation && Array.isArray(session.panes) && session.panes.length === 2
+            && session.panes.every(p => tabs.value.some(t => t.id === p.activeTabId))) {
+          panes.value = session.panes.map((p, i) => ({ id: 'p' + i, activeTabId: p.activeTabId }))
+          splitOrientation.value = session.splitOrientation === 'horizontal' ? 'horizontal' : 'vertical'
+          focusedPaneId.value = panes.value.some(p => p.id === session.focusedPaneId) ? session.focusedPaneId : 'p0'
+        } else {
+          // No split restored — collapse every tab into the single pane so a tab
+          // saved as p1 doesn't end up orphaned with no pane to show it.
+          for (const t of tabs.value) t.paneId = 'p0'
+        }
+        // Lazily run each pane's active restored tab (find mode re-runs its query).
+        for (const pane of panes.value) {
+          const t = tabs.value.find(x => x.id === pane.activeTabId)
+          if (t && t._restored) runRestoredTab(t)
+        }
       }
     }
   } catch (_) {}
@@ -194,9 +215,53 @@ const TOOLS = [
 
 // ── app state ──────────────────────────────────────────────
 const tabs = ref([
-  { id: 't0', kind: 'quickstart', title: 'Quickstart' }
+  { id: 't0', kind: 'quickstart', title: 'Quickstart', paneId: 'p0' }
 ])
-const activeTabId = ref('t0')
+
+// The workspace can be split into two panes. `tabs` above stays the single source
+// of truth, but each tab is tagged with the pane that owns it (`paneId`), so a pane
+// shows only its own tabs — splitting moves the active tab into the new pane rather
+// than duplicating the whole strip. Each pane tracks its active tab; new tabs and
+// menu actions target the focused pane. `activeTabId` is a get/set alias for the
+// focused pane's active tab, so every existing caller keeps working unchanged.
+const panes = ref([{ id: 'p0', activeTabId: 't0' }])
+const splitOrientation = ref(null)   // null | 'vertical' | 'horizontal'
+const focusedPaneId = ref('p0')
+const isSplit = computed(() => panes.value.length > 1)
+
+// The tabs owned by each pane (in their `tabs` order). A tab with no paneId (e.g.
+// an older persisted session) belongs to the first pane.
+const paneATabs = computed(() => tabs.value.filter(t => (t.paneId || 'p0') === 'p0'))
+const paneBTabs = computed(() => tabs.value.filter(t => (t.paneId || 'p0') === 'p1'))
+
+const activeTabId = computed({
+  get() {
+    const pane = panes.value.find(p => p.id === focusedPaneId.value) || panes.value[0]
+    return pane ? pane.activeTabId : null
+  },
+  set(id) {
+    const pane = panes.value.find(p => p.id === focusedPaneId.value) || panes.value[0]
+    if (pane) pane.activeTabId = id
+  },
+})
+
+// Keep each pane's active tab valid: when its tabs change (close, or a move between
+// panes), a pane pointing at a tab it no longer owns falls back to its last tab (or
+// nothing). Keyed on the pane→tab mapping so both closes and moves re-run it.
+watch(() => tabs.value.map(t => (t.paneId || 'p0') + ':' + t.id).join('|'), () => {
+  for (const pane of panes.value) {
+    const owned = tabs.value.filter(t => (t.paneId || 'p0') === pane.id)
+    if (pane.activeTabId == null || !owned.some(t => t.id === pane.activeTabId)) {
+      pane.activeTabId = owned.length ? owned[owned.length - 1].id : null
+    }
+  }
+  // A split pane that has lost all its tabs collapses the split — the workspace
+  // returns to a single pane showing whichever pane still has tabs.
+  if (isSplit.value) {
+    const empty = panes.value.find(p => !tabs.value.some(t => (t.paneId || 'p0') === p.id))
+    if (empty) collapseToPane(panes.value.find(p => p.id !== empty.id))
+  }
+})
 const toast = ref(null)
 let toastTimer = null
 const connectionTreeRef = ref(null)
@@ -787,6 +852,10 @@ function handleMenuAction(id) {
     case 'view:close_tab_np':
       if (activeTabId.value != null) closeTab(activeTabId.value)
       return
+
+    // Split the workspace into two panes (or toggle/flip an existing split).
+    case 'view:split_v': splitWorkspace('vertical'); return
+    case 'view:split_h': splitWorkspace('horizontal'); return
 
     // Results view mode + Refresh Document act on the active collection tab's
     // ResultsPanel; signal it directly (no row selection required).
@@ -1868,6 +1937,7 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
     connectionName: connectionName,
     dbName: dbName,
     collectionName: collectionName,
+    paneId: focusedPaneId.value,
     filter: '', projection: '', sort: '', skip: 0, limit: defaultQueryLimit.value,
     mode: startMode, pipeline: '',
     results: [], hasRun: false, isRunning: false, runError: null,
@@ -1921,6 +1991,7 @@ function openShellTab({ connectionId, connectionName, dbName }) {
     connectionId: connectionId,
     connectionName: connectionName,
     dbName: dbName,
+    paneId: focusedPaneId.value,
     sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
     // editor + command history (dropdown)
     code: '', history: [], isRunning: false,
@@ -1936,6 +2007,75 @@ function activateTab(id) {
   activeTabId.value = id
   const tab = tabs.value.find(t => t.id === id)
   if (tab && tab._restored) runRestoredTab(tab)
+}
+
+// ── workspace split (two panes over the shared tab list) ────
+// Split Vertically / Horizontally from the View menu. Choosing the orientation the
+// workspace is already split in collapses it back to one pane; choosing the other
+// orientation flips it. A fresh split mirrors the focused pane's active tab so both
+// panes start on the same collection.
+function splitWorkspace(orientation) {
+  if (isSplit.value) {
+    if (splitOrientation.value === orientation) {
+      unsplitWorkspace()
+    } else {
+      splitOrientation.value = orientation
+    }
+    return
+  }
+  // Splitting moves the active tab into the new pane, so the source pane needs at
+  // least two tabs — otherwise the split would immediately leave one pane empty
+  // (and empty panes auto-collapse). Guide the user instead of no-op-flickering.
+  if (tabs.value.length < 2) {
+    showToast('Open another tab to split the workspace')
+    return
+  }
+  // Move the active tab out into the new pane, so the new pane starts with just that
+  // one tab and the original keeps the rest (falling back to its last remaining tab).
+  const current = panes.value[0]
+  const movingId = current.activeTabId
+  const moving = tabs.value.find(t => t.id === movingId)
+  if (moving) moving.paneId = 'p1'
+  const remaining = tabs.value.filter(t => (t.paneId || 'p0') === 'p0')
+  current.activeTabId = remaining.length ? remaining[remaining.length - 1].id : null
+  panes.value.push({ id: 'p1', activeTabId: movingId })
+  splitOrientation.value = orientation
+  focusedPaneId.value = 'p1'
+}
+
+// Collapse the split back to a single pane, keeping `survivor`'s tabs and active tab.
+// Every tab returns to pane 0.
+function collapseToPane(survivor) {
+  const keep = survivor || panes.value[0]
+  for (const t of tabs.value) t.paneId = 'p0'
+  panes.value = [{ id: 'p0', activeTabId: keep ? keep.activeTabId : null }]
+  splitOrientation.value = null
+  focusedPaneId.value = 'p0'
+}
+
+// Manual unsplit (View menu / gutter ✕): keep whatever the focused pane was showing.
+function unsplitWorkspace() {
+  if (!isSplit.value) return
+  collapseToPane(panes.value.find(p => p.id === focusedPaneId.value) || panes.value[0])
+}
+
+// Per-pane event routing: interacting with a pane focuses it first, so the shared
+// menu actions (which read the focused pane through activeTabId) target that pane.
+function focusPane(paneId) { focusedPaneId.value = paneId }
+function activateTabInPane(paneId, id) {
+  focusedPaneId.value = paneId
+  const pane = panes.value.find(p => p.id === paneId)
+  if (pane) pane.activeTabId = id
+  const tab = tabs.value.find(t => t.id === id)
+  if (tab && tab._restored) runRestoredTab(tab)
+}
+function closeTabInPane(paneId, id) {
+  focusedPaneId.value = paneId
+  closeTab(id)
+}
+function tabContextInPane(paneId, evt) {
+  focusedPaneId.value = paneId
+  onTabContext(evt)
 }
 
 // GridFS menu actions operate inside the GridFS modal on its selected file/bucket.
@@ -1969,7 +2109,7 @@ function openQuickstart() {
     return
   }
   const id = 't' + Date.now()
-  tabs.value.push({ id: id, kind: 'quickstart', title: 'Quickstart' })
+  tabs.value.push({ id: id, kind: 'quickstart', title: 'Quickstart', paneId: focusedPaneId.value })
   activateTab(id)
 }
 
@@ -2052,10 +2192,16 @@ function closeTab(id) {
   if (closing.kind === 'shell' && closing.sessionId) {
     invoke('close_shell_session', { sessionId: closing.sessionId }).catch(() => {})
   }
+  const before = tabs.value.slice(0, idx)
   tabs.value.splice(idx, 1)
-  if (activeTabId.value === id) {
-    const next = tabs.value[Math.max(0, idx - 1)]
-    activeTabId.value = next?.id ?? null
+  // Any pane showing the closed tab moves to an adjacent tab it still owns (the
+  // nearest preceding one in the same pane, else that pane's first remaining tab).
+  for (const pane of panes.value) {
+    if (pane.activeTabId !== id) continue
+    const precedingInPane = before.filter(t => (t.paneId || 'p0') === pane.id)
+    const owned = tabs.value.filter(t => (t.paneId || 'p0') === pane.id)
+    const next = precedingInPane.length ? precedingInPane[precedingInPane.length - 1] : owned[0]
+    pane.activeTabId = next ? next.id : null
   }
 }
 
@@ -2111,6 +2257,7 @@ function duplicateTab(tabId) {
       id: id, kind: 'shell', title: src.title,
       connectionId: src.connectionId, connectionName: src.connectionName,
       dbName: src.dbName,
+      paneId: src.paneId || 'p0',
       sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
       code: src.code || '', history: [], isRunning: false,
       results: [], resultView: 'table', resultTab: 'Console',
@@ -2125,6 +2272,7 @@ function duplicateTab(tabId) {
     id: id, kind: 'collection', title: src.title,
     connectionId: src.connectionId, connectionName: src.connectionName,
     dbName: src.dbName, collectionName: src.collectionName,
+    paneId: src.paneId || 'p0',
     filter: src.filter, projection: src.projection, sort: src.sort,
     skip: src.skip, limit: src.limit, mode: src.mode, pipeline: src.pipeline,
     color: src.color ?? null,
@@ -2323,10 +2471,11 @@ async function runAggregate(tabId, params) {
         <span class="resizer-grip"></span>
       </div>
 
-      <!-- Workspace -->
+      <!-- Workspace (single pane) -->
       <QueryWorkspace
-        :tabs="tabs"
-        :active-tab-id="activeTabId"
+        v-if="!isSplit"
+        :tabs="paneATabs"
+        :active-tab-id="panes[0].activeTabId"
         :tag-overrides="tagOverrides"
         :vqb-open="vqbOpen"
         :clipboard-query="clipboardQuery"
@@ -2347,6 +2496,64 @@ async function runAggregate(tabId, params) {
         @copy-query="onCopyQuery"
         @paste-query="onPasteQuery"
       />
+
+      <!-- Workspace (split into two panes over the shared tab list) -->
+      <SplitContainer v-else :orientation="splitOrientation" @unsplit="unsplitWorkspace">
+        <template #a>
+          <div class="pane-host" :class="{ focused: focusedPaneId === 'p0' }" @mousedown.capture="focusPane('p0')">
+            <QueryWorkspace
+              :tabs="paneATabs"
+              :active-tab-id="panes[0].activeTabId"
+              :tag-overrides="tagOverrides"
+              :vqb-open="focusedPaneId === 'p0' && vqbOpen"
+              :clipboard-query="clipboardQuery"
+              :doc-menu-request="focusedPaneId === 'p0' ? docMenuRequest : null"
+              :history-request="focusedPaneId === 'p0' ? historyRequest : null"
+              :browser-request="focusedPaneId === 'p0' ? browserRequest : null"
+              :save-query-request="focusedPaneId === 'p0' ? saveQueryRequest : null"
+              @activate-tab="activateTabInPane('p0', $event)"
+              @close-tab="closeTabInPane('p0', $event)"
+              @tab-context="tabContextInPane('p0', $event)"
+              @run-query="runQuery"
+              @run-aggregate="runAggregate"
+              @cancel-query="cancelQuery"
+              @toggle-vqb="vqbOpen = !vqbOpen"
+              @open-vqb="vqbOpen = true"
+              @close-vqb="vqbOpen = false"
+              @toast="showToast"
+              @copy-query="onCopyQuery"
+              @paste-query="onPasteQuery"
+            />
+          </div>
+        </template>
+        <template #b>
+          <div class="pane-host" :class="{ focused: focusedPaneId === 'p1' }" @mousedown.capture="focusPane('p1')">
+            <QueryWorkspace
+              :tabs="paneBTabs"
+              :active-tab-id="panes[1].activeTabId"
+              :tag-overrides="tagOverrides"
+              :vqb-open="focusedPaneId === 'p1' && vqbOpen"
+              :clipboard-query="clipboardQuery"
+              :doc-menu-request="focusedPaneId === 'p1' ? docMenuRequest : null"
+              :history-request="focusedPaneId === 'p1' ? historyRequest : null"
+              :browser-request="focusedPaneId === 'p1' ? browserRequest : null"
+              :save-query-request="focusedPaneId === 'p1' ? saveQueryRequest : null"
+              @activate-tab="activateTabInPane('p1', $event)"
+              @close-tab="closeTabInPane('p1', $event)"
+              @tab-context="tabContextInPane('p1', $event)"
+              @run-query="runQuery"
+              @run-aggregate="runAggregate"
+              @cancel-query="cancelQuery"
+              @toggle-vqb="vqbOpen = !vqbOpen"
+              @open-vqb="vqbOpen = true"
+              @close-vqb="vqbOpen = false"
+              @toast="showToast"
+              @copy-query="onCopyQuery"
+              @paste-query="onPasteQuery"
+            />
+          </div>
+        </template>
+      </SplitContainer>
     </div>
 
     <!-- Context menu -->
@@ -3111,6 +3318,19 @@ async function runAggregate(tabId, params) {
 }
 .resizer:hover .resizer-grip,
 .resizer.dragging .resizer-grip { background: var(--accent); }
+
+/* ── Split panes ── */
+/* Each pane fills its half of the SplitContainer; the focused one gets a thin
+   accent outline so it's clear which pane new tabs / menu actions target. */
+.pane-host { display: flex; flex: 1; min-width: 0; min-height: 0; position: relative; }
+.pane-host.focused::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  z-index: 5;
+}
 
 /* ── Toast ── */
 .toast {
