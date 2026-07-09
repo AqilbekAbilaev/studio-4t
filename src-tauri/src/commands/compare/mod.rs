@@ -160,4 +160,5 @@ pub async fn compare_collections(
 }
 
 #[cfg(test)]
+#[path = "compare.test.rs"]
 mod tests;

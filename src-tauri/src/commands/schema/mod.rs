@@ -202,4 +202,5 @@ pub async fn analyze_schema(
 }
 
 #[cfg(test)]
+#[path = "schema.test.rs"]
 mod tests;

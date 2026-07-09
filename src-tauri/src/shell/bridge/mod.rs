@@ -721,4 +721,5 @@ fn ok_result() -> serde_json::Value {
 }
 
 #[cfg(test)]
+#[path = "bridge.test.rs"]
 mod tests;

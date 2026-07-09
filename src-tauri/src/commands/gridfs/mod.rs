@@ -352,4 +352,5 @@ pub async fn gridfs_copy_bucket(
 }
 
 #[cfg(test)]
+#[path = "gridfs.test.rs"]
 mod tests;

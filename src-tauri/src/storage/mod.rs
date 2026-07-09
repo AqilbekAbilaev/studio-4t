@@ -302,4 +302,5 @@ impl Storage {
 }
 
 #[cfg(test)]
+#[path = "storage.test.rs"]
 mod tests;

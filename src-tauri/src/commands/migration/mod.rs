@@ -207,4 +207,5 @@ pub async fn generate_sql_migration(
 }
 
 #[cfg(test)]
+#[path = "migration.test.rs"]
 mod tests;

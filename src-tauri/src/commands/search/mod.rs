@@ -119,4 +119,5 @@ pub async fn search_collections(
 }
 
 #[cfg(test)]
+#[path = "search.test.rs"]
 mod tests;

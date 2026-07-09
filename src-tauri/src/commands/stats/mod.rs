@@ -99,4 +99,5 @@ pub async fn collection_stats(
 }
 
 #[cfg(test)]
+#[path = "stats.test.rs"]
 mod tests;

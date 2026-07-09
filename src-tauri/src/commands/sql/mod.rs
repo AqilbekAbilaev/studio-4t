@@ -744,4 +744,5 @@ pub fn translate_sql(sql: String) -> Result<MqlQuery, AppError> {
 }
 
 #[cfg(test)]
+#[path = "sql.test.rs"]
 mod tests;

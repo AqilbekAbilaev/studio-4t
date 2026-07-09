@@ -187,4 +187,5 @@ pub async fn export_masked_collection(
 }
 
 #[cfg(test)]
+#[path = "masking.test.rs"]
 mod tests;

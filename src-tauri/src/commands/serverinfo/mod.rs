@@ -39,4 +39,5 @@ pub async fn server_info(
 }
 
 #[cfg(test)]
+#[path = "serverinfo.test.rs"]
 mod tests;

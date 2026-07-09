@@ -120,4 +120,5 @@ fn now_ms() -> String {
 }
 
 #[cfg(test)]
+#[path = "known_hosts.test.rs"]
 mod tests;

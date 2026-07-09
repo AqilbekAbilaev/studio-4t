@@ -259,4 +259,5 @@ pub async fn tcp_probe(uri: &str) -> Result<(), AppError> {
 }
 
 #[cfg(test)]
+#[path = "uri.test.rs"]
 mod tests;

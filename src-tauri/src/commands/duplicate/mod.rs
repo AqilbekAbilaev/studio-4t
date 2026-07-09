@@ -78,4 +78,5 @@ pub async fn duplicate_collection(
 }
 
 #[cfg(test)]
+#[path = "duplicate.test.rs"]
 mod tests;

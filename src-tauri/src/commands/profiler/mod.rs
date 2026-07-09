@@ -104,4 +104,5 @@ pub async fn list_profile(
 }
 
 #[cfg(test)]
+#[path = "profiler.test.rs"]
 mod tests;
