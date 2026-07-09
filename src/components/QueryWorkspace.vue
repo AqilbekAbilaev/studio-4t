@@ -128,6 +128,8 @@ async function runExplain() {
   // The chosen verbosity is stored on the tab so re-runs (pagination, refresh) reuse it.
   const verbosity = tab.explainVerbosity || 'executionStats'
   tab.explainVerbosity = verbosity
+  // Storage sizes (Collection/Index target nodes) are find-only and fetched separately.
+  tab.explainStorage = null
 
   // Aggregate tabs explain their pipeline; find tabs explain the find query. Explaining
   // a find({}) on an aggregate tab (the old behavior) was silently misleading.
@@ -179,6 +181,20 @@ async function runExplain() {
       verbosity:  verbosity,
     })
     tab.explainResult = result
+    // Best-effort: fetch on-disk sizes for the Collection/Index target nodes. A failure
+    // here must never clear the explain or surface an error — just skip the size nodes.
+    try {
+      const stats = await invoke('collection_stats', {
+        id:         tab.connectionId,
+        database:   tab.dbName,
+        collection: tab.collectionName,
+      })
+      const indexSizes = {}
+      for (const ix of (stats.indexes || [])) indexSizes[ix.name] = ix.size
+      tab.explainStorage = { dataSize: stats.size, indexSizes: indexSizes }
+    } catch (e) {
+      tab.explainStorage = null
+    }
   } catch (e) {
     tab.explainError = errMessage(e)
     tab.explainResult = null

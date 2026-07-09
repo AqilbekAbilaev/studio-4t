@@ -107,7 +107,7 @@ function normalizeStage(node) {
     }
   }
 
-  return {
+  const stageNode = {
     stage:        node.stage || null,
     label:        labelForStage(node.stage),
     timeMs:       numOrNull(node.executionTimeMillisEstimate),
@@ -118,6 +118,38 @@ function normalizeStage(node) {
     indexName:    node.indexName || null,
     memBytes:     memBytesFor(node),
     children:     children,
+  }
+
+  // Residual predicate: MongoDB attaches a `filter` to a scan/FETCH stage for the part
+  // of the query it can't satisfy with the index alone. Studio 3T shows it as its own
+  // Filter node sitting between the stage and its consumer, so wrap the stage in one.
+  // A `$match` stage (aggregate) is a real pipeline stage, not a residual — never wrap it.
+  const filter = node.filter
+  const isRealFilter =
+    filter &&
+    typeof filter === 'object' &&
+    !Array.isArray(filter) &&
+    Object.keys(filter).length > 0 &&
+    stageNode.stage !== '$match'
+  if (!isRealFilter) return stageNode
+
+  const full = JSON.stringify(filter)
+  const predicate = full.length > 60 ? full.slice(0, 59) + '…' : full
+  return {
+    stage:         'FILTER',
+    label:         'Filter',
+    predicate:     predicate,
+    predicateFull: full,
+    isFilter:      true,
+    nReturned:     stageNode.nReturned,
+    timeMs:        null,
+    docsExamined:  null,
+    keysExamined:  null,
+    works:         null,
+    indexName:     null,
+    memBytes:      null,
+    children:      [stageNode],
+    severity:      null,
   }
 }
 
@@ -198,8 +230,48 @@ function buildAggregateTree(explainDoc) {
   }
 }
 
+// A synthetic target leaf: the Collection or Index the plan reads from, with its
+// on-disk byte size. Studio 3T draws these as the deepest nodes with a size edge label.
+function makeTargetNode(stage, label, targetName, bytes) {
+  return {
+    stage:        stage,
+    label:        label,
+    targetName:   targetName || null,
+    bytes:        bytes === undefined ? null : bytes,
+    isTarget:     true,
+    timeMs:       null,
+    nReturned:    null,
+    docsExamined: null,
+    keysExamined: null,
+    works:        null,
+    indexName:    null,
+    memBytes:     null,
+    children:     [],
+    severity:     null,
+  }
+}
+
+// Walk a normalized find tree and hang a Collection/Index target leaf off each data
+// source: COLLECTION under FETCH/COLLSCAN (data size), INDEX under IXSCAN (index size).
+// Find-only — aggregate/sharded trees never get these. Recurses over the pre-existing
+// children first so the freshly appended targets aren't visited again.
+function augmentStorage(node, storage, namespace) {
+  if (!node) return
+  for (const child of node.children || []) augmentStorage(child, storage, namespace)
+  if (node.stage === 'FETCH' || node.stage === 'COLLSCAN') {
+    node.children.push(makeTargetNode('COLLECTION', 'Collection', namespace, storage.dataSize))
+  } else if (node.stage === 'IXSCAN') {
+    const targetName = namespace ? namespace + '.' + node.indexName : node.indexName
+    const sizes = storage.indexSizes || {}
+    const bytes =
+      node.indexName != null && sizes[node.indexName] != null ? sizes[node.indexName] : null
+    node.children.push(makeTargetNode('INDEX', 'Index', targetName, bytes))
+  }
+}
+
 // Build the tree for a `find` explain (executionStages preferred, winningPlan fallback).
-function buildFindTree(explainDoc) {
+// When `storage` is supplied, target leaves (Collection/Index with sizes) are appended.
+function buildFindTree(explainDoc, storage) {
   const stats = explainDoc.executionStats || null
   const planner = explainDoc.queryPlanner || null
 
@@ -210,6 +282,11 @@ function buildFindTree(explainDoc) {
 
   const topStage = normalizeStage(planRoot)
   if (!topStage) return null
+
+  if (storage) {
+    const namespace = (planner && planner.namespace) || null
+    augmentStorage(topStage, storage, namespace)
+  }
 
   return {
     stage:        'RESULT',
@@ -257,14 +334,29 @@ function buildShardedNotice() {
   }
 }
 
+// Self-time of a node = its own executionTimeMillisEstimate minus the time already
+// counted for its direct children (the server's estimate is CUMULATIVE — a parent
+// includes its children's time). Clamped to >= 0; null when the node has no timing.
+function selfTime(node) {
+  if (node.timeMs === null || node.timeMs === undefined) return null
+  let childSum = 0
+  for (const child of node.children || []) {
+    if (child.timeMs !== null && child.timeMs !== undefined) childSum += child.timeMs
+  }
+  const self = node.timeMs - childSum
+  return self < 0 ? 0 : self
+}
+
 // Bottleneck heuristic. Walks the tree once and tags each node with a `severity`:
 //   'warn' — a collection scan (COLLSCAN): no index used at that point.
-//   'hot'  — the single slowest node when its time dominates the plan (>= 50% of the
-//            Result total, and the total is above a small floor so near-zero plans
-//            aren't flagged); OR a scan/FETCH node with poor selectivity (examines
+//   'hot'  — the node with the greatest SELF-time when that dominates the plan (>= 50%
+//            of the Result total, and the total is above a small floor so near-zero
+//            plans aren't flagged); OR a scan/FETCH node with poor selectivity (examines
 //            >= 100 docs and >= 10x what it returns).
 //   null   — otherwise.
-// 'hot' takes precedence over 'warn'. Pure aside from tagging the passed-in nodes.
+// Self-time (not raw cumulative time) is used so a pass-through parent like LIMIT — which
+// inherits its child's time — isn't falsely flagged. Synthetic Result / Filter / target
+// nodes do no measurable work and are excluded. 'hot' takes precedence over 'warn'.
 export function annotateSeverity(root) {
   if (!root) return root
 
@@ -277,19 +369,26 @@ export function annotateSeverity(root) {
 
   for (const node of all) node.severity = null
 
+  const measurable = (node) => !node.isResult && !node.isFilter && !node.isTarget
+
   const totalTime = root.timeMs
-  // Slowest non-Result node with a known timing (for the dominating-time rule).
-  let maxTimeNode = null
+  // Greatest self-time among measurable nodes (for the dominating-time rule).
+  let maxSelfNode = null
+  let maxSelf = 0
   for (const node of all) {
-    if (node.isResult) continue
-    if (node.timeMs === null || node.timeMs === undefined) continue
-    if (maxTimeNode === null || node.timeMs > maxTimeNode.timeMs) maxTimeNode = node
+    if (!measurable(node)) continue
+    const self = selfTime(node)
+    if (self === null) continue
+    if (maxSelfNode === null || self > maxSelf) {
+      maxSelfNode = node
+      maxSelf = self
+    }
   }
 
   const HOT_MIN_TOTAL_MS = 5 // floor so tiny/near-zero plans aren't flagged as hot
 
   for (const node of all) {
-    if (node.isResult) continue
+    if (!measurable(node)) continue
     if (node.stage === 'COLLSCAN') node.severity = 'warn'
     // Poor selectivity on a scan / fetch → hot (overrides the COLLSCAN warn above).
     const scanLike =
@@ -302,9 +401,9 @@ export function annotateSeverity(root) {
     }
   }
 
-  // Dominating-time node → hot. Only meaningful with real (non-null, non-trivial) timings.
-  if (maxTimeNode && typeof totalTime === 'number' && totalTime >= HOT_MIN_TOTAL_MS) {
-    if (maxTimeNode.timeMs >= 0.5 * totalTime) maxTimeNode.severity = 'hot'
+  // Dominating self-time node → hot. Only meaningful with real (non-trivial) timings.
+  if (maxSelfNode && typeof totalTime === 'number' && totalTime >= HOT_MIN_TOTAL_MS) {
+    if (maxSelf >= 0.5 * totalTime) maxSelfNode.severity = 'hot'
   }
 
   return root
@@ -312,8 +411,9 @@ export function annotateSeverity(root) {
 
 // Build the render-ready tree from a raw explain document. Detects the shape
 // (sharded / aggregate / find), builds the matching tree, then runs the severity
-// pass. Returns null when the document has no recognizable plan.
-export function buildExplainTree(explainDoc) {
+// pass. `storage` (find-only, from collection_stats) adds Collection/Index target
+// leaves with byte sizes. Returns null when the document has no recognizable plan.
+export function buildExplainTree(explainDoc, storage) {
   if (!explainDoc || typeof explainDoc !== 'object') return null
 
   let root = null
@@ -322,7 +422,7 @@ export function buildExplainTree(explainDoc) {
   } else if (Array.isArray(explainDoc.stages)) {
     root = buildAggregateTree(explainDoc)
   } else {
-    root = buildFindTree(explainDoc)
+    root = buildFindTree(explainDoc, storage || null)
   }
   if (!root) return null
 

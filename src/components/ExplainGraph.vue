@@ -24,6 +24,9 @@ const STAGE_ICONS = {
   RESULT:             'exResult',
   COLLSCAN:           'exScan',
   IXSCAN:             'exIndex',
+  FILTER:             'filter',
+  COLLECTION:         'collSmall',
+  INDEX:              'exIndex',
   COUNT_SCAN:         'exIndex',
   DISTINCT_SCAN:      'exIndex',
   FETCH:              'exFetch',
@@ -67,6 +70,14 @@ function iconFor(node) {
   return STAGE_ICONS[node.stage] || 'cog'
 }
 
+// Edge label: byte size for an edge feeding a Collection/Index target (3T shows
+// "90.3 MiB"), the child's doc count ("N docs") otherwise. Null hides the label.
+function edgeLabel(edge) {
+  if (edge.to.isTarget) return fmtBytes(edge.to.bytes)
+  const count = fmtCount(edge.docs)
+  return count === null ? null : `${count} docs`
+}
+
 function nodeTitle(node) {
   if (node.stage === 'IXSCAN' && node.indexName) return `${node.label} · ${node.indexName}`
   return node.label
@@ -85,12 +96,19 @@ function fmtCount(n) {
   return n.toLocaleString()
 }
 
-// bytes → "2.1 MB" / "812 KB" / "640 B". Null when unknown (hides the line).
+// bytes → "90.3 MiB" / "119.4 KiB" / "640 B" (binary, base-1024, to match Studio 3T's
+// edge labels). Null when unknown (hides the line).
 function fmtBytes(bytes) {
   if (bytes === null || bytes === undefined) return null
   if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  const units = ['KiB', 'MiB', 'GiB', 'TiB']
+  let value = bytes / 1024
+  let i = 0
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024
+    i++
+  }
+  return `${value.toFixed(1)} ${units[i]}`
 }
 
 // keysExamined → "1,204 keys". Null when unknown.
@@ -132,6 +150,12 @@ const layout = computed(() => {
       stage: node.stage,
       label: node.label,
       isResult: !!node.isResult,
+      isFilter: !!node.isFilter,
+      isTarget: !!node.isTarget,
+      predicate: node.predicate || null,
+      predicateFull: node.predicateFull || null,
+      targetName: node.targetName || null,
+      bytes: node.bytes === undefined ? null : node.bytes,
       indexName: node.indexName,
       timeMs: node.timeMs,
       nReturned: node.nReturned,
@@ -226,12 +250,12 @@ function edgeLabelPos(edge) {
         <template v-for="edge in layout.edges" :key="`e${edge.from.id}-${edge.to.id}`">
           <path :d="edgePath(edge)" class="eg-edge" marker-end="url(#eg-arrow)" />
           <text
-            v-if="fmtCount(edge.docs) !== null"
+            v-if="edgeLabel(edge) !== null"
             class="eg-edge-label"
             :x="edgeLabelPos(edge).x"
             :y="edgeLabelPos(edge).y"
             text-anchor="middle"
-          >{{ fmtCount(edge.docs) }} docs</text>
+          >{{ edgeLabel(edge) }}</text>
         </template>
       </g>
 
@@ -248,29 +272,43 @@ function edgeLabelPos(edge) {
           <div
             xmlns="http://www.w3.org/1999/xhtml"
             class="eg-node"
-            :class="{ 'is-result': node.isResult, 'sev-hot': node.severity === 'hot', 'sev-warn': node.severity === 'warn' }"
+            :class="{ 'is-result': node.isResult, 'is-filter': node.isFilter, 'is-target': node.isTarget, 'sev-hot': node.severity === 'hot', 'sev-warn': node.severity === 'warn' }"
           >
             <div class="eg-node-head">
               <span class="eg-node-icon"><BaseIcon :name="iconFor(node)" :size="15" /></span>
               <span class="eg-node-title" :title="nodeTitle(node)">{{ nodeTitle(node) }}</span>
             </div>
-            <div class="eg-node-meta">
-              <span class="eg-node-time"><BaseIcon name="clock" :size="11" /> {{ fmtTime(node.timeMs) }}</span>
-              <span v-if="node.isResult && fmtCount(node.nReturned) !== null" class="eg-node-ret">
-                {{ fmtCount(node.nReturned) }} returned
-              </span>
-              <span v-else-if="!node.isResult && fmtCount(node.docsExamined) !== null" class="eg-node-ret">
-                {{ fmtCount(node.docsExamined) }} examined
-              </span>
-            </div>
-            <div
-              v-if="fmtKeys(node.keysExamined) !== null || fmtBytes(node.memBytes) !== null"
-              class="eg-node-meta eg-node-meta2"
-            >
-              <span v-if="fmtKeys(node.keysExamined) !== null" class="eg-node-ret">{{ fmtKeys(node.keysExamined) }}</span>
-              <span v-if="fmtBytes(node.memBytes) !== null" class="eg-node-ret">{{ fmtBytes(node.memBytes) }}</span>
-            </div>
-            <div v-if="node.note" class="eg-node-note">{{ node.note }}</div>
+
+            <!-- Residual filter: the predicate as a monospace subtitle, no timing/metrics. -->
+            <div v-if="node.isFilter" class="eg-node-pred" :title="node.predicateFull">{{ node.predicate }}</div>
+
+            <!-- Collection / Index target: namespace + byte size, no timing/metrics. -->
+            <template v-else-if="node.isTarget">
+              <div v-if="node.targetName" class="eg-node-pred" :title="node.targetName">{{ node.targetName }}</div>
+              <div v-if="fmtBytes(node.bytes) !== null" class="eg-node-meta eg-node-meta2">
+                <span class="eg-node-ret">{{ fmtBytes(node.bytes) }}</span>
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="eg-node-meta">
+                <span class="eg-node-time"><BaseIcon name="clock" :size="11" /> {{ fmtTime(node.timeMs) }}</span>
+                <span v-if="node.isResult && fmtCount(node.nReturned) !== null" class="eg-node-ret">
+                  {{ fmtCount(node.nReturned) }} returned
+                </span>
+                <span v-else-if="!node.isResult && fmtCount(node.docsExamined) !== null" class="eg-node-ret">
+                  {{ fmtCount(node.docsExamined) }} examined
+                </span>
+              </div>
+              <div
+                v-if="fmtKeys(node.keysExamined) !== null || fmtBytes(node.memBytes) !== null"
+                class="eg-node-meta eg-node-meta2"
+              >
+                <span v-if="fmtKeys(node.keysExamined) !== null" class="eg-node-ret">{{ fmtKeys(node.keysExamined) }}</span>
+                <span v-if="fmtBytes(node.memBytes) !== null" class="eg-node-ret">{{ fmtBytes(node.memBytes) }}</span>
+              </div>
+              <div v-if="node.note" class="eg-node-note">{{ node.note }}</div>
+            </template>
           </div>
         </foreignObject>
       </g>
@@ -353,6 +391,26 @@ function edgeLabelPos(edge) {
 .eg-node.is-result {
   border-color: var(--accent);
   background: var(--bg-panel-2);
+}
+/* Target (Collection / Index) nodes: a filled secondary surface with a dashed
+   border — distinct from execution stages, but still clearly legible (a dashed
+   --border line on a transparent node reads as near-invisible in dark mode). */
+.eg-node.is-target {
+  border-style: dashed;
+  border-color: var(--border-soft);
+  background: var(--bg-panel-2);
+}
+.eg-node.is-target .eg-node-title { color: var(--text); font-weight: 600; }
+.eg-node.is-target .eg-node-icon { color: var(--text-dim); }
+.eg-node.is-target .eg-node-ret { color: var(--text-dim); font-size: 11px; }
+/* Residual predicate / target namespace subtitle. */
+.eg-node-pred {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* Bottleneck highlighting: a colored left-stripe (inset shadow) + border. */
 .eg-node.sev-hot {

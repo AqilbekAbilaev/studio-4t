@@ -595,7 +595,12 @@ function onDeleteDialogDone(message) {
 
 // The explain document normalized into a render-ready node-graph tree (Result root
 // + stage tree). Parsing lives in the util; the graph component only draws it.
-const explainTree = computed(() => buildExplainTree(props.activeTab && props.activeTab.explainResult))
+const explainTree = computed(() =>
+  buildExplainTree(
+    props.activeTab && props.activeTab.explainResult,
+    props.activeTab && props.activeTab.explainStorage,
+  )
+)
 
 // Explain sub-tab view mode: 'graph' (default) or 'json' (the raw plan document).
 const explainView = ref('graph')
