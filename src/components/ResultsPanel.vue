@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import { parseField } from '../utils/queryParser'
+import { generateCode, LANGUAGES } from '../utils/queryCodegen'
 import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
 import FieldEditModal from './FieldEditModal.vue'
@@ -630,25 +631,27 @@ const isCountDisabled = computed(() =>
 )
 
 // ── query code ─────────────────────────────────────────
+// Target language for the generated snippet (session-scoped, defaults to Shell).
+const queryCodeLang = ref('shell')
+
 const queryCode = computed(() => {
   const tab = props.activeTab
   if (!tab || tab.kind !== 'collection') return ''
-  if (tab.mode === 'aggregate') {
-    return `db.${tab.collectionName}.aggregate(${tab.pipeline?.trim() || '[]'})`
-  }
-  const filter = tab.filter?.trim() || '{}'
-  const projection = tab.projection?.trim() || ''
-  const sort = tab.sort?.trim() || ''
-  const skip = tab.skip || 0
-  const limit = tab.limit || 50
-  let cmd = `db.${tab.collectionName}.find(${filter}`
-  if (projection) cmd += `, ${projection}`
-  cmd += ')'
-  if (sort) cmd += `.sort(${sort})`
-  if (skip) cmd += `.skip(${skip})`
-  cmd += `.limit(${limit})`
-  return cmd
+  return generateCode({
+    collection: tab.collectionName,
+    mode: tab.mode,
+    filter: tab.filter,
+    projection: tab.projection,
+    sort: tab.sort,
+    skip: tab.skip,
+    limit: tab.limit,
+    pipeline: tab.pipeline,
+  }, queryCodeLang.value)
 })
+
+function copyQueryCode() {
+  writeClipboard(queryCode.value, 'Query code copied to clipboard')
+}
 </script>
 
 <template>
@@ -800,9 +803,23 @@ const queryCode = computed(() => {
     </div>
 
     <!-- Query Code sub-tab -->
-    <div v-else-if="rtab === 'Query Code'" class="qcode-view">
-      <pre class="qcode-pre"><span class="qcode-prompt">&gt;</span> {{ queryCode }}</pre>
-    </div>
+    <template v-else-if="rtab === 'Query Code'">
+      <div class="explain-toolbar">
+        <label class="et-verbosity">
+          <span class="et-verbosity-label">Language</span>
+          <select class="et-select" v-model="queryCodeLang">
+            <option v-for="lang in LANGUAGES" :key="lang.id" :value="lang.id">{{ lang.label }}</option>
+          </select>
+        </label>
+        <span class="et-spacer"></span>
+        <button class="et-btn qcode-copy" type="button" @click="copyQueryCode">
+          <BaseIcon name="copy" :size="14" /> Copy
+        </button>
+      </div>
+      <div class="qcode-view">
+        <pre class="qcode-pre"><span v-if="queryCodeLang === 'shell'" class="qcode-prompt">&gt;</span>{{ queryCodeLang === 'shell' ? ' ' + queryCode : queryCode }}</pre>
+      </div>
+    </template>
 
     <!-- Explain sub-tab -->
     <div v-else-if="rtab === 'Explain'" class="explain-view">
@@ -1250,6 +1267,15 @@ const queryCode = computed(() => {
 .psm-item.on    { color: var(--accent); font-weight: 600; }
 
 /* Query Code sub-tab */
+.qcode-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  color: var(--text-dim);
+}
+.qcode-copy:hover { background: var(--bg-hover); color: var(--text); }
 .qcode-view { flex: 1; overflow: auto; padding: 16px 20px; }
 .qcode-pre {
   font-family: var(--mono);
