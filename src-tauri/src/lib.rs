@@ -183,6 +183,7 @@ pub fn run() {
             set_open_tabs,
             get_node_tags,
             set_node_tag,
+            clear_node_tags_under,
             list_saved_queries,
             save_query,
             delete_saved_query,

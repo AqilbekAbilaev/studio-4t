@@ -927,11 +927,15 @@ async function handleContextAction(action) {
   if (action.startsWith('Choose Color:')) {
     const color = action.split(':')[1]
     const nd = saved.nodeData
+    // Colouring a parent resets its descendants: drop their own tags (this prefix)
+    // so they inherit the parent's new colour. Empty for a collection (no children).
+    let clearPrefix = null
     if (saved.type === 'connection') {
       // Connection tags live on the connection config (conn.tag). The override
       // gives instant feedback; the command persists it for the next restart.
       tagOverrides.value = { ...tagOverrides.value, [nd.connId]: color }
       try { await invoke('set_connection_tag', { id: nd.connId, color: color }) } catch (_) {}
+      clearPrefix = nd.connId + '/'
     } else {
       // Database/collection tags go in the dedicated node-tag store, keyed by the
       // node's tree path so a colour tags only that node, not the whole connection.
@@ -940,6 +944,16 @@ async function handleContextAction(action) {
         : nd.connId + '/' + nd.dbName + '/' + nd.collName
       tagOverrides.value = { ...tagOverrides.value, [key]: color }
       try { await invoke('set_node_tag', { key: key, color: color }) } catch (_) {}
+      if (saved.type === 'database') clearPrefix = nd.connId + '/' + nd.dbName + '/'
+    }
+    if (clearPrefix) {
+      // Locally drop every descendant override so the tree/tabs re-inherit at once.
+      const pruned = {}
+      for (const k of Object.keys(tagOverrides.value)) {
+        if (!k.startsWith(clearPrefix)) pruned[k] = tagOverrides.value[k]
+      }
+      tagOverrides.value = pruned
+      try { await invoke('clear_node_tags_under', { prefix: clearPrefix }) } catch (_) {}
     }
     showToast('Color tag updated')
     return
@@ -2313,6 +2327,7 @@ async function runAggregate(tabId, params) {
       <QueryWorkspace
         :tabs="tabs"
         :active-tab-id="activeTabId"
+        :tag-overrides="tagOverrides"
         :vqb-open="vqbOpen"
         :clipboard-query="clipboardQuery"
         :doc-menu-request="docMenuRequest"

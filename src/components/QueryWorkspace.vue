@@ -16,6 +16,7 @@ import { parseField, parsePipeline } from '../utils/queryParser'
 const props = defineProps({
   tabs:           { type: Array,   required: true },
   activeTabId:    { type: String,  required: true },
+  tagOverrides:   { type: Object,  default: () => ({}) },
   vqbOpen:        { type: Boolean, default: false },
   clipboardQuery: { type: Object,  default: null },
   docMenuRequest: { type: Object,  default: null },
@@ -257,6 +258,7 @@ async function applyFromBrowser(entry) {
     <TabBar
       :tabs="tabs"
       :active-tab-id="activeTabId"
+      :tag-overrides="tagOverrides"
       @activate-tab="emit('activate-tab', $event)"
       @close-tab="emit('close-tab', $event)"
       @tab-context="emit('tab-context', $event)"

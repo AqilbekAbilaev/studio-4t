@@ -1,23 +1,20 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import BaseIcon from './BaseIcon.vue'
+import { colorHex, tabColorName } from '../utils/tabColor.js'
 
 const props = defineProps({
-  tabs:        { type: Array,  required: true },
-  activeTabId: { type: String, required: true },
+  tabs:         { type: Array,  required: true },
+  activeTabId:  { type: String, required: true },
+  // Colour tags for tree nodes (keyed by connId / connId/db / connId/db/coll).
+  // A tab with no colour of its own inherits the colour of the node it opened.
+  tagOverrides: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['activate-tab', 'close-tab', 'tab-context'])
 
-// Tab color tags use the same palette as the tree's Choose Color submenu.
-const COLORS = {
-  blue:   '#3b82f6',
-  green:  '#4caf78',
-  purple: '#b07ddb',
-  red:    '#e07a6b',
-  orange: '#e0a35e',
-}
-function colorHex(name) {
-  return COLORS[name] || null
+// The colour name shown on a tab, resolved (with inheritance) by the shared util.
+function tabColor(t) {
+  return tabColorName(t, props.tagOverrides)
 }
 
 // Overflow handling: tabs keep their natural (content) width, so we measure each
@@ -65,9 +62,11 @@ onUnmounted(() => {
   if (resizeObserver) resizeObserver.disconnect()
 })
 
-// Re-measure after the tab set changes (open/close/rename/recolor).
+// Re-measure after the tab set changes (open/close/rename/recolor). Uses the
+// effective colour (tab's own or inherited from its node) so a dot appearing or
+// disappearing on a node recolour re-triggers measurement.
 watch(
-  () => props.tabs.map((t) => t.id + '|' + (t.title || '') + '|' + (t.color || '')).join('~'),
+  () => props.tabs.map((t) => t.id + '|' + (t.title || '') + '|' + (tabColor(t) || '')).join('~'),
   () => nextTick(measure),
 )
 
@@ -149,7 +148,7 @@ function pickHidden(id) {
       @click="emit('activate-tab', t.id)"
       @contextmenu.prevent="emit('tab-context', { id: t.id, x: $event.clientX, y: $event.clientY })"
     >
-      <span v-if="colorHex(t.color)" class="dot" :style="{ background: colorHex(t.color) }"></span>
+      <span v-if="colorHex(tabColor(t))" class="dot" :style="{ background: colorHex(tabColor(t)) }"></span>
       <span class="title">{{ t.title }}</span>
       <span class="x" @click.stop="emit('close-tab', t.id)">
         <BaseIcon name="close" :size="12" />
@@ -178,7 +177,7 @@ function pickHidden(id) {
           :class="{ active: t.id === activeTabId }"
           @click="pickHidden(t.id)"
         >
-          <span v-if="colorHex(t.color)" class="dot" :style="{ background: colorHex(t.color) }"></span>
+          <span v-if="colorHex(tabColor(t))" class="dot" :style="{ background: colorHex(tabColor(t)) }"></span>
           <span class="ov-label">{{ t.title }}</span>
         </div>
       </div>

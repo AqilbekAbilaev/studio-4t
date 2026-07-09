@@ -67,6 +67,8 @@ const MENUS = {
     { label: 'Export…' },
     { sep: true },
     { label: 'Refresh', shortcut: '⌘R' },
+    { label: 'Choose Color', icon: 'brush', sub: 'color' },
+    { sep: true },
     { label: 'Drop Database…', danger: true },
   ],
   collection: [
@@ -86,6 +88,8 @@ const MENUS = {
     { label: 'Export…' },
     { sep: true },
     { label: 'Refresh', shortcut: '⌘R' },
+    { label: 'Choose Color', icon: 'brush', sub: 'color' },
+    { sep: true },
     { label: 'Drop Collection…', danger: true },
   ],
   tab: [

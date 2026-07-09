@@ -137,6 +137,21 @@ pub fn set_node_tag(
     }
 }
 
+/// Clear every database/collection colour tag under `prefix` (e.g. "connId/" for
+/// a whole connection, or "connId/db/" for one database's collections). Used when
+/// a parent's colour changes, so its descendants drop their own tags and take the
+/// parent's colour.
+#[tauri::command]
+pub fn clear_node_tags_under(
+    tags:   State<'_, NodeTagStorage>,
+    prefix: String,
+) -> Result<(), AppError> {
+    match tags.remove_under(&prefix) {
+        Ok(val) => Ok(val),
+        Err(e)  => Err(e),
+    }
+}
+
 #[tauri::command]
 pub fn list_saved_queries(sq: State<'_, SavedQueryStorage>) -> Vec<SavedQueryEntry> {
     sq.load()

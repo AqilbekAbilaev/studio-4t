@@ -224,13 +224,28 @@ const TAG_HEX = {
   orange: '#e0a35e',
 }
 
-// The colour name in effect for a tree node: its own override (keyed by the
-// node's full path) wins, otherwise the persisted fallback tag (connections
-// only). Returns null when untagged or explicitly set to 'none'.
+// The colour name explicitly set on a node — its override (keyed by the node's
+// full path) wins, otherwise the persisted fallback tag (connections only).
+// Returns null when the node has no colour of its own (untagged or 'none').
 function nodeTag(key, fallbackTag) {
   const override = props.tagOverrides[key]
   const name = override !== undefined ? override : (fallbackTag || null)
   return name && name !== 'none' ? name : null
+}
+
+// Effective colours cascade down the tree: a node shows its own colour if it has
+// one, otherwise it inherits the nearest coloured ancestor's. Colouring a parent
+// also resets its descendants (see App.vue) so they take the parent's colour even
+// if they had their own — after which any of them can be re-coloured, and that
+// own colour wins here again.
+function connColor(conn) {
+  return nodeTag(conn.id, conn.tag)
+}
+function dbColor(conn, dbName) {
+  return nodeTag(`${conn.id}/${dbName}`, null) || connColor(conn)
+}
+function collColor(conn, dbName, collName) {
+  return nodeTag(collectionKey(conn.id, dbName, collName), null) || dbColor(conn, dbName)
 }
 
 // A connection's live state, derived from what the tree already tracks:
@@ -328,10 +343,9 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
           :class="{
             sel: activeCollectionKey?.startsWith(conn.id),
             'ctx-sel': props.contextActiveNodeKey === conn.id,
-            tagged: !!nodeTag(conn.id, conn.tag),
-            bold: nodeTag(conn.id, conn.tag) === 'red',
+            tagged: !!connColor(conn),
           }"
-          :style="nodeTag(conn.id, conn.tag) ? { '--tag-color': TAG_HEX[nodeTag(conn.id, conn.tag)] } : null"
+          :style="connColor(conn) ? { '--tag-color': TAG_HEX[connColor(conn)] } : null"
           style="padding-left: 6px"
           @click="selectConnection(conn)"
           @contextmenu.prevent="onNodeContext($event, 'connection', conn.name, { connId: conn.id, connName: conn.name })"
@@ -376,12 +390,11 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
             <div
               class="tnode"
               :class="{
-                tagged: !!nodeTag(conn.id + '/' + db.name, null),
-                bold: nodeTag(conn.id + '/' + db.name, null) === 'red',
+                tagged: !!dbColor(conn, db.name),
                 locked: !db.accessible,
                 'ctx-sel': props.contextActiveNodeKey === conn.id + '/' + db.name,
               }"
-              :style="nodeTag(conn.id + '/' + db.name, null) ? { '--tag-color': TAG_HEX[nodeTag(conn.id + '/' + db.name, null)] } : null"
+              :style="dbColor(conn, db.name) ? { '--tag-color': TAG_HEX[dbColor(conn, db.name)] } : null"
               style="padding-left: 21px"
               @click="db.accessible ? toggleDatabase(conn, db.name) : setSelection(null)"
               @contextmenu.prevent="onNodeContext($event, 'database', db.name, { connId: conn.id, dbName: db.name })"
@@ -405,10 +418,9 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
                   sel: activeCollectionKey === collectionKey(conn.id, db.name, coll)
                     || selectedKey === collectionKey(conn.id, db.name, coll),
                   'ctx-sel': props.contextActiveNodeKey === collectionKey(conn.id, db.name, coll),
-                  tagged: !!nodeTag(collectionKey(conn.id, db.name, coll), null),
-                  bold: nodeTag(collectionKey(conn.id, db.name, coll), null) === 'red',
+                  tagged: !!collColor(conn, db.name, coll),
                 }"
-                :style="nodeTag(collectionKey(conn.id, db.name, coll), null) ? { '--tag-color': TAG_HEX[nodeTag(collectionKey(conn.id, db.name, coll), null)] } : null"
+                :style="collColor(conn, db.name, coll) ? { '--tag-color': TAG_HEX[collColor(conn, db.name, coll)] } : null"
                 style="padding-left: 51px"
                 @click="highlightCollection(conn, db, coll)"
                 @dblclick="openCollection(conn, db, coll)"
@@ -576,7 +588,6 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
 
 .tnode.tagged .tt,
 .tnode.tagged .ti { color: var(--tag-color); }
-.tnode.bold .tt { font-weight: 700; }
 
 .tnode.locked { cursor: default; }
 .tnode.locked .tt,

@@ -35,13 +35,19 @@ impl NodeTagStorage {
         })
     }
 
+    /// Drop every tag whose key starts with `prefix`. Used to reset a subtree:
+    /// clearing a connection's descendants (prefix "connId/") or a database's
+    /// collections (prefix "connId/dbName/") so they take the parent's new colour.
+    pub fn remove_under(&self, prefix: &str) -> Result<(), AppError> {
+        self.inner.update(|map| {
+            map.retain(|key, _| !key.starts_with(prefix));
+        })
+    }
+
     /// Drop every tag belonging to a connection — called when the connection is
     /// deleted so its database/collection tags don't linger as orphans. Keys are
     /// "connId/…", so a deleted id's entries all share the "connId/" prefix.
     pub fn remove_connection(&self, conn_id: &str) -> Result<(), AppError> {
-        let prefix = format!("{}/", conn_id);
-        self.inner.update(|map| {
-            map.retain(|key, _| !key.starts_with(&prefix));
-        })
+        self.remove_under(&format!("{}/", conn_id))
     }
 }
