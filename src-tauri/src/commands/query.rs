@@ -30,7 +30,7 @@ pub struct AggregateResult {
 
 #[cfg(test)]
 mod tests {
-    use super::is_operator_update;
+    use super::{explain_verbosity, is_operator_update};
     use mongodb::bson::doc;
 
     #[test]
@@ -47,6 +47,33 @@ mod tests {
         assert!(!is_operator_update(&doc! { "$set": { "a": 1 }, "b": 2 }));
         // An empty update changes nothing and is not valid operator form.
         assert!(!is_operator_update(&doc! {}));
+    }
+
+    #[test]
+    fn verbosity_defaults_to_execution_stats_when_absent() {
+        assert_eq!(explain_verbosity(&None).unwrap(), "executionStats");
+    }
+
+    #[test]
+    fn verbosity_accepts_the_three_valid_levels() {
+        assert_eq!(
+            explain_verbosity(&Some("queryPlanner".to_string())).unwrap(),
+            "queryPlanner"
+        );
+        assert_eq!(
+            explain_verbosity(&Some("executionStats".to_string())).unwrap(),
+            "executionStats"
+        );
+        assert_eq!(
+            explain_verbosity(&Some("allPlansExecution".to_string())).unwrap(),
+            "allPlansExecution"
+        );
+    }
+
+    #[test]
+    fn verbosity_rejects_an_unknown_level() {
+        assert!(explain_verbosity(&Some("bogus".to_string())).is_err());
+        assert!(explain_verbosity(&Some(String::new())).is_err());
     }
 }
 
@@ -387,6 +414,24 @@ pub async fn clear_collection(
     Ok(result.deleted_count as i64)
 }
 
+/// Resolve the requested explain verbosity to a valid MongoDB value. `None` defaults
+/// to `executionStats` (the level that carries runtime numbers, which the graph draws).
+/// Only the three real verbosity levels are accepted; anything else is rejected up
+/// front rather than sent to the server as a bogus command. Pure, so it's unit-tested.
+pub(crate) fn explain_verbosity(verbosity: &Option<String>) -> Result<String, String> {
+    match verbosity {
+        None => Ok("executionStats".to_string()),
+        Some(value) => match value.as_str() {
+            "queryPlanner" => Ok("queryPlanner".to_string()),
+            "executionStats" => Ok("executionStats".to_string()),
+            "allPlansExecution" => Ok("allPlansExecution".to_string()),
+            other => Err(format!(
+                "Invalid explain verbosity: {other} (expected queryPlanner, executionStats, or allPlansExecution)"
+            )),
+        },
+    }
+}
+
 #[tauri::command]
 pub async fn explain_query(
     ctx: State<'_, AppContext>,
@@ -398,7 +443,12 @@ pub async fn explain_query(
     sort: String,
     skip: i64,
     limit: i64,
+    verbosity: Option<String>,
 ) -> Result<serde_json::Value, AppError> {
+    let verbosity_value = match explain_verbosity(&verbosity) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Bson(e)),
+    };
     let client = match ctx.client(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
@@ -438,7 +488,52 @@ pub async fn explain_query(
 
     let explain_command = bson::doc! {
         "explain": find_command,
-        "verbosity": "executionStats",
+        "verbosity": verbosity_value,
+    };
+    let result = match client.database(&database).run_command(explain_command).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    Ok(serde_json::Value::from(bson::Bson::Document(result)))
+}
+
+/// Explain an aggregation pipeline: wrap the equivalent `aggregate` command in
+/// `explain` and report how the server would execute it. Mirrors `explain_query`
+/// but for the pipeline path (`run_aggregate`). Read path.
+#[tauri::command]
+pub async fn explain_aggregate(
+    ctx: State<'_, AppContext>,
+    id: String,
+    database: String,
+    collection: String,
+    pipeline: String,
+    verbosity: Option<String>,
+) -> Result<serde_json::Value, AppError> {
+    let verbosity_value = match explain_verbosity(&verbosity) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Bson(e)),
+    };
+    let client = match ctx.client(&id).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let stages = match parse_pipeline(&pipeline) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    // The explain wrapper needs the pipeline as a BSON array of stage documents.
+    let mut pipeline_bson: Vec<bson::Bson> = Vec::new();
+    for stage in stages {
+        pipeline_bson.push(bson::Bson::Document(stage));
+    }
+    let aggregate_command = bson::doc! {
+        "aggregate": collection,
+        "pipeline": pipeline_bson,
+        "cursor": bson::doc! {},
+    };
+    let explain_command = bson::doc! {
+        "explain": aggregate_command,
+        "verbosity": verbosity_value,
     };
     let result = match client.database(&database).run_command(explain_command).await {
         Ok(val) => val,

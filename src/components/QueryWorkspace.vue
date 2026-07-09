@@ -93,6 +93,8 @@ function runAggregate() {
   const parsed = parsedPipeline.value
   if (!parsed || !parsed.ok) return  // inline error is already shown
   emit('run-aggregate', tab.id, { pipeline: parsed.ejson })
+  // Keep the Explain plan in sync when it's the visible sub-tab.
+  if (rtab.value === 'Explain') runExplain()
 }
 
 function runQuery(addToHistory = true) {
@@ -123,6 +125,39 @@ function selectRtab(t) {
 async function runExplain() {
   const tab = activeTab.value
   if (!tab || tab.kind !== 'collection') return
+  // The chosen verbosity is stored on the tab so re-runs (pagination, refresh) reuse it.
+  const verbosity = tab.explainVerbosity || 'executionStats'
+  tab.explainVerbosity = verbosity
+
+  // Aggregate tabs explain their pipeline; find tabs explain the find query. Explaining
+  // a find({}) on an aggregate tab (the old behavior) was silently misleading.
+  if (tab.mode === 'aggregate') {
+    const parsed = parsedPipeline.value || parsePipeline(tab.pipeline)
+    if (!parsed || !parsed.ok) {
+      tab.explainError = 'Fix the pipeline before running Explain.'
+      tab.explainResult = null
+      return
+    }
+    tab.explainRunning = true
+    tab.explainError = null
+    try {
+      const result = await invoke('explain_aggregate', {
+        id:         tab.connectionId,
+        database:   tab.dbName,
+        collection: tab.collectionName,
+        pipeline:   parsed.ejson,
+        verbosity:  verbosity,
+      })
+      tab.explainResult = result
+    } catch (e) {
+      tab.explainError = errMessage(e)
+      tab.explainResult = null
+    } finally {
+      tab.explainRunning = false
+    }
+    return
+  }
+
   const parsed = parsedQuery.value
   if (!parsed || !parsed.filter.ok || !parsed.projection.ok || !parsed.sort.ok) {
     tab.explainError = 'Fix the query before running Explain.'
@@ -141,6 +176,7 @@ async function runExplain() {
       sort:       parsed.sort.ejson,
       skip:       tab.skip || 0,
       limit:      tab.limit || 50,
+      verbosity:  verbosity,
     })
     tab.explainResult = result
   } catch (e) {
@@ -149,6 +185,14 @@ async function runExplain() {
   } finally {
     tab.explainRunning = false
   }
+}
+
+// The Explain sub-tab's verbosity selector (in ResultsPanel) changed: store it and re-run.
+function onExplainVerbosity(v) {
+  const tab = activeTab.value
+  if (!tab) return
+  tab.explainVerbosity = v
+  runExplain()
 }
 
 // When the whole Query value is a bare 24-hex ObjectId, build the _id filter so you
@@ -261,6 +305,7 @@ async function applyFromBrowser(entry) {
         @run="run"
         @requery="runQuery"
         @select-rtab="selectRtab"
+        @explain-verbosity="onExplainVerbosity"
         @open-vqb="emit('open-vqb')"
         @close-vqb="emit('close-vqb')"
         @toast="emit('toast', $event)"

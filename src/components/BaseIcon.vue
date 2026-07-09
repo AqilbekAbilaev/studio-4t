@@ -67,6 +67,12 @@ const PATHS = {
   exIndex:    '<path d="M7 4h10v16l-5-3.2L7 20z"/><path d="M10 9.5h4"/>',
   exFetch:    '<path d="M12 3v10M12 13l-4-4M12 13l4-4"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
   exSort:     '<path d="M4 6h12M4 12h8M4 18h4"/><path d="M18 8v10M18 18l-3-3M18 18l3-3"/>',
+  // Aggregation-stage glyphs (see ExplainGraph.vue).
+  exGroup:    '<path d="M9 4H6a2 2 0 0 0-2 2v3l-2 3 2 3v3a2 2 0 0 0 2 2h3"/><circle cx="17" cy="12" r="3.2"/>',
+  exProject:  '<rect x="4" y="4" width="16" height="16" rx="1.6"/><path d="M9 4v16M12.5 9.5h4.5M12.5 12h4.5M12.5 14.5h2.5"/>',
+  exUnwind:   '<path d="M3 12h5"/><path d="M8 12l7-5M8 12l7 5M8 12h9"/>',
+  exLookup:   '<rect x="3" y="6" width="10" height="12" rx="1.5"/><rect x="11" y="6" width="10" height="12" rx="1.5"/>',
+  exShard:    '<circle cx="6" cy="8" r="2.4"/><circle cx="18" cy="8" r="2.4"/><circle cx="12" cy="17" r="2.4"/><path d="M8 9l3 6M16 9l-3 6M8.3 8h7.4"/>',
 }
 </script>
 

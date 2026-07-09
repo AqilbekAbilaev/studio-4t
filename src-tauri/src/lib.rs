@@ -160,6 +160,7 @@ pub fn run() {
             delete_many,
             clear_collection,
             explain_query,
+            explain_aggregate,
             list_indexes,
             create_index,
             drop_index,

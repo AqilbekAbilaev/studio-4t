@@ -35,7 +35,7 @@ const props = defineProps({
 // `run` re-runs the active tab in its current mode (the toolbar refresh button).
 // `requery` re-runs the find query with an explicit history flag (pagination, CRUD
 // refresh). Both delegate to the parent, which owns the parse + run pipeline.
-const emit = defineEmits(['run', 'requery', 'select-rtab', 'open-vqb', 'close-vqb', 'toast', 'cancel'])
+const emit = defineEmits(['run', 'requery', 'select-rtab', 'explain-verbosity', 'open-vqb', 'close-vqb', 'toast', 'cancel'])
 
 const viewMode     = ref('table')
 const viewMenu     = ref(false)
@@ -821,6 +821,19 @@ const queryCode = computed(() => {
               @click="explainView = 'json'"
             >View JSON</button>
           </div>
+          <span class="et-spacer"></span>
+          <label class="et-verbosity">
+            <span class="et-verbosity-label">Detail</span>
+            <select
+              class="et-select"
+              :value="activeTab.explainVerbosity || 'executionStats'"
+              @change="emit('explain-verbosity', $event.target.value)"
+            >
+              <option value="executionStats">Execution stats</option>
+              <option value="queryPlanner">Query planner</option>
+              <option value="allPlansExecution">All plans</option>
+            </select>
+          </label>
         </div>
         <ExplainGraph v-if="explainView === 'graph'" :tree="explainTree" />
         <div v-else class="json-doc" v-html="syntaxHighlight(mongoStringify(activeTab.explainResult))"></div>
@@ -1190,6 +1203,20 @@ const queryCode = computed(() => {
 .et-btn + .et-btn { border-left: 1px solid var(--border-soft); }
 .et-btn:hover { background: var(--bg-hover); color: var(--text); }
 .et-btn.on { background: var(--accent); color: #fff; }
+.et-spacer { flex: 1; }
+.et-verbosity { display: inline-flex; align-items: center; gap: 7px; }
+.et-verbosity-label { font-size: 11px; color: var(--text-dim); }
+.et-select {
+  appearance: none;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.et-select:focus { outline: none; border-color: var(--accent); }
 
 /* page size dropdown */
 .page-size-wrap { position: relative; }

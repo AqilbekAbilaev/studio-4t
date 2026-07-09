@@ -13,8 +13,8 @@ const props = defineProps({
 })
 
 // ── layout constants ──────────────────────────────────
-const NODE_W = 196
-const NODE_H = 66
+const NODE_W = 200
+const NODE_H = 90
 const COL_GAP = 74 // horizontal gap between depth columns
 const ROW_GAP = 26 // vertical gap between stacked rows
 const PAD = 22
@@ -37,6 +37,29 @@ const STAGE_ICONS = {
   PROJECTION_DEFAULT: 'collSmall',
   OR:                 'aggregate',
   SORT_MERGE_OR:      'aggregate',
+  SHARDED:            'exShard',
+  // Aggregation pipeline stages.
+  $cursor:            'exFetch',
+  $match:             'filter',
+  $limit:             'filter',
+  $skip:              'filter',
+  $sort:              'exSort',
+  $sortByCount:       'exSort',
+  $group:             'exGroup',
+  $bucket:            'exGroup',
+  $bucketAuto:        'exGroup',
+  $count:             'count',
+  $project:           'exProject',
+  $addFields:         'exProject',
+  $set:               'exProject',
+  $replaceRoot:       'exProject',
+  $replaceWith:       'exProject',
+  $unwind:            'exUnwind',
+  $lookup:            'exLookup',
+  $graphLookup:       'exLookup',
+  $facet:             'aggregate',
+  $unionWith:         'aggregate',
+  $sample:            'aggregate',
 }
 
 function iconFor(node) {
@@ -60,6 +83,20 @@ function fmtTime(ms) {
 function fmtCount(n) {
   if (n === null || n === undefined) return null
   return n.toLocaleString()
+}
+
+// bytes → "2.1 MB" / "812 KB" / "640 B". Null when unknown (hides the line).
+function fmtBytes(bytes) {
+  if (bytes === null || bytes === undefined) return null
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// keysExamined → "1,204 keys". Null when unknown.
+function fmtKeys(n) {
+  if (n === null || n === undefined) return null
+  return `${n.toLocaleString()} keys`
 }
 
 // ── layout ────────────────────────────────────────────
@@ -100,6 +137,9 @@ const layout = computed(() => {
       nReturned: node.nReturned,
       docsExamined: node.docsExamined,
       keysExamined: node.keysExamined,
+      memBytes: node.memBytes,
+      severity: node.severity || null,
+      note: node.note || null,
       col: col,
       row: row,
       x: PAD + col * (NODE_W + COL_GAP),
@@ -155,8 +195,13 @@ function edgeLabelPos(edge) {
 <template>
   <div class="explain-graph">
     <div v-if="!layout" class="eg-empty">No plan to display.</div>
+    <template v-else>
+    <div class="eg-legend">
+      <span class="eg-leg-item"><span class="eg-leg-dot hot"></span> Bottleneck</span>
+      <span class="eg-leg-item"><span class="eg-leg-dot warn"></span> No index</span>
+    </div>
+    <div class="eg-canvas">
     <svg
-      v-else
       class="eg-svg"
       :width="layout.width"
       :height="layout.height"
@@ -203,7 +248,7 @@ function edgeLabelPos(edge) {
           <div
             xmlns="http://www.w3.org/1999/xhtml"
             class="eg-node"
-            :class="{ 'is-result': node.isResult }"
+            :class="{ 'is-result': node.isResult, 'sev-hot': node.severity === 'hot', 'sev-warn': node.severity === 'warn' }"
           >
             <div class="eg-node-head">
               <span class="eg-node-icon"><BaseIcon :name="iconFor(node)" :size="15" /></span>
@@ -218,15 +263,46 @@ function edgeLabelPos(edge) {
                 {{ fmtCount(node.docsExamined) }} examined
               </span>
             </div>
+            <div
+              v-if="fmtKeys(node.keysExamined) !== null || fmtBytes(node.memBytes) !== null"
+              class="eg-node-meta eg-node-meta2"
+            >
+              <span v-if="fmtKeys(node.keysExamined) !== null" class="eg-node-ret">{{ fmtKeys(node.keysExamined) }}</span>
+              <span v-if="fmtBytes(node.memBytes) !== null" class="eg-node-ret">{{ fmtBytes(node.memBytes) }}</span>
+            </div>
+            <div v-if="node.note" class="eg-node-note">{{ node.note }}</div>
           </div>
         </foreignObject>
       </g>
     </svg>
+    </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
 .explain-graph {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.eg-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 11px;
+  color: var(--text-dim);
+  flex: 0 0 auto;
+}
+.eg-leg-item { display: inline-flex; align-items: center; gap: 6px; }
+.eg-leg-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.eg-leg-dot.hot  { background: var(--danger); }
+.eg-leg-dot.warn { background: var(--warn); }
+.eg-canvas {
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -278,6 +354,15 @@ function edgeLabelPos(edge) {
   border-color: var(--accent);
   background: var(--bg-panel-2);
 }
+/* Bottleneck highlighting: a colored left-stripe (inset shadow) + border. */
+.eg-node.sev-hot {
+  border-color: var(--danger);
+  box-shadow: inset 4px 0 0 var(--danger);
+}
+.eg-node.sev-warn {
+  border-color: var(--warn);
+  box-shadow: inset 4px 0 0 var(--warn);
+}
 .eg-node-head {
   display: flex;
   align-items: center;
@@ -305,6 +390,14 @@ function edgeLabelPos(edge) {
   gap: 10px;
   font-size: 11px;
   color: var(--text-dim);
+}
+.eg-node-meta2 { font-size: 10.5px; }
+.eg-node-note {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .eg-node-time {
   display: inline-flex;
