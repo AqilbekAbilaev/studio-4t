@@ -17,6 +17,7 @@ mod json_store;
 mod keychain;
 mod known_hosts;
 mod menu;
+mod node_tags;
 mod persist;
 mod pool;
 mod saved_queries;
@@ -34,6 +35,7 @@ use default_queries::DefaultQueryStorage;
 use folders::FolderStorage;
 use history::HistoryStorage;
 use known_hosts::KnownHostsStore;
+use node_tags::NodeTagStorage;
 use pool::ConnectionPool;
 use std::sync::Arc;
 use saved_queries::SavedQueryStorage;
@@ -59,6 +61,7 @@ pub fn run() {
             app.manage(DefaultQueryStorage::new(data_dir.join("default_queries.json")));
             app.manage(SettingsStorage::new(data_dir.join("settings.json")));
             app.manage(TabStorage::new(data_dir.join("tabs.json")));
+            app.manage(NodeTagStorage::new(data_dir.join("node_tags.json")));
             // The host-key trust store is shared between the pool (real connect)
             // and the test_ssh_connection command, so both honor the same TOFU
             // record. Managed as an Arc so the pool can own a clone.
@@ -126,6 +129,7 @@ pub fn run() {
             delete_connection,
             disconnect,
             set_connection_open,
+            set_connection_tag,
             update_last_accessed,
             open_connect_window,
             list_databases,
@@ -177,6 +181,8 @@ pub fn run() {
             clear_default_query,
             get_open_tabs,
             set_open_tabs,
+            get_node_tags,
+            set_node_tag,
             list_saved_queries,
             save_query,
             delete_saved_query,

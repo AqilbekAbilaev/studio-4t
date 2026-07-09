@@ -1,9 +1,11 @@
 use crate::error::AppError;
 use crate::history::{now_ms, HistoryStorage, QueryHistoryEntry};
 use crate::default_queries::{DefaultQuery, DefaultQueryStorage};
+use crate::node_tags::NodeTagStorage;
 use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
 use crate::tabs::TabStorage;
 use crate::settings::{Settings, SettingsStorage};
+use std::collections::HashMap;
 use tauri::State;
 use uuid::Uuid;
 
@@ -102,6 +104,34 @@ pub fn set_open_tabs(
     session: serde_json::Value,
 ) -> Result<(), AppError> {
     match ts.save(&session) {
+        Ok(val) => Ok(val),
+        Err(e)  => Err(e),
+    }
+}
+
+/// All persisted database/collection colour tags, as a map of node key
+/// ("connId/db" or "connId/db/coll") to colour name. Loaded on startup so tags
+/// survive a restart. Connection-level tags are not here — they live on the
+/// connection config and come back with `list_connections`.
+#[tauri::command]
+pub fn get_node_tags(tags: State<'_, NodeTagStorage>) -> HashMap<String, String> {
+    tags.load()
+}
+
+/// Set or clear the colour tag on a database/collection tree node. The colour
+/// "none" clears the tag (removes the entry) rather than storing it.
+#[tauri::command]
+pub fn set_node_tag(
+    tags:  State<'_, NodeTagStorage>,
+    key:   String,
+    color: String,
+) -> Result<(), AppError> {
+    let result = if color == "none" {
+        tags.clear(&key)
+    } else {
+        tags.set(&key, &color)
+    };
+    match result {
         Ok(val) => Ok(val),
         Err(e)  => Err(e),
     }

@@ -214,8 +214,23 @@ const filtered = computed(() => {
   return connections.value.filter(c => c.name.toLowerCase().includes(q))
 })
 
-function effectiveTag(conn) {
-  return props.tagOverrides[conn.id] !== undefined ? props.tagOverrides[conn.id] : conn.tag
+// Colour-tag palette — matches the Choose Color submenu and the tab dots.
+// Red uses the theme's --prod token so it stays theme-aware.
+const TAG_HEX = {
+  blue:   '#3b82f6',
+  green:  '#4caf78',
+  purple: '#b07ddb',
+  red:    'var(--prod)',
+  orange: '#e0a35e',
+}
+
+// The colour name in effect for a tree node: its own override (keyed by the
+// node's full path) wins, otherwise the persisted fallback tag (connections
+// only). Returns null when untagged or explicitly set to 'none'.
+function nodeTag(key, fallbackTag) {
+  const override = props.tagOverrides[key]
+  const name = override !== undefined ? override : (fallbackTag || null)
+  return name && name !== 'none' ? name : null
 }
 
 // A connection's live state, derived from what the tree already tracks:
@@ -313,9 +328,10 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
           :class="{
             sel: activeCollectionKey?.startsWith(conn.id),
             'ctx-sel': props.contextActiveNodeKey === conn.id,
-            prod: effectiveTag(conn) === 'red',
-            bold: effectiveTag(conn) === 'red',
+            tagged: !!nodeTag(conn.id, conn.tag),
+            bold: nodeTag(conn.id, conn.tag) === 'red',
           }"
+          :style="nodeTag(conn.id, conn.tag) ? { '--tag-color': TAG_HEX[nodeTag(conn.id, conn.tag)] } : null"
           style="padding-left: 6px"
           @click="selectConnection(conn)"
           @contextmenu.prevent="onNodeContext($event, 'connection', conn.name, { connId: conn.id, connName: conn.name })"
@@ -360,10 +376,12 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
             <div
               class="tnode"
               :class="{
-                prod: effectiveTag(conn) === 'red',
+                tagged: !!nodeTag(conn.id + '/' + db.name, null),
+                bold: nodeTag(conn.id + '/' + db.name, null) === 'red',
                 locked: !db.accessible,
                 'ctx-sel': props.contextActiveNodeKey === conn.id + '/' + db.name,
               }"
+              :style="nodeTag(conn.id + '/' + db.name, null) ? { '--tag-color': TAG_HEX[nodeTag(conn.id + '/' + db.name, null)] } : null"
               style="padding-left: 21px"
               @click="db.accessible ? toggleDatabase(conn, db.name) : setSelection(null)"
               @contextmenu.prevent="onNodeContext($event, 'database', db.name, { connId: conn.id, dbName: db.name })"
@@ -387,8 +405,10 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
                   sel: activeCollectionKey === collectionKey(conn.id, db.name, coll)
                     || selectedKey === collectionKey(conn.id, db.name, coll),
                   'ctx-sel': props.contextActiveNodeKey === collectionKey(conn.id, db.name, coll),
-                  prod: effectiveTag(conn) === 'red',
+                  tagged: !!nodeTag(collectionKey(conn.id, db.name, coll), null),
+                  bold: nodeTag(collectionKey(conn.id, db.name, coll), null) === 'red',
                 }"
+                :style="nodeTag(collectionKey(conn.id, db.name, coll), null) ? { '--tag-color': TAG_HEX[nodeTag(collectionKey(conn.id, db.name, coll), null)] } : null"
                 style="padding-left: 51px"
                 @click="highlightCollection(conn, db, coll)"
                 @dblclick="openCollection(conn, db, coll)"
@@ -554,9 +574,9 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
 }
 @keyframes tree-spin { to { transform: rotate(360deg); } }
 
-.tnode.prod .tt,
-.tnode.prod .ti { color: var(--prod); }
-.tnode.prod.bold .tt { font-weight: 700; }
+.tnode.tagged .tt,
+.tnode.tagged .ti { color: var(--tag-color); }
+.tnode.bold .tt { font-weight: 700; }
 
 .tnode.locked { cursor: default; }
 .tnode.locked .tt,

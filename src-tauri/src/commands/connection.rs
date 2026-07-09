@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::known_hosts::KnownHostsStore;
+use crate::node_tags::NodeTagStorage;
 use crate::ssh::HostKeyPrompts;
 use crate::storage::{ConnectionConfig, HostEntry, SshAuthMethod};
 use super::AppContext;
@@ -438,6 +439,7 @@ pub async fn update_connection(
 #[tauri::command]
 pub async fn delete_connection(
     ctx: State<'_, AppContext>,
+    node_tags: State<'_, NodeTagStorage>,
     id: String,
 ) -> Result<(), AppError> {
     match ctx.storage.remove(&id) {
@@ -448,6 +450,9 @@ pub async fn delete_connection(
     crate::keychain::delete(&id);
     crate::keychain::delete(&format!("{}::ssh-pass", id));
     crate::keychain::delete(&format!("{}::ssh-key-pass", id));
+    // Best-effort: drop this connection's database/collection colour tags so they
+    // don't linger in node_tags.json. A failure here shouldn't fail the delete.
+    let _ = node_tags.remove_connection(&id);
     Ok(())
 }
 
@@ -469,6 +474,22 @@ pub fn set_connection_open(
     ctx.storage.update_with(|connections| {
         if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
             c.open = open;
+        }
+    })
+}
+
+/// Persist the colour tag chosen for a connection from the tree's Choose Color
+/// menu, so it survives a restart. The colour "none" clears the tag. Database and
+/// collection tags are handled separately by `set_node_tag`.
+#[tauri::command]
+pub fn set_connection_tag(
+    ctx: State<'_, AppContext>,
+    id: String,
+    color: String,
+) -> Result<(), AppError> {
+    ctx.storage.update_with(|connections| {
+        if let Some(c) = connections.iter_mut().find(|c| c.id == id) {
+            c.tag = if color == "none" { None } else { Some(color.clone()) };
         }
     })
 }

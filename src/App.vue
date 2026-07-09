@@ -117,6 +117,13 @@ onMounted(async () => {
     if (settings && settings.theme) applyTheme(settings.theme)
   } catch (_) {}
 
+  // Restore persisted database/collection colour tags so they survive a restart.
+  // Connection tags come back on each connection (conn.tag) via list_connections.
+  try {
+    const nodeTags = await invoke('get_node_tags')
+    if (nodeTags) tagOverrides.value = { ...nodeTags, ...tagOverrides.value }
+  } catch (_) {}
+
   // Restore the previous session's tabs before wiring up the save watcher, so the
   // empty default never overwrites tabs.json first.
   try {
@@ -919,7 +926,21 @@ async function handleContextAction(action) {
 
   if (action.startsWith('Choose Color:')) {
     const color = action.split(':')[1]
-    tagOverrides.value = { ...tagOverrides.value, [saved.nodeData.connId]: color }
+    const nd = saved.nodeData
+    if (saved.type === 'connection') {
+      // Connection tags live on the connection config (conn.tag). The override
+      // gives instant feedback; the command persists it for the next restart.
+      tagOverrides.value = { ...tagOverrides.value, [nd.connId]: color }
+      try { await invoke('set_connection_tag', { id: nd.connId, color: color }) } catch (_) {}
+    } else {
+      // Database/collection tags go in the dedicated node-tag store, keyed by the
+      // node's tree path so a colour tags only that node, not the whole connection.
+      const key = saved.type === 'database'
+        ? nd.connId + '/' + nd.dbName
+        : nd.connId + '/' + nd.dbName + '/' + nd.collName
+      tagOverrides.value = { ...tagOverrides.value, [key]: color }
+      try { await invoke('set_node_tag', { key: key, color: color }) } catch (_) {}
+    }
     showToast('Color tag updated')
     return
   }
