@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import { parseField } from '../utils/queryParser'
@@ -14,9 +14,9 @@ import ResultTable from './ResultTable.vue'
 import TreeView from './TreeView.vue'
 import StateMessage from './StateMessage.vue'
 import ExplainGraph from './ExplainGraph.vue'
+import JsonResultView from './JsonResultView.vue'
 import { buildExplainTree } from '../utils/explainTree'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
-import { createJsonView, setJsonView } from '../utils/jsonView'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
 import { valueToClipboard, valueToEjson, documentToClipboard, fieldPath } from '../utils/clipboardCopy'
 
@@ -41,53 +41,6 @@ const emit = defineEmits(['run', 'requery', 'select-rtab', 'explain-verbosity', 
 const viewMode     = ref('table')
 const viewMenu     = ref(false)
 const pageSizeMenu = ref(false)
-
-// JSON view: rendered by a read-only CodeMirror editor (see utils/jsonView.js),
-// which virtualizes the lines and folds objects/arrays natively. The buffer is each
-// document rendered at the top level (mongosh-style), one after another — no enclosing
-// array wrapper. A divider line between documents is drawn by the editor itself (it
-// marks each top-level closing brace). The JS parser still folds every object/array
-// (top-level objects parse as foldable blocks, nested objects/arrays as expressions),
-// and highlighting is identical to the wrapped form. `jsonViewEl` is the host div;
-// `jsonView` is the (non-reactive) EditorView instance.
-const jsonViewEl = ref(null)
-let jsonView = null
-
-const jsonText = computed(() => {
-  const results = props.activeTab && props.activeTab.results
-  if (!results || !results.length) return ''
-  return results.map((doc) => mongoStringify(doc)).join('\n')
-})
-
-// Active only when the JSON container is actually on screen: while a query is running
-// or errored, other result branches replace it, so the container is gone from the DOM.
-// Tracking those here means the editor is torn down on run-start and rebuilt on
-// completion, instead of leaving a stale instance whose DOM was detached under it.
-const jsonViewActive = computed(() =>
-  props.rtab === 'Result' && viewMode.value === 'json' &&
-  !props.activeTab?.isRunning && !props.activeTab?.runError &&
-  jsonText.value.length > 0)
-
-// Create the editor when the JSON view enters the DOM, push fresh text while it
-// stays (switching tab / re-running a query), and tear it down when it leaves.
-watch([jsonViewActive, jsonText], async ([active, text]) => {
-  if (!active) {
-    if (jsonView) { jsonView.destroy(); jsonView = null }
-    return
-  }
-  await nextTick()
-  if (!jsonViewEl.value) return
-  // If the previous editor's DOM was detached (its container was swapped out by
-  // another result branch and a fresh one mounted), drop it and rebuild in place.
-  if (jsonView && jsonView.dom.parentElement !== jsonViewEl.value) {
-    jsonView.destroy()
-    jsonView = null
-  }
-  if (jsonView) setJsonView(jsonView, text)
-  else jsonView = createJsonView(jsonViewEl.value, text)
-}, { immediate: true })
-
-onBeforeUnmount(() => { if (jsonView) { jsonView.destroy(); jsonView = null } })
 
 // Drag-to-VQB signals originate in the grid (ResultTable) and are forwarded to
 // VisualQueryBuilder, which sits beside the grid here. ResultTable owns the gesture;
@@ -776,10 +729,10 @@ function copyQueryCode() {
     />
 
     <!-- JSON view -->
-    <div v-else-if="rtab === 'Result' && viewMode === 'json'" class="json-view">
-      <div v-if="!activeTab.results?.length" style="padding:32px;color:var(--text-faint);font-size:12px">No documents</div>
-      <div v-else ref="jsonViewEl" class="json-cm"></div>
-    </div>
+    <JsonResultView
+      v-else-if="rtab === 'Result' && viewMode === 'json'"
+      :results="activeTab.results"
+    />
 
     <!-- Tree view -->
     <div v-else-if="rtab === 'Result' && viewMode === 'tree'" class="tree-view">
@@ -1159,11 +1112,8 @@ function copyQueryCode() {
     repeating-linear-gradient(to bottom, var(--bg-row) 0 25px, var(--bg-row-alt) 25px 50px);
 }
 
-/* JSON view — hosts a read-only CodeMirror editor that fills the panel and scrolls
-   internally (see utils/jsonView.js). `.json-doc` below is kept for the single-
-   document Explain / read-only views, which still render as one preformatted block. */
-.json-view { flex: 1; min-height: 0; display: flex; overflow: hidden; }
-.json-cm { flex: 1; min-height: 0; overflow: hidden; }
+/* The multi-document JSON view lives in JsonResultView.vue. `.json-doc` below is the
+   single-document Explain / read-only view, which renders as one preformatted block. */
 
 /* Tree view */
 .tree-view { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--bg-window); }
