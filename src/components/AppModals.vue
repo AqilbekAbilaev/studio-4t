@@ -2,7 +2,7 @@
 import { inject } from 'vue'
 import BaseIcon from './base/BaseIcon.vue'
 import { indexKeyLabel, indexSpecJson, isIndexHidden } from '../utils/indexSpec'
-import ConnectionManager from './ConnectionManager.vue'
+import ConnectionManager from './connection/ConnectionManager.vue'
 import ServerStatusModal from './ServerStatusModal.vue'
 import DatabaseStatsModal from './DatabaseStatsModal.vue'
 import CurrentOpsModal from './CurrentOpsModal.vue'
@@ -28,7 +28,7 @@ import CompareModal from './CompareModal.vue'
 import ShortcutsModal from './ShortcutsModal.vue'
 import AboutModal from './AboutModal.vue'
 import PreferencesModal from './PreferencesModal.vue'
-import SshHostKeyModal from './SshHostKeyModal.vue'
+import SshHostKeyModal from './connection/SshHostKeyModal.vue'
 
 // Single provide/inject from App.vue. Each group is destructured back to the same
 // identifier names the moved template already uses, so that template is verbatim.

@@ -3,10 +3,10 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
+import { errMessage } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
 import NewConnection from './NewConnection.vue'
-import ContextMenu from './base/ContextMenu.vue'
+import ContextMenu from '../base/ContextMenu.vue'
 
 const emit = defineEmits(['close', 'connect', 'toast'])
 

@@ -1,9 +1,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode, errTitle } from '../utils/errors'
+import { errMessage, errCode, errTitle } from '../../utils/errors'
 import { listen } from '@tauri-apps/api/event'
-import BaseIcon from './base/BaseIcon.vue'
+import BaseIcon from '../base/BaseIcon.vue'
 
 const props = defineProps({
   activeCollectionKey: String,

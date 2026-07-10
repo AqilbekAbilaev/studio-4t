@@ -1,5 +1,5 @@
 <script setup>
-import BaseIcon from './base/BaseIcon.vue'
+import BaseIcon from '../base/BaseIcon.vue'
 
 // Driven entirely by App.vue: `prompt` is set for a first-contact trust request,
 // `changed` for a refused connection whose host key no longer matches. At most

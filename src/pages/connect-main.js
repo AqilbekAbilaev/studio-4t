@@ -1,6 +1,6 @@
 import { createApp } from "vue";
 import "../assets/theme.css";
-import ConnectDialog from "../components/connect/ConnectDialog.vue";
+import ConnectDialog from "../components/connection/ConnectDialog.vue";
 import { installInputUndo } from "../utils/inputUndo";
 
 // This popup is a separate webview, so it loads its own stylesheet and pre-paints
