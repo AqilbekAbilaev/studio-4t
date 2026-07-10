@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import { valueToClipboard } from '../utils/clipboardCopy'
@@ -243,7 +244,9 @@ function autoFitColumn(e, col) {
 
   // Body cells: .tcell is display:inline-flex so its offsetWidth = intrinsic content size,
   // independent of how wide or narrow the parent td currently is.
-  tableRef.value.querySelectorAll(`tbody tr:not(.filler) td:nth-child(${nthChild}) .tcell`).forEach(tcell => {
+  // Virtualized: only the mounted (visible) rows can be measured — the standard
+  // trade-off. Auto-fit sizes to what's on screen, which is what the user sees.
+  tableRef.value.querySelectorAll(`tbody tr.datarow td:nth-child(${nthChild}) .tcell`).forEach(tcell => {
     maxW = Math.max(maxW, tcell.offsetWidth + 24)  // 12px left + 12px right padding from td CSS
   })
 
@@ -305,6 +308,115 @@ const gridDocs = computed(() => {
 })
 
 const gridColumns = computed(() => columns(gridDocs.value))
+
+// ── per-cell display data (memoized) ────────────────────
+// Derive each cell's formatted text, colour classes and drillability once per result
+// set rather than inside the render function (which called guessType()/formatCell()
+// several times per cell on every re-render). The template just reads these. Aligned
+// to gridColumns: cellData[rowIndex] is the array of cells for that row.
+const cellData = computed(() => {
+  const cols = gridColumns.value
+  return gridDocs.value.map((row) =>
+    cols.map((col) => {
+      const val = row[col]
+      const type = guessType(col, val)
+      return {
+        col: col,
+        display: formatCell(col, val),
+        typeClass: 't-' + type,
+        valClass: TYPE_CLASS[type],
+        drillable: type === 'obj',
+      }
+    })
+  )
+})
+
+// ── column widths ───────────────────────────────────────
+// Virtualization mounts only the visible rows, so auto table-layout would resize columns
+// to whatever is on screen as you scroll. Pin every column to a content-derived width so
+// they stay steady. The grid font is monospace, so width ≈ longest value's character
+// count × char width — measured once, no per-cell DOM work.
+const charW = ref(7.3)
+function measureCharW() {
+  const probe = document.createElement('span')
+  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font-family:var(--mono);font-size:12px'
+  probe.textContent = '0'.repeat(100)
+  document.body.appendChild(probe)
+  const w = probe.offsetWidth / 100
+  document.body.removeChild(probe)
+  if (w > 0) charW.value = w
+}
+
+// Header label for a column (mirrors the template) so its width is counted too.
+function headerLabel(col) {
+  if (col === '_id') return '{Document id}'
+  return /^\d+$/.test(col) ? `[${col}]` : col
+}
+
+const colDefaultWidths = computed(() => {
+  const cols = gridColumns.value
+  const rows = cellData.value
+  const out  = {}
+  for (let c = 0; c < cols.length; c++) {
+    let maxLen = headerLabel(cols[c]).length
+    for (const row of rows) {
+      const len = row[c].display.length
+      if (len > maxLen) maxLen = len
+    }
+    out[cols[c]] = Math.min(360, Math.max(40, Math.ceil(maxLen * charW.value) + 24))
+  }
+  return out
+})
+
+// User resize / auto-fit wins; otherwise the content-derived default. Pinning the header
+// cell pins the whole column under auto table-layout.
+function thWidthStyle(col) {
+  const w = colWidths.value[col] ?? colDefaultWidths.value[col]
+  return w ? { minWidth: w + 'px', maxWidth: w + 'px' } : {}
+}
+
+// ── row virtualization (@tanstack/vue-virtual) ──────────
+// Only the rows in (and just beyond) the viewport are mounted; TanStack owns the scroll
+// maths, overscan, viewport-resize handling and window updates. A 1000-row result mounts
+// ~30 rows. `gridWrapRef` is the scroll container; `rowH` (measured from a real row) is
+// the size estimate — rows are uniform (monospace, single line) so a fixed estimate is
+// exact and no per-row measurement is needed.
+const rowH = ref(FILLER_ROW_HEIGHT)
+function measureRowH() {
+  const tr = tableRef.value?.querySelector('tbody tr.datarow')
+  if (!tr) return
+  const h = tr.getBoundingClientRect().height
+  if (h > 0 && Math.abs(h - rowH.value) > 0.25) rowH.value = h
+}
+
+const rowVirtualizer = useVirtualizer(computed(() => {
+  const size = rowH.value  // read so the options object recomputes when it's measured
+  return {
+    count: cellData.value.length,
+    getScrollElement: () => gridWrapRef.value,
+    estimateSize: () => size,
+    overscan: 12,
+  }
+}))
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
+const totalSize   = computed(() => rowVirtualizer.value.getTotalSize())
+// Spacer heights that reserve the scroll extent of the un-mounted rows above / below.
+const padTop    = computed(() => (virtualRows.value.length ? virtualRows.value[0].start : 0))
+const padBottom = computed(() => {
+  const rows = virtualRows.value
+  return rows.length ? totalSize.value - rows[rows.length - 1].end : 0
+})
+
+// Return to the top when the underlying document set changes (new page, drill in/out,
+// tab switch). An inline edit splices `results` in place — same array reference — so it
+// deliberately does NOT reset the scroll. flush:'post' re-measures the row height once
+// the fresh rows are on screen.
+watch([() => props.activeTab?.id, () => props.activeTab?.results, () => props.drillPath],
+  () => {
+    if (gridWrapRef.value) gridWrapRef.value.scrollTop = 0
+    nextTick(measureRowH)
+  }, { flush: 'post' })
 
 function isDrillable(col, val) {
   return guessType(col, val) === 'obj'
@@ -478,9 +590,14 @@ function handleKeydown(e) {
     return
   }
 
-  const scrollToCell = () => nextTick(() =>
-    tableRef.value?.querySelector('td.selcell')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  )
+  // Bring the selected row into the window first (it may not be mounted after a move),
+  // then scroll its cell into view horizontally once it has rendered.
+  const scrollToCell = () => {
+    rowVirtualizer.value.scrollToIndex(tab.selectedRow, { align: 'auto' })
+    nextTick(() =>
+      tableRef.value?.querySelector('td.selcell')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    )
+  }
 
   if (e.key === 'ArrowRight' && colIdx < cols.length - 1) {
     e.preventDefault()
@@ -503,6 +620,10 @@ function handleKeydown(e) {
 
 onMounted(()  => document.addEventListener('keydown', handleKeydown))
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
+
+// One-time monospace char-width measurement (feeds column sizing), plus an initial
+// row-height measure once the first rows have rendered (feeds the virtualizer estimate).
+onMounted(() => { measureCharW(); nextTick(measureRowH) })
 
 // WebKitGTK (the Linux Tauri webview) lets the grid's compositor layer go "cold"
 // while the window is backgrounded, so after switching back it won't repaint on
@@ -571,7 +692,7 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
             <th
               v-for="col in gridColumns"
               :key="col"
-              :style="colWidths[col] ? { minWidth: colWidths[col] + 'px', maxWidth: colWidths[col] + 'px' } : {}"
+              :style="thWidthStyle(col)"
               @click.stop="onThClick(col)"
             >
               {{ col === '_id' ? '{Document id}' : (/^\d+$/.test(col) ? `[${col}]` : col) }}
@@ -581,23 +702,28 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
           </tr>
         </thead>
         <tbody>
+          <!-- Spacer reserving the height of the rows above the window (see rowVirtualizer). -->
+          <tr v-if="padTop > 0" class="vspacer" aria-hidden="true">
+            <td :colspan="gridColumns.length + 2" :style="{ height: padTop + 'px' }"></td>
+          </tr>
           <tr
-            v-for="(row, i) in gridDocs"
-            :key="i"
-            :class="{ selrow: activeTab.selectedRow === i }"
-            @click="selectRow(i)"
+            v-for="vrow in virtualRows"
+            :key="vrow.index"
+            class="datarow"
+            :class="{ selrow: activeTab.selectedRow === vrow.index, stripe: vrow.index % 2 === 1 }"
+            @click="selectRow(vrow.index)"
           >
-            <td class="rownum">{{ i + 1 }}</td>
+            <td class="rownum">{{ vrow.index + 1 }}</td>
             <td
-              v-for="col in gridColumns"
-              :key="col"
-              :class="{ selcell: activeTab.selectedRow === i && selectedCol === col, drillable: isDrillable(col, row[col]) }"
-              @mousedown="onCellMouseDown($event, col, formatCell(col, row[col]))"
-              @click.stop="onCellClick(i, col)"
-              @dblclick.stop="isDrillable(col, row[col]) ? openCellDrill(i, col) : startInlineEdit(i, col)"
-              @contextmenu="openCellCtx($event, i, col)"
+              v-for="cell in cellData[vrow.index]"
+              :key="cell.col"
+              :class="{ selcell: activeTab.selectedRow === vrow.index && selectedCol === cell.col, drillable: cell.drillable }"
+              @mousedown="onCellMouseDown($event, cell.col, cell.display)"
+              @click.stop="onCellClick(vrow.index, cell.col)"
+              @dblclick.stop="cell.drillable ? openCellDrill(vrow.index, cell.col) : startInlineEdit(vrow.index, cell.col)"
+              @contextmenu="openCellCtx($event, vrow.index, cell.col)"
             >
-              <template v-if="inlineEdit && inlineEdit.rowIdx === i && inlineEdit.col === col">
+              <template v-if="inlineEdit && inlineEdit.rowIdx === vrow.index && inlineEdit.col === cell.col">
                 <input
                   class="cell-edit-input"
                   v-model="inlineEdit.raw"
@@ -607,13 +733,17 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
                   @blur="commitInlineEdit"
                 />
               </template>
-              <span v-else class="tcell" :class="'t-' + guessType(col, row[col])">
-                <span class="tval" :class="TYPE_CLASS[guessType(col, row[col])]">
-                  {{ formatCell(col, row[col]) }}
+              <span v-else class="tcell" :class="cell.typeClass">
+                <span class="tval" :class="cell.valClass">
+                  {{ cell.display }}
                 </span>
               </span>
             </td>
             <td class="col-filler"></td>
+          </tr>
+          <!-- Spacer reserving the height of the rows below the window. -->
+          <tr v-if="padBottom > 0" class="vspacer" aria-hidden="true">
+            <td :colspan="gridColumns.length + 2" :style="{ height: padBottom + 'px' }"></td>
           </tr>
           <tr
             v-for="f in fillerCount(gridDocs)"
@@ -712,7 +842,9 @@ table.grid td {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-table.grid tr:nth-child(even) td { background: var(--bg-row-alt); }
+/* Zebra striping keyed off the real row index (vrow.index), not DOM position — the
+   virtualization spacer rows would otherwise flip the nth-child parity as you scroll. */
+table.grid tr.datarow.stripe td { background: var(--bg-row-alt); }
 table.grid tr:hover td { background: var(--bg-hover); }
 table.grid tr.selrow td { background: var(--bg-active); box-shadow: inset 0 0 0 9999px rgba(255,255,255,.02); }
 table.grid td.selcell { outline: 1px solid var(--accent); outline-offset: -1px; position: relative; z-index: 4; }
@@ -732,6 +864,9 @@ table.grid td.rownum {
 table.grid th.rownum { z-index: 3; }
 table.grid tr:hover td.rownum { background: var(--bg-hover); }
 table.grid tr.selrow td.rownum { background: var(--bg-hover); }
+/* virtualization spacers — reserve scroll height for the un-mounted rows above/below
+   the window; they carry no border or fill so they read as empty gap, not a row. */
+table.grid tr.vspacer td { padding: 0; border: none; background: transparent; }
 /* filler rows extend the column grid below real documents */
 table.grid tr.filler td { height: 25px; padding: 0; }
 table.grid tr.filler:nth-child(even) td { background: var(--bg-row-alt); }
