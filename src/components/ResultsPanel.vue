@@ -16,6 +16,7 @@ import TreeResultView from './TreeResultView.vue'
 import ExplainResultView from './ExplainResultView.vue'
 import QueryCodeView from './QueryCodeView.vue'
 import JsonDoc from './JsonDoc.vue'
+import BaseModal from './BaseModal.vue'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
 import { valueToClipboard, valueToEjson, documentToClipboard, fieldPath } from '../utils/clipboardCopy'
 
@@ -768,25 +769,17 @@ const isCountDisabled = computed(() =>
   />
 
   <!-- Delete confirmation -->
-  <div v-if="showDeleteConfirm" class="del-overlay" @mousedown.self="showDeleteConfirm = false">
-    <div class="del-dialog">
-      <div class="del-title">
-        <div class="t">Delete Document</div>
-        <button class="close-btn" @click="showDeleteConfirm = false">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
-      <div class="del-body">
-        <p>Are you sure you want to delete this document? This cannot be undone.</p>
-        <div v-if="crudError" class="del-error">{{ crudError }}</div>
-      </div>
-      <div class="del-footer">
-        <span class="spacer"></span>
-        <button class="btn" @click="showDeleteConfirm = false">Cancel</button>
-        <button class="btn danger" @click="onDeleteConfirm">Delete</button>
-      </div>
+  <BaseModal v-if="showDeleteConfirm" title="Delete Document" @close="showDeleteConfirm = false">
+    <div class="del-body">
+      <p>Are you sure you want to delete this document? This cannot be undone.</p>
+      <div v-if="crudError" class="del-error">{{ crudError }}</div>
     </div>
-  </div>
+    <div class="del-footer">
+      <span class="spacer"></span>
+      <button class="btn" @click="showDeleteConfirm = false">Cancel</button>
+      <button class="btn danger" @click="onDeleteConfirm">Delete</button>
+    </div>
+  </BaseModal>
 
   <!-- Field editor (Edit Value/Type, Add Field, Rename Field) -->
   <FieldEditModal
@@ -801,40 +794,33 @@ const isCountDisabled = computed(() =>
   />
 
   <!-- Remove field confirmation -->
-  <div v-if="removeFieldName" class="del-overlay" @mousedown.self="removeFieldName = null">
-    <div class="del-dialog">
-      <div class="del-title">
-        <div class="t">Remove Field</div>
-        <button class="close-btn" @click="removeFieldName = null"><BaseIcon name="close" :size="14" /></button>
-      </div>
-      <div class="del-body">
-        <p>Remove the field <code>{{ removeFieldName }}</code> from this document?</p>
-        <div v-if="removeFieldError" class="del-error">{{ removeFieldError }}</div>
-      </div>
-      <div class="del-footer">
-        <span class="spacer"></span>
-        <button class="btn" @click="removeFieldName = null">Cancel</button>
-        <button class="btn danger" @click="onRemoveFieldConfirm">Remove</button>
-      </div>
+  <BaseModal v-if="removeFieldName" title="Remove Field" @close="removeFieldName = null">
+    <div class="del-body">
+      <p>Remove the field <code>{{ removeFieldName }}</code> from this document?</p>
+      <div v-if="removeFieldError" class="del-error">{{ removeFieldError }}</div>
     </div>
-  </div>
+    <div class="del-footer">
+      <span class="spacer"></span>
+      <button class="btn" @click="removeFieldName = null">Cancel</button>
+      <button class="btn danger" @click="onRemoveFieldConfirm">Remove</button>
+    </div>
+  </BaseModal>
 
   <!-- Read-only document JSON view -->
-  <div v-if="viewJsonDoc" class="del-overlay" @mousedown.self="viewJsonDoc = null">
-    <div class="vj-dialog">
-      <div class="del-title">
-        <div class="t">View Document (JSON)</div>
-        <button class="close-btn" @click="viewJsonDoc = null"><BaseIcon name="close" :size="14" /></button>
-      </div>
-      <div class="vj-body">
-        <JsonDoc :value="viewJsonDoc" />
-      </div>
-      <div class="del-footer">
-        <span class="spacer"></span>
-        <button class="btn" @click="viewJsonDoc = null">Close</button>
-      </div>
+  <BaseModal
+    v-if="viewJsonDoc"
+    title="View Document (JSON)"
+    width="680px" max-width="94vw" height="520px" max-height="92vh"
+    @close="viewJsonDoc = null"
+  >
+    <div class="vj-body">
+      <JsonDoc :value="viewJsonDoc" />
     </div>
-  </div>
+    <div class="del-footer">
+      <span class="spacer"></span>
+      <button class="btn" @click="viewJsonDoc = null">Close</button>
+    </div>
+  </BaseModal>
 
   <!-- Collection: Update / Delete dialogs -->
   <UpdateDocumentsModal
@@ -851,29 +837,23 @@ const isCountDisabled = computed(() =>
   />
 
   <!-- Clear Collection confirmation (type the name to confirm) -->
-  <div v-if="showClearConfirm" class="del-overlay" @mousedown.self="showClearConfirm = false">
-    <div class="del-dialog">
-      <div class="del-title">
-        <div class="t">Clear Collection</div>
-        <button class="close-btn" @click="showClearConfirm = false"><BaseIcon name="close" :size="14" /></button>
-      </div>
-      <div class="del-body">
-        <p>This deletes <strong>every document</strong> in
-          <code>{{ activeTab.collectionName }}</code>. The collection and its indexes remain.
-          This cannot be undone.</p>
-        <p class="cc-prompt">Type <code>{{ activeTab.collectionName }}</code> to confirm:</p>
-        <input class="cc-input" v-model="clearConfirmText" spellcheck="false" autocomplete="off"
-               @keydown.enter="onClearConfirm" />
-        <div v-if="clearError" class="del-error">{{ clearError }}</div>
-      </div>
-      <div class="del-footer">
-        <span class="spacer"></span>
-        <button class="btn" @click="showClearConfirm = false">Cancel</button>
-        <button class="btn danger" :disabled="clearBusy || clearConfirmText !== activeTab.collectionName"
-                @click="onClearConfirm">{{ clearBusy ? 'Clearing…' : 'Clear Collection' }}</button>
-      </div>
+  <BaseModal v-if="showClearConfirm" title="Clear Collection" @close="showClearConfirm = false">
+    <div class="del-body">
+      <p>This deletes <strong>every document</strong> in
+        <code>{{ activeTab.collectionName }}</code>. The collection and its indexes remain.
+        This cannot be undone.</p>
+      <p class="cc-prompt">Type <code>{{ activeTab.collectionName }}</code> to confirm:</p>
+      <input class="cc-input" v-model="clearConfirmText" spellcheck="false" autocomplete="off"
+             @keydown.enter="onClearConfirm" />
+      <div v-if="clearError" class="del-error">{{ clearError }}</div>
     </div>
-  </div>
+    <div class="del-footer">
+      <span class="spacer"></span>
+      <button class="btn" @click="showClearConfirm = false">Cancel</button>
+      <button class="btn danger" :disabled="clearBusy || clearConfirmText !== activeTab.collectionName"
+              @click="onClearConfirm">{{ clearBusy ? 'Clearing…' : 'Clear Collection' }}</button>
+    </div>
+  </BaseModal>
 
   <!-- CRUD error banner (for edit/insert errors shown outside the modal) -->
   <div v-if="crudError && !showDocModal && !showDeleteConfirm" class="crud-err-banner">
@@ -1060,55 +1040,8 @@ const isCountDisabled = computed(() =>
 .fitem.faded { opacity: .4; cursor: default; }
 
 /* Delete confirm dialog */
-.del-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .5);
-  display: grid;
-  place-items: center;
-  z-index: 60;
-}
-.del-dialog {
-  width: 400px;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.del-title {
-  height: 36px;
-  flex: none;
-  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  position: relative;
-}
-.del-title .t {
-  position: absolute;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 500;
-  pointer-events: none;
-}
-.close-btn {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  z-index: 1;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
+/* Dialog chrome (overlay + titled box + close ✕) lives in BaseModal.vue. The rules
+   below style the body/footer content this panel slots into it. */
 .del-body {
   padding: 20px 20px 12px;
   font-size: 13px;
@@ -1157,19 +1090,7 @@ const isCountDisabled = computed(() =>
 }
 .cc-input:focus { border-color: var(--accent); }
 
-/* Read-only document JSON viewer (reuses the .del-overlay backdrop) */
-.vj-dialog {
-  width: 680px;
-  max-width: 94vw;
-  height: 520px;
-  max-height: 92vh;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
+/* Read-only document JSON viewer body (sized via BaseModal's width/height props). */
 .vj-body { flex: 1; overflow: auto; padding: 12px 16px; }
 
 /* CRUD error banner */
