@@ -186,17 +186,41 @@ fn normalize_smart_quotes(value: &str) -> String {
 // (utils/queryParser.js) emits canonical EJSON, so this is the decode end of that
 // contract; it's used for filter / projection / sort / insert document / _id filter /
 // index keys. `normalize_smart_quotes` stays as a cheap paste-safety backstop.
+// Deserialize an Extended-JSON string into BSON, trying the input verbatim first and
+// only retrying with smart quotes normalized if that first parse fails. Machine-generated
+// JSON (e.g. `JSON.stringify` output from a document edit) is already valid, so it parses
+// on the first attempt and its string values are left untouched — this is what stops
+// `normalize_smart_quotes` from rewriting a curly quote that legitimately lives inside a
+// document value (which would inject an unescaped `"` and break parsing). The normalization
+// stays a cheap backstop for hand-pasted queries whose *structural* quotes are curly: those
+// fail the first parse and succeed on the retry. On a genuine error the first attempt's
+// message is returned so column numbers line up with the raw input.
+fn parse_ejson_value(raw: &str) -> Result<bson::Bson, serde_json::Error> {
+    match serde_json::from_str::<bson::Bson>(raw) {
+        Ok(val) => Ok(val),
+        Err(first_err) => {
+            let normalized = normalize_smart_quotes(raw);
+            if normalized == raw {
+                return Err(first_err);
+            }
+            match serde_json::from_str::<bson::Bson>(&normalized) {
+                Ok(val) => Ok(val),
+                Err(_) => Err(first_err),
+            }
+        }
+    }
+}
+
 pub(crate) fn parse_ejson_document(ejson: &str) -> Result<bson::Document, AppError> {
     let trimmed = ejson.trim();
     if trimmed.is_empty() || trimmed == "{}" {
         return Ok(bson::doc! {});
     }
-    let normalized = normalize_smart_quotes(trimmed);
     // Deserialize via bson::Bson so that extended-JSON types ({"$oid": "..."}, {"$date": "..."},
     // {"$numberInt": "..."}, {"$regularExpression": {...}}) decode into their BSON equivalents.
     // serde_json::Value + bson::to_document would treat {"$oid": "..."} as a plain nested
     // document, breaking _id filters.
-    let bson_val: bson::Bson = match serde_json::from_str(&normalized) {
+    let bson_val: bson::Bson = match parse_ejson_value(trimmed) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Bson(format!("Invalid Extended JSON ({e})"))),
     };
@@ -213,8 +237,7 @@ pub(crate) fn parse_pipeline(pipeline: &str) -> Result<Vec<bson::Document>, AppE
     if trimmed.is_empty() || trimmed == "[]" {
         return Ok(Vec::new());
     }
-    let normalized = normalize_smart_quotes(trimmed);
-    let bson_val: bson::Bson = match serde_json::from_str(&normalized) {
+    let bson_val: bson::Bson = match parse_ejson_value(trimmed) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Bson(format!(
             "Invalid pipeline JSON ({e}). Keys must be quoted, e.g. [{{\"$match\": {{\"name\": 1}}}}]"
@@ -241,8 +264,7 @@ pub(crate) fn parse_json_documents(text: &str) -> Result<Vec<bson::Document>, Ap
     if trimmed.is_empty() {
         return Ok(Vec::new());
     }
-    let normalized = normalize_smart_quotes(trimmed);
-    let bson_val: bson::Bson = match serde_json::from_str(&normalized) {
+    let bson_val: bson::Bson = match parse_ejson_value(trimmed) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Bson(format!(
             "Invalid JSON ({e}). Expected an array of documents."

@@ -62,6 +62,22 @@ fn smart_quotes_are_normalized_as_a_backstop() {
 }
 
 #[test]
+fn curly_quotes_inside_a_string_value_are_preserved() {
+    // Regression: a typographic quote living *inside* a document value must survive the
+    // round-trip. The input is already-valid JSON (as `JSON.stringify` emits on a document
+    // edit), so the smart-quote backstop must not rewrite the curly quotes into unescaped
+    // structural quotes — doing so used to corrupt the JSON and break replace_document.
+    let input = "{\"desc\":\"the \u{201C}master bedroom\u{201D}\"}";
+    let doc = parse_ejson_document(input).unwrap();
+    match doc.get("desc") {
+        Some(bson::Bson::String(value)) => {
+            assert_eq!(value, "the \u{201C}master bedroom\u{201D}")
+        }
+        other => panic!("expected a string, got {:?}", other),
+    }
+}
+
+#[test]
 fn pipeline_canonical_ejson_decodes_to_stage_documents() {
     let stages = parse_pipeline(
         r#"[{"$match":{"x":{"$numberInt":"1"}}},{"$group":{"_id":"$y","n":{"$sum":{"$numberInt":"1"}}}}]"#,
