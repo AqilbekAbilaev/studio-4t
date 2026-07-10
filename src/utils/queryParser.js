@@ -4,6 +4,7 @@
 // corrupt string values because a regex has no concept of "inside a string".
 import { parseFilter } from 'mongodb-query-parser'
 import { EJSON } from 'bson'
+import { expandDateTags } from './dateTags'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -24,7 +25,9 @@ function cleanError(e) {
 // A bare 24-hex id is treated as { _id: ObjectId(id) } so you can paste an id straight
 // in. Returns { ok, ejson, error }.
 export function parseField(raw) {
-  const s = normalizeQuotes((raw || '').trim())
+  // Expand dynamic date tags (#today, #last7days, …) before parsing; string-aware, so a
+  // '#' inside a value is untouched, and a no-tag string is returned unchanged.
+  const s = expandDateTags(normalizeQuotes((raw || '').trim()))
   if (s === '' || s === '{}') {
     return { ok: true, ejson: '{}', error: null }
   }
@@ -43,7 +46,7 @@ export function parseField(raw) {
 // Parse an aggregation pipeline (a JSON/shell array of stage objects). Empty or [] is
 // the identity. Returns { ok, ejson, error }.
 export function parsePipeline(raw) {
-  const s = normalizeQuotes((raw || '').trim())
+  const s = expandDateTags(normalizeQuotes((raw || '').trim()))
   if (s === '' || s === '[]') {
     return { ok: true, ejson: '[]', error: null }
   }

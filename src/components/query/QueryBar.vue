@@ -2,6 +2,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../../utils/errors'
+import { DATE_TAGS } from '../../utils/dateTags'
 import BaseIcon from '../base/BaseIcon.vue'
 
 const props = defineProps({
@@ -25,6 +26,16 @@ const showDefaultMenu = ref(false)
 const historyMenu     = ref(false)
 const historyEntries  = ref([])
 const historyLoading  = ref(false)
+const showDateTags    = ref(false)
+
+// Insert a date tag into the Query field at the caret (append with a space if the
+// field already has content). Tags expand to a concrete date when the query runs.
+function insertDateTag(token) {
+  const current = props.activeTab.filter || ''
+  const needsSpace = current.length > 0 && !/\s$/.test(current)
+  props.activeTab.filter = current + (needsSpace ? ' ' : '') + '#' + token
+  showDateTags.value = false
+}
 
 function setMode(mode) {
   props.activeTab.mode = mode
@@ -295,6 +306,17 @@ watch(() => props.activeTab && props.activeTab.id, () => {
           @keydown.enter.prevent="emit('run')"
         />
         <span class="qicons">
+          <span class="datetag-wrap">
+            <span class="datetag-btn" :class="{ on: showDateTags }" title="Insert a dynamic date tag" @click="showDateTags = !showDateTags">#</span>
+            <div v-if="showDateTags" class="datetag-backdrop" @mousedown.self="showDateTags = false"></div>
+            <div v-if="showDateTags" class="datetag-menu">
+              <div class="datetag-head">Date tags — expand to a date when the query runs</div>
+              <button v-for="tag in DATE_TAGS" :key="tag.token" class="datetag-item" @click="insertDateTag(tag.token)">
+                <code class="datetag-code">{{ tag.label }}</code>
+                <span class="datetag-hint">{{ tag.hint }}</span>
+              </button>
+            </div>
+          </span>
           <BaseIcon name="brush" :size="15" @click="activeTab.filter = ''" style="cursor:pointer" />
         </span>
       </div>
@@ -536,6 +558,62 @@ watch(() => props.activeTab && props.activeTab.id, () => {
 }
 .default-item:hover { background: var(--bg-hover); color: var(--text); }
 .default-item .ic { color: var(--text-faint); flex: none; }
+
+/* Date-tags helper (Query field) */
+.datetag-wrap { position: relative; display: inline-flex; }
+.datetag-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.datetag-btn:hover, .datetag-btn.on { color: var(--accent); background: var(--bg-hover); }
+.datetag-backdrop { position: fixed; inset: 0; z-index: 19; }
+.datetag-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 280px;
+  background: var(--bg-field);
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.5);
+  z-index: 20;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow: auto;
+}
+.datetag-head {
+  padding: 7px 10px;
+  font-size: 11px;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 4px;
+}
+.datetag-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.datetag-item:hover { background: var(--bg-hover); }
+.datetag-code { font-family: var(--mono); font-size: 12px; color: var(--accent); flex: none; }
+.datetag-hint { font-size: 11.5px; color: var(--text-dim); }
 
 /* ── save query popover ────────────────────────────────── */
 .save-wrap { position: relative; }
