@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/vue-virtual'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../../utils/errors'
 import { valueToClipboard } from '../../utils/clipboardCopy'
+import { dbRefOf, idFilterString } from '../../utils/dbRef'
 import BaseIcon from '../base/BaseIcon.vue'
 
 const props = defineProps({
@@ -19,7 +20,7 @@ const props = defineProps({
 // consumed by VisualQueryBuilder, which lives beside this grid in ResultsPanel, so they
 // bubble up rather than being held here. `update:drillPath` keeps drill state (owned by
 // ResultsPanel so it survives view switches and the run-reset) in sync via v-model.
-const emit = defineEmits(['dragged-field', 'drag-over-section', 'vqb-drop', 'open-vqb', 'close-vqb', 'crud-error', 'update:drillPath'])
+const emit = defineEmits(['dragged-field', 'drag-over-section', 'vqb-drop', 'open-vqb', 'close-vqb', 'crud-error', 'update:drillPath', 'follow-reference'])
 
 function onThClick(col) {
   if (!props.vqbOpen) return
@@ -498,6 +499,29 @@ function cellCtxPick(action) {
   cellCtx.value = null
 }
 
+// The DBRef in the right-clicked cell, if any — drives the "Follow Reference" menu item.
+const cellRef = computed(() => {
+  if (!cellCtx.value) return null
+  const val = gridDocs.value[cellCtx.value.row]?.[cellCtx.value.col]
+  return dbRefOf(val)
+})
+
+// Open the referenced document: a new collection tab on the DBRef's collection (its own
+// $db if given, else the current tab's database) filtered to `{ _id: <$id> }`.
+function followReference() {
+  const ref = cellRef.value
+  const tab = props.activeTab
+  if (!ref || !tab) { cellCtx.value = null; return }
+  emit('follow-reference', {
+    connectionId: tab.connectionId,
+    connectionName: tab.connectionName,
+    dbName: ref.db || tab.dbName,
+    collectionName: ref.ref,
+    filter: idFilterString(ref.id),
+  })
+  cellCtx.value = null
+}
+
 // ── inline cell editing ────────────────────────────────
 function buildIdFilter(doc) {
   return JSON.stringify({ _id: doc._id })
@@ -790,6 +814,13 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
   <template v-if="cellCtx">
     <div class="cell-ctx-backdrop" @mousedown="cellCtx = null"></div>
     <div class="cell-ctx-menu" :style="{ left: cellCtx.x + 'px', top: cellCtx.y + 'px' }">
+      <template v-if="cellRef">
+        <div class="cell-ctx-item" @click="followReference()">
+          <span class="cell-ctx-ic"><BaseIcon name="aggregate" :size="14" /></span>
+          Follow Reference → {{ cellRef.ref }}
+        </div>
+        <div class="cell-ctx-sep"></div>
+      </template>
       <div class="cell-ctx-item" @click="cellCtxPick('copy-value')">
         <span class="cell-ctx-ic"><BaseIcon name="copy" :size="14" /></span>
         Copy Value

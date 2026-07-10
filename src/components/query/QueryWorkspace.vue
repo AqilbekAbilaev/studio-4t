@@ -24,7 +24,7 @@ const props = defineProps({
   browserRequest: { type: Object,  default: null },
   saveQueryRequest: { type: Object, default: null },
 })
-const emit = defineEmits(['activate-tab', 'close-tab', 'tab-context', 'run-query', 'run-aggregate', 'toggle-vqb', 'open-vqb', 'close-vqb', 'toast', 'copy-query', 'paste-query', 'cancel-query'])
+const emit = defineEmits(['activate-tab', 'close-tab', 'tab-context', 'run-query', 'run-aggregate', 'toggle-vqb', 'open-vqb', 'close-vqb', 'toast', 'copy-query', 'paste-query', 'cancel-query', 'follow-reference'])
 
 const showQueryBrowser = ref(false)
 
@@ -328,6 +328,7 @@ async function applyFromBrowser(entry) {
         @close-vqb="emit('close-vqb')"
         @toast="emit('toast', $event)"
         @cancel="activeTab && emit('cancel-query', activeTab.id)"
+        @follow-reference="emit('follow-reference', $event)"
       />
     </template>
   </div>

@@ -1408,7 +1408,7 @@ async function importDatabase(nodeData) {
 }
 
 // ── tab management ─────────────────────────────────────────
-async function openCollectionTab({ connectionId, connectionName, dbName, collectionName }, startMode = 'find') {
+async function openCollectionTab({ connectionId, connectionName, dbName, collectionName, filter }, startMode = 'find') {
   // Every open creates a new tab — the same collection may be opened in several
   // tabs (Studio-3T behavior). No dedup/focus-existing here by design.
   const id = 't' + Date.now()
@@ -1420,12 +1420,26 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
     dbName: dbName,
     collectionName: collectionName,
     paneId: focusedPaneId.value,
-    filter: '', projection: '', sort: '', skip: 0, limit: defaultQueryLimit.value,
+    filter: filter || '', projection: '', sort: '', skip: 0, limit: defaultQueryLimit.value,
     mode: startMode, pipeline: '',
     results: [], hasRun: false, isRunning: false, runError: null,
     selectedRow: -1, elapsedMs: null,
   })
   activeTabId.value = id
+
+  // Follow Reference (and any caller supplying a filter) runs that filter immediately,
+  // bypassing the collection's saved default query.
+  if (filter) {
+    const pf = parseField(filter)
+    runQuery(id, {
+      filter:     pf.ok ? pf.ejson : '{}',
+      projection: '{}',
+      sort:       '{}',
+      skip:       0,
+      limit:      defaultQueryLimit.value,
+    })
+    return
+  }
 
   let def = null
   try {
@@ -1861,6 +1875,7 @@ provide('appModals', {
         @toast="showToast"
         @copy-query="onCopyQuery"
         @paste-query="onPasteQuery"
+        @follow-reference="openCollectionTab"
       />
 
       <!-- Workspace (split into two panes over the shared tab list) -->
@@ -1889,6 +1904,7 @@ provide('appModals', {
               @toast="showToast"
               @copy-query="onCopyQuery"
               @paste-query="onPasteQuery"
+              @follow-reference="openCollectionTab"
             />
           </div>
         </template>
@@ -1916,6 +1932,7 @@ provide('appModals', {
               @toast="showToast"
               @copy-query="onCopyQuery"
               @paste-query="onPasteQuery"
+              @follow-reference="openCollectionTab"
             />
           </div>
         </template>

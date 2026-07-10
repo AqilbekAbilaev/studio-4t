@@ -34,7 +34,7 @@ const props = defineProps({
 // `run` re-runs the active tab in its current mode (the toolbar refresh button).
 // `requery` re-runs the find query with an explicit history flag (pagination, CRUD
 // refresh). Both delegate to the parent, which owns the parse + run pipeline.
-const emit = defineEmits(['run', 'requery', 'select-rtab', 'explain-verbosity', 'open-vqb', 'close-vqb', 'toast', 'cancel'])
+const emit = defineEmits(['run', 'requery', 'select-rtab', 'explain-verbosity', 'open-vqb', 'close-vqb', 'toast', 'cancel', 'follow-reference'])
 
 const viewMode     = ref('table')
 const viewMenu     = ref(false)
@@ -325,6 +325,7 @@ const isCountDisabled = computed(() =>
       @open-vqb="emit('open-vqb')"
       @close-vqb="emit('close-vqb')"
       @crud-error="crudError = $event"
+      @follow-reference="emit('follow-reference', $event)"
     />
 
     <!-- JSON view -->
