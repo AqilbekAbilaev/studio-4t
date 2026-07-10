@@ -706,20 +706,53 @@ pub async fn import_collection_mapped(
     super::stream_import(&col, &path, &format, mapping_opt).await
 }
 
+// Serialize an `_id` to a stable string for the incremental-export watermark store, as
+// canonical Extended JSON so any id type (ObjectId, int, string) round-trips.
+fn watermark_to_string(id: &bson::Bson) -> String {
+    id.clone().into_canonical_extjson().to_string()
+}
+
+// Parse a stored watermark string back to a Bson `_id`. Returns None if the stored value
+// is unreadable (e.g. corrupted), which callers treat as "no previous export".
+fn watermark_from_string(text: &str) -> Option<bson::Bson> {
+    match serde_json::from_str::<bson::Bson>(text) {
+        Ok(val) => Some(val),
+        Err(_) => None,
+    }
+}
+
+// Build the incremental-export filter: `_id` up to and including `boundary`, and — when a
+// previous watermark exists — strictly greater than it. Keeps the exported window bounded
+// so documents inserted mid-export are picked up by the next run, not skipped.
+fn incremental_filter(previous: Option<&bson::Bson>, boundary: &bson::Bson) -> bson::Document {
+    match previous {
+        Some(prev) => bson::doc! {
+            "_id": { "$gt": prev.clone(), "$lte": boundary.clone() }
+        },
+        None => bson::doc! {
+            "_id": { "$lte": boundary.clone() }
+        },
+    }
+}
+
 /// Field-selecting export for the Import/Export wizard: same streaming export as
 /// `export_collection`, but each document is rewritten through `fields`
 /// (select/reorder/rename, with optional per-field coercion) before it's written.
 /// The field order drives the output column/key order. An empty `fields` exports
-/// every field unchanged. Returns the number of documents written.
+/// every field unchanged. When `incremental` is true, only documents added since the
+/// last incremental export of this collection are written (watermarked by `_id`).
+/// Returns the number of documents written.
 #[tauri::command]
 pub async fn export_collection_fields(
     ctx: State<'_, AppContext>,
+    watermarks: State<'_, crate::export_watermarks::ExportWatermarkStorage>,
     id: String,
     database: String,
     collection: String,
     path: String,
     format: String,
     fields: Vec<FieldMap>,
+    incremental: Option<bool>,
 ) -> Result<usize, AppError> {
     let client = match ctx.client(&id).await {
         Ok(val) => val,
@@ -728,9 +761,36 @@ pub async fn export_collection_fields(
     let col = client
         .database(&database)
         .collection::<bson::Document>(&collection);
-    super::stream_export(
+
+    let use_incremental = incremental.unwrap_or(false);
+    let watermark_key = format!("{}/{}/{}", id, database, collection);
+
+    // For an incremental export, work out the id window before streaming.
+    let mut filter = bson::doc! {};
+    let mut new_watermark: Option<bson::Bson> = None;
+    if use_incremental {
+        // The boundary is the current maximum `_id`; nothing beyond it is exported, so a
+        // document inserted after this point is left for the next run.
+        let boundary = match max_id(&col).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let boundary = match boundary {
+            Some(val) => val,
+            // Empty collection → nothing to export, and no watermark to advance.
+            None => return Ok(0),
+        };
+        let previous = match watermarks.get(&watermark_key) {
+            Some(text) => watermark_from_string(&text),
+            None => None,
+        };
+        filter = incremental_filter(previous.as_ref(), &boundary);
+        new_watermark = Some(boundary);
+    }
+
+    let count = match super::stream_export(
         &col,
-        bson::doc! {},
+        filter,
         None,
         None,
         &path,
@@ -744,6 +804,37 @@ pub async fn export_collection_fields(
         },
     )
     .await
+    {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+
+    // Only advance the watermark after a successful export, so a failed write doesn't
+    // skip documents on the next run.
+    if let Some(boundary) = new_watermark {
+        match watermarks.set(&watermark_key, &watermark_to_string(&boundary)) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    Ok(count)
+}
+
+// The largest `_id` currently in a collection (via `find().sort(_id:-1).limit(1)`), or
+// None if the collection is empty. Used as the boundary for an incremental export.
+async fn max_id(
+    col: &mongodb::Collection<bson::Document>,
+) -> Result<Option<bson::Bson>, AppError> {
+    let sort = bson::doc! { "_id": -1 };
+    let found = match col.find_one(bson::doc! {}).sort(sort).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
+    match found {
+        Some(doc) => Ok(doc.get("_id").cloned()),
+        None => Ok(None),
+    }
 }
 
 #[cfg(test)]

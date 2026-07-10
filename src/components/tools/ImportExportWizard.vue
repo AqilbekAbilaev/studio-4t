@@ -48,6 +48,9 @@ const running = ref(false)
 // import: chosen file + format; export: chosen output format.
 const filePath = ref('')
 const format = ref('json')
+// Export only documents added since this collection's last incremental export (tracked
+// by _id on the backend).
+const incremental = ref(false)
 
 // [{ source, target, kind, include }] — the mapping the user edits.
 const fields = ref([])
@@ -253,6 +256,7 @@ async function runExport() {
       path: String(path),
       format: format.value,
       fields: mappingPayload(),
+      incremental: incremental.value,
     })
     emit('toast', `Exported ${count} document${count === 1 ? '' : 's'} to ${format.value.toUpperCase()}`)
     emit('close')
@@ -353,14 +357,20 @@ const titleText = computed(
               Preview of the first {{ previewRows.length }} row{{ previewRows.length === 1 ? '' : 's' }}.
               <template v-if="isImport"> Types are applied on import.</template>
             </p>
-            <label v-if="!isImport" class="iew-f">
-              Format
-              <select v-model="format" class="iew-select">
-                <option value="json">JSON</option>
-                <option value="csv">CSV</option>
-                <option value="xlsx">Excel (.xlsx)</option>
-              </select>
-            </label>
+            <div v-if="!isImport" class="iew-export-opts">
+              <label class="iew-f">
+                Format
+                <select v-model="format" class="iew-select">
+                  <option value="json">JSON</option>
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel (.xlsx)</option>
+                </select>
+              </label>
+              <label class="iew-f iew-inc" title="Export only documents added since this collection's last incremental export (tracked by _id)">
+                <input type="checkbox" v-model="incremental" />
+                Incremental (new only)
+              </label>
+            </div>
           </div>
           <div class="iew-table-wrap">
             <table class="iew-table" v-if="previewColumns.length">
@@ -569,6 +579,9 @@ const titleText = computed(
 .iew-move:disabled { opacity: .35; cursor: default; }
 
 .iew-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+.iew-export-opts { display: flex; align-items: center; gap: 16px; flex: none; }
+.iew-inc { cursor: pointer; }
+.iew-inc input { cursor: pointer; }
 
 .iew-preview-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .iew-table-wrap { overflow: auto; border: 1px solid var(--border-soft); border-radius: 6px; }

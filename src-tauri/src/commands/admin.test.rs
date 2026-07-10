@@ -153,3 +153,42 @@ fn clustered_without_name_omits_it() {
     let clustered = command.get_document("clusteredIndex").unwrap();
     assert!(!clustered.contains_key("name"));
 }
+
+#[test]
+fn watermark_objectid_round_trips() {
+    let id = mongodb::bson::Bson::ObjectId(mongodb::bson::oid::ObjectId::new());
+    let text = watermark_to_string(&id);
+    assert_eq!(watermark_from_string(&text), Some(id));
+}
+
+#[test]
+fn watermark_int_and_string_round_trip() {
+    let int_id = mongodb::bson::Bson::Int64(42);
+    assert_eq!(watermark_from_string(&watermark_to_string(&int_id)), Some(int_id));
+    let str_id = mongodb::bson::Bson::String("user-7".to_string());
+    assert_eq!(watermark_from_string(&watermark_to_string(&str_id)), Some(str_id));
+}
+
+#[test]
+fn watermark_from_garbage_is_none() {
+    assert_eq!(watermark_from_string("not json"), None);
+}
+
+#[test]
+fn incremental_filter_first_export_is_upper_bound_only() {
+    let boundary = mongodb::bson::Bson::Int64(100);
+    let filter = incremental_filter(None, &boundary);
+    let id = filter.get_document("_id").unwrap();
+    assert!(!id.contains_key("$gt"));
+    assert_eq!(id.get_i64("$lte").unwrap(), 100);
+}
+
+#[test]
+fn incremental_filter_subsequent_export_is_bounded_window() {
+    let previous = mongodb::bson::Bson::Int64(50);
+    let boundary = mongodb::bson::Bson::Int64(100);
+    let filter = incremental_filter(Some(&previous), &boundary);
+    let id = filter.get_document("_id").unwrap();
+    assert_eq!(id.get_i64("$gt").unwrap(), 50);
+    assert_eq!(id.get_i64("$lte").unwrap(), 100);
+}

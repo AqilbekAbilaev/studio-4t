@@ -9,6 +9,7 @@
 mod commands;
 mod default_queries;
 mod error;
+mod export_watermarks;
 mod folders;
 mod history;
 #[cfg(test)]
@@ -32,6 +33,7 @@ mod uri;
 
 use commands::*;
 use default_queries::DefaultQueryStorage;
+use export_watermarks::ExportWatermarkStorage;
 use folders::FolderStorage;
 use history::HistoryStorage;
 use known_hosts::KnownHostsStore;
@@ -62,6 +64,7 @@ pub fn run() {
             app.manage(SettingsStorage::new(data_dir.join("settings.json")));
             app.manage(TabStorage::new(data_dir.join("tabs.json")));
             app.manage(NodeTagStorage::new(data_dir.join("node_tags.json")));
+            app.manage(ExportWatermarkStorage::new(data_dir.join("export_watermarks.json")));
             // The host-key trust store is shared between the pool (real connect)
             // and the test_ssh_connection command, so both honor the same TOFU
             // record. Managed as an Arc so the pool can own a clone.
