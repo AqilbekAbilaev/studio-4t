@@ -52,7 +52,12 @@ function sectionAtPoint(x, y) {
 
 function onCellMouseDown(e, col, value) {
   if (e.button !== 0) return
-  if (e.target.tagName === 'INPUT') return  // inline cell editor is active
+  if (e.target.tagName === 'INPUT') return  // mousedown inside the active editor — leave it be
+  // Commit any open inline edit before we handle this cell. The e.preventDefault()
+  // below cancels the browser's focus shift (to stop the native drag-select gesture),
+  // which would otherwise also suppress the editor input's blur — leaving it focused
+  // and editable even after you click away to another cell.
+  if (inlineEdit.value) commitInlineEdit()
   // Suppress the browser's native press-drag selection gesture, which otherwise
   // auto-scrolls the grid sideways as the pointer moves toward the VQB panel.
   // Click and dblclick still fire, so cell selection / editing is unaffected.
@@ -112,6 +117,11 @@ onUnmounted(() => {
 function guessType(key, val) {
   if (key === '_id' || (val && typeof val === 'object' && '$oid' in val)) return 'id'
   if (val && typeof val === 'object' && '$date' in val) return 'date'
+  // Decimal128 and (canonical) Int64 arrive Extended-JSON-wrapped. Classify them as
+  // editable scalars rather than falling through to the generic 'obj' (which would make
+  // the cell drill in instead of edit).
+  if (val && typeof val === 'object' && '$numberDecimal' in val) return 'decimal'
+  if (val && typeof val === 'object' && '$numberLong' in val) return 'num'
   if (typeof val === 'number') return 'num'
   if (typeof val === 'boolean') return 'bool'
   if (val === null || val === undefined) return 'null'
@@ -119,7 +129,7 @@ function guessType(key, val) {
   return 'str'
 }
 
-const TYPE_CLASS = { id: 'cell-oid', str: 'cell-str', num: 'cell-num', date: '', bool: 'cell-num', null: 'cell-faint', obj: 'cell-faint' }
+const TYPE_CLASS = { id: 'cell-oid', str: 'cell-str', num: 'cell-num', decimal: 'cell-num', date: '', bool: 'cell-num', null: 'cell-faint', obj: 'cell-faint' }
 
 function formatCell(key, val) {
   if (val === null || val === undefined) return ''
@@ -499,8 +509,13 @@ function startInlineEdit(rowIdx, col) {
   if (!tab) return
   const val = gridDocs.value[rowIdx]?.[col]
   const type = guessType(col, val)
-  if (type === 'obj' || type === 'id' || type === 'date') return
-  const raw = val === null || val === undefined ? '' : String(val)
+  // Nested objects/arrays drill in; ObjectId (incl. _id) is not editable (replace_document
+  // preserves _id, and editing a raw hex id is error-prone). Everything else — string,
+  // number, boolean, date and Decimal128 — edits inline.
+  if (type === 'obj' || type === 'id') return
+  // formatCell unwraps Extended-JSON scalars ($date → ISO string, $numberDecimal → the
+  // decimal string, $numberLong → the integer string) into their editable text form.
+  const raw = formatCell(col, val)
   inlineEdit.value = { rowIdx: rowIdx, col: col, raw: raw }
 }
 
@@ -512,12 +527,22 @@ async function commitInlineEdit() {
   if (!tab) return
   const docs = gridDocs.value
   const originalVal = docs[edit.rowIdx]?.[edit.col]
+  // Preserve the original BSON type on write-back, keyed off what the cell was. Date and
+  // Decimal128 are re-wrapped as Extended JSON so the backend (which decodes the whole
+  // document as bson::Bson) stores them as DateTime / Decimal128 again, not plain strings.
+  // Invalid input (e.g. a non-ISO date) fails the backend's Extended-JSON parse and
+  // surfaces as a crud error rather than silently corrupting the type.
+  const type = guessType(edit.col, originalVal)
   let newVal
-  if (typeof originalVal === 'number') {
+  if (type === 'num') {
     const n = Number(edit.raw)
     newVal = isNaN(n) ? edit.raw : n
-  } else if (typeof originalVal === 'boolean') {
+  } else if (type === 'bool') {
     newVal = edit.raw === 'true'
+  } else if (type === 'date') {
+    newVal = { $date: edit.raw }
+  } else if (type === 'decimal') {
+    newVal = { $numberDecimal: edit.raw }
   } else {
     newVal = edit.raw
   }
