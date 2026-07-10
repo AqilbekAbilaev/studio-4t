@@ -15,8 +15,8 @@ import StateMessage from './StateMessage.vue'
 import ExplainGraph from './ExplainGraph.vue'
 import JsonResultView from './JsonResultView.vue'
 import TreeResultView from './TreeResultView.vue'
+import JsonDoc from './JsonDoc.vue'
 import { buildExplainTree } from '../utils/explainTree'
-import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
 import { valueToClipboard, valueToEjson, documentToClipboard, fieldPath } from '../utils/clipboardCopy'
 
@@ -796,7 +796,7 @@ function copyQueryCode() {
           </label>
         </div>
         <ExplainGraph v-if="explainView === 'graph'" :tree="explainTree" />
-        <div v-else class="json-doc" v-html="syntaxHighlight(mongoStringify(activeTab.explainResult))"></div>
+        <JsonDoc v-else class="json-doc" :value="activeTab.explainResult" />
       </template>
       <div v-else class="explain-msg">Run a query, then this tab shows its execution plan.</div>
     </div>
@@ -909,7 +909,7 @@ function copyQueryCode() {
         <button class="close-btn" @click="viewJsonDoc = null"><BaseIcon name="close" :size="14" /></button>
       </div>
       <div class="vj-body">
-        <div class="json-doc" v-html="syntaxHighlight(mongoStringify(viewJsonDoc))"></div>
+        <JsonDoc :value="viewJsonDoc" />
       </div>
       <div class="del-footer">
         <span class="spacer"></span>
@@ -1097,32 +1097,9 @@ function copyQueryCode() {
     repeating-linear-gradient(to bottom, var(--bg-row) 0 25px, var(--bg-row-alt) 25px 50px);
 }
 
-/* The multi-document JSON view lives in JsonResultView.vue. `.json-doc` below is the
-   single-document Explain / read-only view, which renders as one preformatted block. */
-
-.json-doc {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  line-height: 1.2;
-  color: var(--text);
-  white-space: pre;
-  padding: 10px 0;
-  cursor: text;
-  -webkit-user-select: text;
-  user-select: text;
-}
-/* syntax highlight token classes for the Explain / read-only JSON blocks (.json-doc).
-   The global `*` reset in theme.css sets user-select:none on spans, so re-enable it
-   here or copy only grabs punctuation. */
-.json-doc :deep(span)  { -webkit-user-select: text; user-select: text; }
-.json-doc :deep(.jk)   { color: var(--cell-key); }
-.json-doc :deep(.jop)  { color: var(--cell-op); }
-.json-doc :deep(.js)   { color: var(--cell-str); }
-.json-doc :deep(.jn)   { color: var(--cell-num); }
-.json-doc :deep(.jb)   { color: var(--cell-num); }
-.json-doc :deep(.jl)   { color: var(--text-faint); }
-.json-doc :deep(.joid) { color: var(--link); }
-
+/* The multi-document JSON view lives in JsonResultView.vue; the single-document
+   highlighted block lives in JsonDoc.vue. The rule below is layout only — it sizes the
+   JsonDoc (its root carries `.json-doc`) to fill the Explain "View JSON" pane. */
 .explain-view { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .explain-view > .json-doc { flex: 1; overflow: auto; padding: 12px 16px; }
 .explain-msg { padding: 32px; color: var(--text-faint); font-size: 12px; display: flex; align-items: center; justify-content: center; }
