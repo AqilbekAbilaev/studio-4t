@@ -345,37 +345,15 @@ function showToast(msg) {
 }
 
 const indexesApi = useIndexes({ showToast: showToast })
+// App.vue only needs the bindings for the menu/tree entry points and menuContext
+// (selectedIndex). The full indexesApi is provided to AppModals (see provide below),
+// which owns the Indexes dialog and consumes the rest via inject.
 const {
-  indexesTarget,
-  indexesList,
-  indexesLoading,
-  indexesError,
-  newIndexKeys,
-  newIndexName,
-  newIndexUnique,
-  indexCreating,
-  pendingDropIndex,
   selectedIndex,
-  indexFormMode,
-  indexEditOriginalName,
-  indexDetailsTarget,
-  indexDetailsStats,
-  indexDetailsLoading,
-  dropIndexTarget,
-  dropIndexConfirmText,
-  dropIndexError,
-  dropIndexBusy,
-  loadIndexes,
-  resetIndexForm,
-  closeIndexesModal,
-  confirmCreateIndex,
-  dropIndex,
   startEditIndex,
   openIndexDetails,
-  formatIndexSince,
   copyIndex,
   openDropIndexConfirm,
-  confirmDropIndex,
   setIndexHidden,
   openIndexes,
 } = indexesApi
