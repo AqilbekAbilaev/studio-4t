@@ -1,26 +1,29 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
-import StateMessage from './base/StateMessage.vue'
+import { errMessage, errCode } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import StateMessage from '../base/StateMessage.vue'
 
-// Reused for the extra Server Info menu entries (Build Info / Host Info / Replica
-// Set Status). Shows the flat scalar fields as cards and the full document raw.
+// Opened from App.vue for a database node. Fetches `dbStats` once and surfaces the
+// headline fields; the full document is available raw below.
 const props = defineProps({
-  target: { type: Object, required: true },  // { connId, connName, kind, title }
+  target: { type: Object, required: true },  // { connId, connName, dbName }
 })
 defineEmits(['close'])
 
 const loading = ref(true)
 const error = ref(null)
 const errorCode = ref(null)
-const data = ref(null)
+const stats = ref(null)
 const showRaw = ref(false)
 
 onMounted(async () => {
   try {
-    data.value = await invoke('server_info', { id: props.target.connId, kind: props.target.kind })
+    stats.value = await invoke('database_stats', {
+      id: props.target.connId,
+      database: props.target.dbName,
+    })
   } catch (e) {
     error.value = errMessage(e)
     errorCode.value = errCode(e)
@@ -29,37 +32,52 @@ onMounted(async () => {
   }
 })
 
-// Surface the flat, human-meaningful top-level scalars as cards; nested objects
-// and arrays stay in the raw view (they vary a lot across server versions).
+function fmtBytes(bytes) {
+  if (bytes == null) return '—'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let n = bytes
+  let i = 0
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+  return `${i === 0 ? n : n.toFixed(1)} ${units[i]}`
+}
+
+function fmtNum(n) {
+  return n == null ? '—' : Number(n).toLocaleString()
+}
+
+// dbStats headline fields, guarded for servers that omit some.
 const cards = computed(() => {
-  const d = data.value
-  if (!d || typeof d !== 'object') return []
-  const out = []
-  for (const [key, value] of Object.entries(d)) {
-    if (key === 'ok') continue
-    const t = typeof value
-    if (t === 'string' || t === 'number' || t === 'boolean') {
-      out.push({ label: key, value: String(value) })
-    }
-  }
-  return out
+  const s = stats.value
+  if (!s) return []
+  return [
+    { label: 'Database',     value: s.db || props.target.dbName || '—', icon: 'dbSmall' },
+    { label: 'Collections',  value: fmtNum(s.collections),              icon: 'count' },
+    { label: 'Objects',      value: fmtNum(s.objects),                  icon: 'count' },
+    { label: 'Data Size',    value: fmtBytes(s.dataSize),               icon: 'count' },
+    { label: 'Storage Size', value: fmtBytes(s.storageSize),            icon: 'count' },
+    { label: 'Indexes',      value: fmtNum(s.indexes),                  icon: 'count' },
+    { label: 'Index Size',   value: fmtBytes(s.indexSize),              icon: 'count' },
+    { label: 'Avg Obj Size', value: fmtBytes(s.avgObjSize),             icon: 'count' },
+  ]
 })
 
-const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2) : ''))
+const rawJson = computed(() =>
+  stats.value ? JSON.stringify(stats.value, null, 2) : ''
+)
 </script>
 
 <template>
   <div class="overlay" @mousedown.self="$emit('close')">
     <div class="dialog">
       <div class="dlg-title">
-        <div class="t">{{ target.title }} — {{ target.connName }}</div>
+        <div class="t">Database Statistics — {{ target.dbName }}</div>
         <button class="close-btn" @click="$emit('close')">
           <BaseIcon name="close" :size="14" />
         </button>
       </div>
 
       <div class="ss-body">
-        <StateMessage v-if="loading" mode="loading" :label="`Fetching ${target.title.toLowerCase()}…`" />
+        <StateMessage v-if="loading" mode="loading" label="Fetching database statistics…" />
         <StateMessage
           v-else-if="error"
           mode="error"
@@ -67,8 +85,9 @@ const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2)
           :code="errorCode"
         />
         <template v-else>
-          <div v-if="cards.length" class="ss-grid">
+          <div class="ss-grid">
             <div v-for="card in cards" :key="card.label" class="ss-card">
+              <span class="ss-ic"><BaseIcon :name="card.icon" :size="15" /></span>
               <div class="ss-meta">
                 <div class="ss-label">{{ card.label }}</div>
                 <div class="ss-value">{{ card.value }}</div>
@@ -78,9 +97,9 @@ const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2)
 
           <button class="ss-raw-toggle" @click="showRaw = !showRaw">
             <BaseIcon :name="showRaw ? 'caretDown' : 'caret'" :size="12" />
-            Raw response
+            Raw dbStats
           </button>
-          <pre v-if="showRaw || !cards.length" class="ss-raw">{{ rawJson }}</pre>
+          <pre v-if="showRaw" class="ss-raw">{{ rawJson }}</pre>
         </template>
       </div>
     </div>
@@ -145,9 +164,10 @@ const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2)
   flex-direction: column;
   gap: 14px;
   min-height: 160px;
-  max-height: 72vh;
+  max-height: 70vh;
   overflow-y: auto;
 }
+
 .ss-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -162,9 +182,16 @@ const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2)
   border: 1px solid var(--border);
   border-radius: 6px;
 }
+.ss-ic { color: var(--text-faint); flex: none; }
 .ss-meta { min-width: 0; }
 .ss-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
-.ss-value { font-size: 13.5px; color: var(--text); margin-top: 2px; word-break: break-word; user-select: text; }
+.ss-value {
+  font-size: 13.5px;
+  color: var(--text);
+  margin-top: 2px;
+  word-break: break-word;
+  user-select: text;
+}
 
 .ss-raw-toggle {
   align-self: flex-start;

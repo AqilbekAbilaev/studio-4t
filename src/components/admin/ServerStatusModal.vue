@@ -1,29 +1,26 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
-import StateMessage from './base/StateMessage.vue'
+import { errMessage, errCode } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import StateMessage from '../base/StateMessage.vue'
 
-// Opened from App.vue for a database node. Fetches `dbStats` once and surfaces the
-// headline fields; the full document is available raw below.
+// Opened from App.vue for a connection node. Fetches admin `serverStatus` once
+// and surfaces the headline fields; the full document is available raw below.
 const props = defineProps({
-  target: { type: Object, required: true },  // { connId, connName, dbName }
+  target: { type: Object, required: true },  // { connId, connName }
 })
 defineEmits(['close'])
 
 const loading = ref(true)
 const error = ref(null)
 const errorCode = ref(null)
-const stats = ref(null)
+const status = ref(null)
 const showRaw = ref(false)
 
 onMounted(async () => {
   try {
-    stats.value = await invoke('database_stats', {
-      id: props.target.connId,
-      database: props.target.dbName,
-    })
+    status.value = await invoke('server_status', { id: props.target.connId })
   } catch (e) {
     error.value = errMessage(e)
     errorCode.value = errCode(e)
@@ -32,37 +29,48 @@ onMounted(async () => {
   }
 })
 
-function fmtBytes(bytes) {
-  if (bytes == null) return '—'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let n = bytes
-  let i = 0
-  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
-  return `${i === 0 ? n : n.toFixed(1)} ${units[i]}`
+function fmtUptime(seconds) {
+  if (seconds == null) return '—'
+  const s = Math.floor(seconds)
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const parts = []
+  if (d) parts.push(`${d}d`)
+  if (h) parts.push(`${h}h`)
+  if (m || (!d && !h)) parts.push(`${m}m`)
+  return parts.join(' ')
 }
 
-function fmtNum(n) {
-  return n == null ? '—' : Number(n).toLocaleString()
+function fmtMB(mb) {
+  if (mb == null) return '—'
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
+  return `${mb} MB`
 }
 
-// dbStats headline fields, guarded for servers that omit some.
-const cards = computed(() => {
-  const s = stats.value
+// serverStatus headline fields, guarded for servers that omit some sections.
+const stats = computed(() => {
+  const s = status.value
   if (!s) return []
+  const conn = s.connections || {}
+  const mem = s.mem || {}
+  const net = s.network || {}
   return [
-    { label: 'Database',     value: s.db || props.target.dbName || '—', icon: 'dbSmall' },
-    { label: 'Collections',  value: fmtNum(s.collections),              icon: 'count' },
-    { label: 'Objects',      value: fmtNum(s.objects),                  icon: 'count' },
-    { label: 'Data Size',    value: fmtBytes(s.dataSize),               icon: 'count' },
-    { label: 'Storage Size', value: fmtBytes(s.storageSize),            icon: 'count' },
-    { label: 'Indexes',      value: fmtNum(s.indexes),                  icon: 'count' },
-    { label: 'Index Size',   value: fmtBytes(s.indexSize),              icon: 'count' },
-    { label: 'Avg Obj Size', value: fmtBytes(s.avgObjSize),             icon: 'count' },
+    { label: 'Host',              value: s.host || '—',                     icon: 'connect' },
+    { label: 'Version',           value: s.version || '—',                  icon: 'dbSmall' },
+    { label: 'Process',           value: s.process || '—',                  icon: 'shell' },
+    { label: 'Uptime',            value: fmtUptime(s.uptime),               icon: 'clock' },
+    { label: 'Current Conns',     value: conn.current ?? '—',               icon: 'connect' },
+    { label: 'Available Conns',   value: conn.available ?? '—',             icon: 'connect' },
+    { label: 'Resident Memory',   value: fmtMB(mem.resident),               icon: 'count' },
+    { label: 'Virtual Memory',    value: fmtMB(mem.virtual),                icon: 'count' },
+    { label: 'Network In',        value: net.bytesIn != null ? fmtMB(Math.round(net.bytesIn / 1048576)) : '—', icon: 'count' },
+    { label: 'Network Out',       value: net.bytesOut != null ? fmtMB(Math.round(net.bytesOut / 1048576)) : '—', icon: 'count' },
   ]
 })
 
 const rawJson = computed(() =>
-  stats.value ? JSON.stringify(stats.value, null, 2) : ''
+  status.value ? JSON.stringify(status.value, null, 2) : ''
 )
 </script>
 
@@ -70,14 +78,14 @@ const rawJson = computed(() =>
   <div class="overlay" @mousedown.self="$emit('close')">
     <div class="dialog">
       <div class="dlg-title">
-        <div class="t">Database Statistics — {{ target.dbName }}</div>
+        <div class="t">Server Status — {{ target.connName }}</div>
         <button class="close-btn" @click="$emit('close')">
           <BaseIcon name="close" :size="14" />
         </button>
       </div>
 
       <div class="ss-body">
-        <StateMessage v-if="loading" mode="loading" label="Fetching database statistics…" />
+        <StateMessage v-if="loading" mode="loading" label="Fetching server status…" />
         <StateMessage
           v-else-if="error"
           mode="error"
@@ -86,18 +94,18 @@ const rawJson = computed(() =>
         />
         <template v-else>
           <div class="ss-grid">
-            <div v-for="card in cards" :key="card.label" class="ss-card">
-              <span class="ss-ic"><BaseIcon :name="card.icon" :size="15" /></span>
+            <div v-for="stat in stats" :key="stat.label" class="ss-card">
+              <span class="ss-ic"><BaseIcon :name="stat.icon" :size="15" /></span>
               <div class="ss-meta">
-                <div class="ss-label">{{ card.label }}</div>
-                <div class="ss-value">{{ card.value }}</div>
+                <div class="ss-label">{{ stat.label }}</div>
+                <div class="ss-value">{{ stat.value }}</div>
               </div>
             </div>
           </div>
 
           <button class="ss-raw-toggle" @click="showRaw = !showRaw">
             <BaseIcon :name="showRaw ? 'caretDown' : 'caret'" :size="12" />
-            Raw dbStats
+            Raw serverStatus
           </button>
           <pre v-if="showRaw" class="ss-raw">{{ rawJson }}</pre>
         </template>
