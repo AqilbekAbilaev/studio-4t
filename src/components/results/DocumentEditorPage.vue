@@ -4,7 +4,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { buildExtensions, EditorView, EditorState } from '../../utils/docEditor'
-import { parseDocumentJson } from '../../utils/docJson'
+import { mongoStringify } from '../../utils/mongoFormat'
+import { parseField } from '../../utils/queryParser'
 import { errMessage } from '../../utils/errors'
 
 // The pop-out document window (Studio-3T-style Cmd/Ctrl+J). Opened by the Rust
@@ -51,7 +52,7 @@ function setEditorText(value) {
   if (!view) return
   view.setState(EditorState.create({
     doc: value,
-    extensions: buildExtensions({ onChange: onEditorChange, onSave: onSave }),
+    extensions: buildExtensions({ onChange: onEditorChange, onSave: onSave, readOnly: readonly.value }),
   }))
 }
 
@@ -92,7 +93,7 @@ async function loadTarget(next) {
       jsonErr.value = 'The document no longer exists.'
       setEditorText('')
     } else {
-      setEditorText(JSON.stringify(doc, null, 2))
+      setEditorText(mongoStringify(doc))
     }
     dirty.value = false
   } catch (e) {
@@ -111,12 +112,11 @@ function confirmDiscardIfDirty() {
 async function onSave() {
   if (readonly.value || !target.value || saving.value) return
   jsonErr.value = null
-  try {
-    parseDocumentJson(text.value)
-  } catch (e) {
-    jsonErr.value = e.message
-    return
-  }
+  // Parse the mongosh-style text (ObjectId("…"), ISODate("…"), …) back to canonical
+  // Extended JSON — the same dialect the query bar / JSON view use. parseField returns a
+  // human-readable error on invalid input.
+  const parsed = parseField(text.value)
+  if (!parsed.ok) { jsonErr.value = parsed.error; return }
   saving.value = true
   try {
     await invoke('replace_document', {
@@ -124,7 +124,7 @@ async function onSave() {
       database: target.value.db,
       collection: target.value.coll,
       idFilter: target.value.idFilter,
-      document: text.value,
+      document: parsed.ejson,
     })
     await emit('document-saved', {
       connId: target.value.connId,

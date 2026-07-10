@@ -58,10 +58,11 @@ export function buildExtensions({ onChange, onSave, readOnly = false }) {
     editorTheme,
   ]
   if (readOnly) {
+    // Read-only but kept focusable (editable stays on) so the caret and selection look
+    // identical to the editor; the readOnly facet blocks any actual content change.
     return [
       ...base,
       EditorState.readOnly.of(true),
-      EditorView.editable.of(false),
       keymap.of([...defaultKeymap, ...historyKeymap]),
     ]
   }
