@@ -6,12 +6,12 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
 import { errMessage } from './utils/errors'
-import { deriveMenuContext, resolveMenuTarget } from './utils/menuContext'
 import { isProtectedIndex, indexKeyLabel, indexSpecJson, isIndexHidden } from './utils/indexSpec'
 import { useIndexes } from './composables/useIndexes'
 import { useSshHostKey } from './composables/useSshHostKey'
 import { useQueryRunner } from './composables/useQueryRunner'
 import { useDbActions } from './composables/useDbActions'
+import { useMenu } from './composables/useMenu'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -454,6 +454,8 @@ const {
   pasteClipboard,
 } = useDbActions({ tabs: tabs, activeTabId: activeTabId, showToast: showToast, connectionTreeRef: connectionTreeRef, dbClipboard: dbClipboard })
 
+const { menuTarget } = useMenu({ tabs: tabs, activeTabId: activeTabId, treeSelection: treeSelection, treeConnectionCount: treeConnectionCount, selectedIndex: selectedIndex })
+
 // ── active collection tracking (for tree highlight) ────────
 const activeCollectionKey = computed(() => {
   const t = tabs.value.find(x => x.id === activeTabId.value)
@@ -634,44 +636,6 @@ function menuNode(action, requiredType) {
     },
   }
   handleContextAction(action)
-}
-
-// What the native menu treats as "selected", so items enable/disable live. The
-// context is the UNION of the active tab and the sidebar/tree selection: a
-// collection tab satisfies all three, and so does a collection highlighted in the
-// tree even while Quickstart is the active tab (the original bug). `anyConnection`
-// is true whenever at least one connection is open — it gates View → Refresh,
-// which refreshes every connection rather than one specific node.
-const menuContext = computed(() => deriveMenuContext(
-  tabs.value.find(t => t.id === activeTabId.value),
-  treeSelection.value,
-  treeConnectionCount.value,
-  !!selectedIndex.value,
-))
-
-// Push the context down to the native menu so gated items enable/disable in step
-// with the selection. Runs immediately for the initial (empty) state too.
-watch(menuContext, (ctx) => {
-  invoke('set_menu_context', {
-    hasConnection: ctx.hasConnection,
-    hasDatabase: ctx.hasDatabase,
-    hasCollection: ctx.hasCollection,
-    anyConnection: ctx.anyConnection,
-    hasDocument: ctx.hasDocument,
-    hasField: ctx.hasField,
-    hasIndex: ctx.hasIndex,
-  }).catch(() => {})
-}, { immediate: true })
-
-// The node a native menu action should act on: the sidebar selection when there
-// is one (that's what the user just clicked in the tree), otherwise the active
-// tab. Shaped like a tab so it drops straight into the existing handlers.
-function menuTarget(requiredLevel = null) {
-  return resolveMenuTarget(
-    tabs.value.find(t => t.id === activeTabId.value),
-    treeSelection.value,
-    requiredLevel,
-  )
 }
 
 // Help-menu link targets. Default to the project's real GitHub repo (from the git
