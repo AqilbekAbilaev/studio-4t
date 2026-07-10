@@ -234,6 +234,8 @@ function pickType(type) {
   const meta = TYPE_META[type]
   if (!meta || !meta.enabled) return
   form.type = type
+  // Import can't read xlsx; fall back to JSON if the user had picked Excel for an export.
+  if (type === 'import' && form.format === 'xlsx') form.format = 'json'
 }
 
 function addRule() {
@@ -486,6 +488,7 @@ async function save() {
           <select v-model="form.format" class="tk-input">
             <option value="json">JSON</option>
             <option value="csv">CSV</option>
+            <option v-if="form.type === 'export'" value="xlsx">Excel (.xlsx)</option>
           </select>
           <label class="tk-lbl">{{ form.type === 'import' ? 'Source file' : 'Destination file' }}</label>
           <div class="tk-path">
@@ -519,6 +522,7 @@ async function save() {
               <select v-model="form.format" class="tk-input">
                 <option value="json">JSON</option>
                 <option value="csv">CSV</option>
+                <option value="xlsx">Excel (.xlsx)</option>
               </select>
             </div>
             <div class="tk-col">

@@ -60,6 +60,10 @@ boa_gc = "0.21"
 # JSON array element-by-element (bounded memory), instead of loading the whole
 # file. The `serde` feature lets each element deserialize straight into a value.
 struson = { version = "0.7", features = ["serde"] }
+# Pure-Rust .xlsx writer for the "Export to Excel" format. No C deps; the workbook
+# is assembled in memory then saved, so xlsx exports are bounded by the row limit
+# (CSV/JSON remain the streaming path for very large collections).
+rust_xlsxwriter = "0.96"
 
 # keyring needs a per-platform backend feature; without one it silently uses an
 # in-memory mock store that loses every password when the app exits (which made

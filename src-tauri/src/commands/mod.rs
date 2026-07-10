@@ -444,6 +444,9 @@ where
     if format == "csv" {
         return stream_export_csv(col, filter, limit, max_time, path, &mut transform).await;
     }
+    if format == "xlsx" {
+        return stream_export_xlsx(col, filter, limit, max_time, path, &mut transform).await;
+    }
     let file = match std::fs::File::create(path) {
         Ok(val) => val,
         Err(e) => return Err(AppError::Io(e)),
@@ -582,6 +585,164 @@ where
     match writer.flush() {
         Ok(_) => Ok(count),
         Err(e) => Err(AppError::Io(e)),
+    }
+}
+
+/// XLSX branch of `stream_export`. Unlike the CSV/JSON paths (which stream straight to
+/// disk), rust_xlsxwriter assembles the workbook in memory and writes it on `save`, so an
+/// xlsx export is bounded by Excel's sheet limits and the caller's row limit rather than
+/// being fully streaming — CSV/JSON remain the choice for very large collections. Columns
+/// are the first-seen union of document keys (same order as the CSV export); header cells
+/// are written lazily as new keys appear, so a single cursor pass suffices.
+async fn stream_export_xlsx<F>(
+    col: &Collection<bson::Document>,
+    filter: bson::Document,
+    limit: Option<i64>,
+    max_time: Option<Duration>,
+    path: &str,
+    transform: &mut F,
+) -> Result<usize, AppError>
+where
+    F: FnMut(&mut bson::Document) -> Result<(), AppError>,
+{
+    // Excel's row limit. Row 0 holds the header, leaving MAX_DATA_ROWS for data. (The
+    // column limit is enforced in xlsx_write_document, where columns are assigned.)
+    const MAX_DATA_ROWS: usize = 1_048_575;
+
+    let mut workbook = rust_xlsxwriter::Workbook::new();
+    let header_format = rust_xlsxwriter::Format::new().set_bold();
+    let worksheet = workbook.add_worksheet();
+
+    // First-seen key → column index, so each key maps to a stable column.
+    let mut columns: std::collections::HashMap<String, u16> = std::collections::HashMap::new();
+    let mut next_col: u16 = 0;
+
+    let mut cursor = match export_cursor(col, filter, limit, max_time).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let mut count: usize = 0;
+    loop {
+        let has_next = match cursor.advance().await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        if !has_next {
+            break;
+        }
+        if count >= MAX_DATA_ROWS {
+            return Err(AppError::Validation(
+                "This export exceeds Excel's limit of 1,048,575 rows. Add a row limit or export as CSV.".to_string(),
+            ));
+        }
+        let mut doc: bson::Document = match cursor.deserialize_current() {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        };
+        match transform(&mut doc) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+        let data_row: u32 = (count + 1) as u32; // row 0 is the header
+        match xlsx_write_document(worksheet, &mut columns, &mut next_col, &header_format, data_row, &doc) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+        count += 1;
+    }
+    match workbook.save(path) {
+        Ok(_) => Ok(count),
+        Err(e) => Err(xlsx_error(e)),
+    }
+}
+
+// Write one document as a worksheet row at `data_row`, assigning any newly-seen key its
+// own column (and writing that column's bold header cell on first sight). Shared by the
+// streaming exporter and the tests so their output stays identical.
+fn xlsx_write_document(
+    worksheet: &mut rust_xlsxwriter::Worksheet,
+    columns: &mut std::collections::HashMap<String, u16>,
+    next_col: &mut u16,
+    header_format: &rust_xlsxwriter::Format,
+    data_row: u32,
+    doc: &bson::Document,
+) -> Result<(), AppError> {
+    const MAX_COLS: usize = 16_384;
+    for (key, value) in doc {
+        let col_index = match columns.get(key) {
+            Some(existing) => *existing,
+            None => {
+                if columns.len() >= MAX_COLS {
+                    return Err(AppError::Validation(
+                        "This export exceeds Excel's limit of 16,384 columns. Export as CSV or JSON instead.".to_string(),
+                    ));
+                }
+                let assigned = *next_col;
+                columns.insert(key.clone(), assigned);
+                *next_col += 1;
+                match worksheet.write_string_with_format(0, assigned, key.as_str(), header_format) {
+                    Ok(_) => {}
+                    Err(e) => return Err(xlsx_error(e)),
+                }
+                assigned
+            }
+        };
+        match xlsx_write_cell(worksheet, data_row, col_index, value) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
+}
+
+// Buffered whole-slice xlsx assembler used only in tests, mirroring `docs_to_csv`: it
+// drives the same `xlsx_write_document` the streaming exporter uses, so the tested and
+// the streamed workbook are built identically.
+#[cfg(test)]
+pub(crate) fn docs_to_xlsx(docs: &[bson::Document], path: &str) -> Result<usize, AppError> {
+    let mut workbook = rust_xlsxwriter::Workbook::new();
+    let header_format = rust_xlsxwriter::Format::new().set_bold();
+    let worksheet = workbook.add_worksheet();
+    let mut columns: std::collections::HashMap<String, u16> = std::collections::HashMap::new();
+    let mut next_col: u16 = 0;
+    for (index, doc) in docs.iter().enumerate() {
+        let data_row: u32 = (index + 1) as u32;
+        match xlsx_write_document(worksheet, &mut columns, &mut next_col, &header_format, data_row, doc) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    match workbook.save(path) {
+        Ok(_) => Ok(docs.len()),
+        Err(e) => Err(xlsx_error(e)),
+    }
+}
+
+// A file-writing failure from rust_xlsxwriter isn't user input, so report it as I/O.
+fn xlsx_error(e: rust_xlsxwriter::XlsxError) -> AppError {
+    AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+}
+
+// Write one BSON value into a worksheet cell, using a native Excel type where it maps
+// cleanly (numbers, booleans) and the CSV text form for everything else. `Null` is left
+// as a blank cell.
+fn xlsx_write_cell(
+    worksheet: &mut rust_xlsxwriter::Worksheet,
+    row: u32,
+    col: u16,
+    value: &bson::Bson,
+) -> Result<(), AppError> {
+    let result = match value {
+        bson::Bson::Null => return Ok(()),
+        bson::Bson::Boolean(val) => worksheet.write_boolean(row, col, *val),
+        bson::Bson::Int32(val) => worksheet.write_number(row, col, *val as f64),
+        bson::Bson::Int64(val) => worksheet.write_number(row, col, *val as f64),
+        bson::Bson::Double(val) => worksheet.write_number(row, col, *val),
+        other => worksheet.write_string(row, col, bson_to_csv_cell(other)),
+    };
+    match result {
+        Ok(_) => Ok(()),
+        Err(e) => Err(xlsx_error(e)),
     }
 }
 

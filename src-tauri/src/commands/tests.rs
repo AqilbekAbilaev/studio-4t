@@ -222,6 +222,63 @@ fn export_csv_transform_dropping_a_field_removes_its_column() {
     assert!(!out.contains("secret"));
 }
 
+// ── xlsx export ────────────────────────────────────────────────
+// docs_to_xlsx drives the same xlsx_write_document the streaming exporter uses. We can't
+// read the workbook back without a reader dependency, so these assert the integration
+// runs without panicking across representative BSON types and produces a valid .xlsx
+// (which is a ZIP archive, so it starts with the "PK\x03\x04" signature).
+
+fn temp_xlsx_path(tag: &str) -> std::path::PathBuf {
+    let mut path = std::env::temp_dir();
+    path.push(format!("studio4t-xlsx-test-{}-{}.xlsx", std::process::id(), tag));
+    path
+}
+
+#[test]
+fn export_xlsx_writes_a_valid_zip_workbook() {
+    let docs = vec![
+        bson::doc! { "a": 1, "b": "x" },
+        bson::doc! { "a": 3, "c": true },
+    ];
+    let path = temp_xlsx_path("valid");
+    let path_str = path.to_str().unwrap();
+    let count = docs_to_xlsx(&docs, path_str).unwrap();
+    assert_eq!(count, 2);
+    let bytes = std::fs::read(&path).unwrap();
+    assert!(bytes.starts_with(b"PK\x03\x04"));
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn export_xlsx_handles_mixed_bson_types_without_error() {
+    let object_id = bson::oid::ObjectId::new();
+    let docs = vec![bson::doc! {
+        "str": "hi",
+        "int": 7_i32,
+        "long": 9_000_000_000_i64,
+        "double": 3.5_f64,
+        "bool": false,
+        "null": bson::Bson::Null,
+        "oid": object_id,
+        "nested": bson::doc! { "k": 1 },
+        "arr": bson::bson!([1, 2, 3]),
+    }];
+    let path = temp_xlsx_path("mixed");
+    let path_str = path.to_str().unwrap();
+    assert!(docs_to_xlsx(&docs, path_str).is_ok());
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn export_xlsx_empty_produces_a_workbook() {
+    let path = temp_xlsx_path("empty");
+    let path_str = path.to_str().unwrap();
+    let count = docs_to_xlsx(&[], path_str).unwrap();
+    assert_eq!(count, 0);
+    assert!(path.exists());
+    std::fs::remove_file(&path).ok();
+}
+
 // ── streaming import (batching layer) ──────────────────────────
 // These exercise `stream_documents`, the DB-free core of `stream_import`: it parses an
 // import file into batches and hands each batch to a `flush` callback. Here `flush`

@@ -358,6 +358,7 @@ const titleText = computed(
               <select v-model="format" class="iew-select">
                 <option value="json">JSON</option>
                 <option value="csv">CSV</option>
+                <option value="xlsx">Excel (.xlsx)</option>
               </select>
             </label>
           </div>

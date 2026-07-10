@@ -168,6 +168,7 @@ async function runExport() {
               <select v-model="format" class="mk-select">
                 <option value="json">JSON</option>
                 <option value="csv">CSV</option>
+                <option value="xlsx">Excel (.xlsx)</option>
               </select>
             </label>
             <label class="mk-f">
