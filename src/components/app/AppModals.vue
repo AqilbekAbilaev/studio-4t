@@ -95,6 +95,8 @@ const {
 const {
   addCollectionTarget,
   newCollectionName,
+  newCollectionType,
+  newCollectionOpts,
   addCollectionError,
   addCollectionSaving,
   addViewTarget,
@@ -378,6 +380,47 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             autocapitalize="off"
             @keydown.enter="confirmAddCollection"
           />
+          <div class="cc-types">
+            <label class="cc-type"><input type="radio" value="standard" v-model="newCollectionType" /> Standard</label>
+            <label class="cc-type"><input type="radio" value="capped" v-model="newCollectionType" /> Capped</label>
+            <label class="cc-type"><input type="radio" value="timeseries" v-model="newCollectionType" /> Time-series</label>
+          </div>
+
+          <div v-if="newCollectionType === 'capped'" class="cc-opts">
+            <label class="cc-field">
+              <span class="cc-label">Max size (bytes)</span>
+              <input v-model="newCollectionOpts.size" class="prompt-input" type="number" min="1" placeholder="e.g. 1048576" @keydown.enter="confirmAddCollection" />
+            </label>
+            <label class="cc-field">
+              <span class="cc-label">Max documents <span class="cc-opt">(optional)</span></span>
+              <input v-model="newCollectionOpts.max" class="prompt-input" type="number" min="1" placeholder="e.g. 1000" @keydown.enter="confirmAddCollection" />
+            </label>
+          </div>
+
+          <div v-else-if="newCollectionType === 'timeseries'" class="cc-opts">
+            <label class="cc-field">
+              <span class="cc-label">Time field</span>
+              <input v-model="newCollectionOpts.timeField" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. timestamp" @keydown.enter="confirmAddCollection" />
+            </label>
+            <label class="cc-field">
+              <span class="cc-label">Meta field <span class="cc-opt">(optional)</span></span>
+              <input v-model="newCollectionOpts.metaField" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. metadata" @keydown.enter="confirmAddCollection" />
+            </label>
+            <label class="cc-field">
+              <span class="cc-label">Granularity <span class="cc-opt">(optional)</span></span>
+              <select v-model="newCollectionOpts.granularity" class="prompt-input">
+                <option value="">Auto</option>
+                <option value="seconds">Seconds</option>
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+              </select>
+            </label>
+            <label class="cc-field">
+              <span class="cc-label">Expire after (seconds) <span class="cc-opt">(optional)</span></span>
+              <input v-model="newCollectionOpts.expireAfterSeconds" class="prompt-input" type="number" min="1" placeholder="e.g. 86400" @keydown.enter="confirmAddCollection" />
+            </label>
+          </div>
+
           <div v-if="addCollectionError" class="del-error">{{ addCollectionError }}</div>
         </div>
         <div class="del-footer">

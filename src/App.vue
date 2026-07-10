@@ -389,6 +389,8 @@ const dbActionsApi = useDbActions({ tabs: tabs, activeTabId: activeTabId, showTo
 const {
   addCollectionTarget,
   newCollectionName,
+  newCollectionType,
+  newCollectionOpts,
   addCollectionError,
   addCollectionSaving,
   addViewTarget,
@@ -1029,6 +1031,8 @@ async function handleContextAction(action) {
   if (action === 'Add Collection…') {
     addCollectionTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
     newCollectionName.value = ''
+    newCollectionType.value = 'standard'
+    newCollectionOpts.value = { size: '', max: '', timeField: '', metaField: '', granularity: '', expireAfterSeconds: '' }
     addCollectionError.value = null
     return
   }

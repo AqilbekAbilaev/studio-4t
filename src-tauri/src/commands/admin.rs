@@ -53,21 +53,109 @@ pub async fn list_databases(
     Ok(databases)
 }
 
+/// Optional collection-creation settings, mirroring Studio 3T's Add Collection dialog.
+/// A `None` `options` argument (or an all-empty struct) creates a plain collection, so
+/// existing callers that pass only `{ id, database, name }` are unaffected. Serde treats
+/// each missing field as its default, so the frontend only sends what the user chose.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewCollectionOptions {
+    // Capped collection: a fixed-size ring buffer. `size` (bytes) is required by MongoDB
+    // when `capped` is true; `max` (document count) is an optional extra cap.
+    #[serde(default)]
+    pub capped: bool,
+    pub size: Option<i64>,
+    pub max: Option<i64>,
+    // Time-series collection (MongoDB 5.0+): the presence of `time_field` turns it on.
+    // `meta_field` and `granularity` ("seconds" | "minutes" | "hours") are optional;
+    // `expire_after_seconds` sets automatic expiry of old buckets.
+    pub time_field: Option<String>,
+    pub meta_field: Option<String>,
+    pub granularity: Option<String>,
+    pub expire_after_seconds: Option<i64>,
+}
+
 #[tauri::command]
 pub async fn create_collection(
     ctx: State<'_, AppContext>,
     id: String,
     database: String,
     name: String,
+    options: Option<NewCollectionOptions>,
 ) -> Result<(), AppError> {
+    // Build the `create` command up front so a bad request (e.g. capped without a size)
+    // fails fast with a clear message before we touch the connection.
+    let command = match build_create_command(&name, options) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
     let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    match client.database(&database).create_collection(&name).await {
-        Ok(val) => Ok(val),
+    match client.database(&database).run_command(command).await {
+        Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),
     }
+}
+
+/// Assemble the `create` command document from the requested options. Kept separate and
+/// pure so the option-to-command mapping can be unit-tested without a live server.
+fn build_create_command(
+    name: &str,
+    options: Option<NewCollectionOptions>,
+) -> Result<bson::Document, AppError> {
+    let mut command = bson::doc! { "create": name };
+    let options = match options {
+        Some(val) => val,
+        None => return Ok(command),
+    };
+
+    if options.capped {
+        let size = match options.size {
+            Some(val) if val > 0 => val,
+            _ => {
+                return Err(AppError::Validation(
+                    "A capped collection needs a maximum size in bytes.".to_string(),
+                ))
+            }
+        };
+        command.insert("capped", true);
+        command.insert("size", size);
+        if let Some(max) = options.max {
+            if max > 0 {
+                command.insert("max", max);
+            }
+        }
+    }
+
+    if let Some(time_field) = options.time_field {
+        let trimmed = time_field.trim();
+        if trimmed.is_empty() {
+            return Err(AppError::Validation(
+                "A time-series collection needs a time field.".to_string(),
+            ));
+        }
+        let mut timeseries = bson::doc! { "timeField": trimmed };
+        if let Some(meta_field) = options.meta_field {
+            if !meta_field.trim().is_empty() {
+                timeseries.insert("metaField", meta_field.trim());
+            }
+        }
+        if let Some(granularity) = options.granularity {
+            if !granularity.trim().is_empty() {
+                timeseries.insert("granularity", granularity.trim());
+            }
+        }
+        command.insert("timeseries", timeseries);
+        if let Some(expire) = options.expire_after_seconds {
+            if expire > 0 {
+                command.insert("expireAfterSeconds", expire);
+            }
+        }
+    }
+
+    Ok(command)
 }
 
 /// Create a view: a read-only collection defined by an aggregation `pipeline` over a
@@ -638,3 +726,7 @@ pub async fn export_collection_fields(
     )
     .await
 }
+
+#[cfg(test)]
+#[path = "admin.test.rs"]
+mod tests;

@@ -13,6 +13,14 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
   const newCollectionName   = ref('')
   const addCollectionError  = ref(null)
   const addCollectionSaving = ref(false)
+  // Collection type + its options (mirrors 3T's Add Collection dialog). 'standard' sends
+  // no options; 'capped'/'timeseries' send only their own fields. Kept as strings so the
+  // inputs bind directly; coerced to numbers when the request is built.
+  const newCollectionType   = ref('standard')  // 'standard' | 'capped' | 'timeseries'
+  const newCollectionOpts   = ref({
+    size: '', max: '',                          // capped (bytes / document count)
+    timeField: '', metaField: '', granularity: '', expireAfterSeconds: '',  // time-series
+  })
 
   const addViewTarget   = ref(null)       // { connId, dbName } | null
   const newViewName     = ref('')
@@ -50,14 +58,51 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
   const addDatabaseError    = ref(null)
   const addDatabaseSaving   = ref(false)
 
+  // Turn the dialog's string inputs into the backend `options` payload for the chosen
+  // collection type. Returns undefined for a standard collection so the request stays
+  // exactly as before. Throws a user-facing string when a required field is missing.
+  function buildCollectionOptions() {
+    const type = newCollectionType.value
+    const opts = newCollectionOpts.value
+    if (type === 'capped') {
+      const size = Number(opts.size)
+      if (!Number.isFinite(size) || size <= 0) throw 'Enter a maximum size in bytes for the capped collection.'
+      const max = Number(opts.max)
+      return {
+        capped: true,
+        size: size,
+        max: Number.isFinite(max) && max > 0 ? max : null,
+      }
+    }
+    if (type === 'timeseries') {
+      const timeField = opts.timeField.trim()
+      if (!timeField) throw 'Enter the time field for the time-series collection.'
+      const expire = Number(opts.expireAfterSeconds)
+      return {
+        timeField: timeField,
+        metaField: opts.metaField.trim() || null,
+        granularity: opts.granularity.trim() || null,
+        expireAfterSeconds: Number.isFinite(expire) && expire > 0 ? expire : null,
+      }
+    }
+    return undefined
+  }
+
   async function confirmAddCollection() {
     const target = addCollectionTarget.value
     const name = newCollectionName.value.trim()
     if (!target || !name) return
+    let options
+    try {
+      options = buildCollectionOptions()
+    } catch (msg) {
+      addCollectionError.value = msg
+      return
+    }
     addCollectionSaving.value = true
     addCollectionError.value = null
     try {
-      await invoke('create_collection', { id: target.connId, database: target.dbName, name: name })
+      await invoke('create_collection', { id: target.connId, database: target.dbName, name: name, options: options })
       await connectionTreeRef.value.refreshConn(target.connId)
       showToast(`Collection "${name}" created`)
       addCollectionTarget.value = null
@@ -271,6 +316,8 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
   return {
     addCollectionTarget: addCollectionTarget,
     newCollectionName: newCollectionName,
+    newCollectionType: newCollectionType,
+    newCollectionOpts: newCollectionOpts,
     addCollectionError: addCollectionError,
     addCollectionSaving: addCollectionSaving,
     addViewTarget: addViewTarget,
