@@ -384,6 +384,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             <label class="cc-type"><input type="radio" value="standard" v-model="newCollectionType" /> Standard</label>
             <label class="cc-type"><input type="radio" value="capped" v-model="newCollectionType" /> Capped</label>
             <label class="cc-type"><input type="radio" value="timeseries" v-model="newCollectionType" /> Time-series</label>
+            <label class="cc-type"><input type="radio" value="clustered" v-model="newCollectionType" /> Clustered</label>
           </div>
 
           <div v-if="newCollectionType === 'capped'" class="cc-opts">
@@ -418,6 +419,14 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             <label class="cc-field">
               <span class="cc-label">Expire after (seconds) <span class="cc-opt">(optional)</span></span>
               <input v-model="newCollectionOpts.expireAfterSeconds" class="prompt-input" type="number" min="1" placeholder="e.g. 86400" @keydown.enter="confirmAddCollection" />
+            </label>
+          </div>
+
+          <div v-else-if="newCollectionType === 'clustered'" class="cc-opts">
+            <p class="cc-hint">Documents are stored in <code>_id</code> order (clustered index on <code>{ _id: 1 }</code>).</p>
+            <label class="cc-field">
+              <span class="cc-label">Index name <span class="cc-opt">(optional)</span></span>
+              <input v-model="newCollectionOpts.clusteredIndexName" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. events_clustered" @keydown.enter="confirmAddCollection" />
             </label>
           </div>
 

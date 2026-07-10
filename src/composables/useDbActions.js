@@ -16,10 +16,11 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
   // Collection type + its options (mirrors 3T's Add Collection dialog). 'standard' sends
   // no options; 'capped'/'timeseries' send only their own fields. Kept as strings so the
   // inputs bind directly; coerced to numbers when the request is built.
-  const newCollectionType   = ref('standard')  // 'standard' | 'capped' | 'timeseries'
+  const newCollectionType   = ref('standard')  // 'standard' | 'capped' | 'timeseries' | 'clustered'
   const newCollectionOpts   = ref({
     size: '', max: '',                          // capped (bytes / document count)
     timeField: '', metaField: '', granularity: '', expireAfterSeconds: '',  // time-series
+    clusteredIndexName: '',                     // clustered (optional index name)
   })
 
   const addViewTarget   = ref(null)       // { connId, dbName } | null
@@ -83,6 +84,12 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
         metaField: opts.metaField.trim() || null,
         granularity: opts.granularity.trim() || null,
         expireAfterSeconds: Number.isFinite(expire) && expire > 0 ? expire : null,
+      }
+    }
+    if (type === 'clustered') {
+      return {
+        clustered: true,
+        clusteredIndexName: opts.clusteredIndexName.trim() || null,
       }
     }
     return undefined

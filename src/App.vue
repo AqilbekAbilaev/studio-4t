@@ -1032,7 +1032,7 @@ async function handleContextAction(action) {
     addCollectionTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
     newCollectionName.value = ''
     newCollectionType.value = 'standard'
-    newCollectionOpts.value = { size: '', max: '', timeField: '', metaField: '', granularity: '', expireAfterSeconds: '' }
+    newCollectionOpts.value = { size: '', max: '', timeField: '', metaField: '', granularity: '', expireAfterSeconds: '', clusteredIndexName: '' }
     addCollectionError.value = null
     return
   }

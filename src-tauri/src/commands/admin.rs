@@ -73,6 +73,12 @@ pub struct NewCollectionOptions {
     pub meta_field: Option<String>,
     pub granularity: Option<String>,
     pub expire_after_seconds: Option<i64>,
+    // Clustered collection (MongoDB 5.3+): documents stored in `_id` order. MongoDB only
+    // allows a clustered index on `{ _id: 1 }` with `unique: true`, so the frontend just
+    // sets the flag plus an optional index name.
+    #[serde(default)]
+    pub clustered: bool,
+    pub clustered_index_name: Option<String>,
 }
 
 #[tauri::command]
@@ -153,6 +159,19 @@ fn build_create_command(
                 command.insert("expireAfterSeconds", expire);
             }
         }
+    }
+
+    if options.clustered {
+        let mut clustered_index = bson::doc! {
+            "key": bson::doc! { "_id": 1 },
+            "unique": true,
+        };
+        if let Some(index_name) = options.clustered_index_name {
+            if !index_name.trim().is_empty() {
+                clustered_index.insert("name", index_name.trim());
+            }
+        }
+        command.insert("clusteredIndex", clustered_index);
     }
 
     Ok(command)

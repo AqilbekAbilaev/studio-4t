@@ -17,6 +17,8 @@ fn capped_requires_a_size() {
         meta_field: None,
         granularity: None,
         expire_after_seconds: None,
+        clustered: false,
+        clustered_index_name: None,
     };
     assert!(build_create_command("logs", Some(options)).is_err());
 }
@@ -31,6 +33,8 @@ fn capped_maps_size_and_max() {
         meta_field: None,
         granularity: None,
         expire_after_seconds: None,
+        clustered: false,
+        clustered_index_name: None,
     };
     let command = build_create_command("logs", Some(options)).unwrap();
     assert_eq!(command.get_bool("capped").unwrap(), true);
@@ -48,6 +52,8 @@ fn nonpositive_max_is_dropped() {
         meta_field: None,
         granularity: None,
         expire_after_seconds: None,
+        clustered: false,
+        clustered_index_name: None,
     };
     let command = build_create_command("logs", Some(options)).unwrap();
     assert!(!command.contains_key("max"));
@@ -63,6 +69,8 @@ fn time_series_maps_nested_fields() {
         meta_field: Some("sensor".to_string()),
         granularity: Some("minutes".to_string()),
         expire_after_seconds: Some(86400),
+        clustered: false,
+        clustered_index_name: None,
     };
     let command = build_create_command("readings", Some(options)).unwrap();
     let timeseries = command.get_document("timeseries").unwrap();
@@ -82,6 +90,8 @@ fn blank_time_field_is_rejected() {
         meta_field: None,
         granularity: None,
         expire_after_seconds: None,
+        clustered: false,
+        clustered_index_name: None,
     };
     assert!(build_create_command("readings", Some(options)).is_err());
 }
@@ -96,10 +106,50 @@ fn empty_optional_time_series_fields_are_omitted() {
         meta_field: Some("".to_string()),
         granularity: Some("".to_string()),
         expire_after_seconds: None,
+        clustered: false,
+        clustered_index_name: None,
     };
     let command = build_create_command("readings", Some(options)).unwrap();
     let timeseries = command.get_document("timeseries").unwrap();
     assert!(!timeseries.contains_key("metaField"));
     assert!(!timeseries.contains_key("granularity"));
     assert!(!command.contains_key("expireAfterSeconds"));
+}
+
+#[test]
+fn clustered_maps_fixed_id_index() {
+    let options = NewCollectionOptions {
+        capped: false,
+        size: None,
+        max: None,
+        time_field: None,
+        meta_field: None,
+        granularity: None,
+        expire_after_seconds: None,
+        clustered: true,
+        clustered_index_name: Some("primary".to_string()),
+    };
+    let command = build_create_command("events", Some(options)).unwrap();
+    let clustered = command.get_document("clusteredIndex").unwrap();
+    assert_eq!(clustered.get_document("key").unwrap().get_i32("_id").unwrap(), 1);
+    assert_eq!(clustered.get_bool("unique").unwrap(), true);
+    assert_eq!(clustered.get_str("name").unwrap(), "primary");
+}
+
+#[test]
+fn clustered_without_name_omits_it() {
+    let options = NewCollectionOptions {
+        capped: false,
+        size: None,
+        max: None,
+        time_field: None,
+        meta_field: None,
+        granularity: None,
+        expire_after_seconds: None,
+        clustered: true,
+        clustered_index_name: None,
+    };
+    let command = build_create_command("events", Some(options)).unwrap();
+    let clustered = command.get_document("clusteredIndex").unwrap();
+    assert!(!clustered.contains_key("name"));
 }
