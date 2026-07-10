@@ -39,14 +39,34 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
     showDocModal.value = true
   }
 
+  // Open the selected document in the pop-out edit window. Reached from the results
+  // toolbar pen, Cmd/Ctrl+J, and Document → Edit Document (JSON)… — the former in-app edit
+  // modal was consolidated into the window; DocumentModal is now used only for Insert.
   function openEdit() {
-    docModalMode.value = 'edit'
-    crudError.value = null
-    showDocModal.value = true
+    const doc = selectedDoc()
+    if (!doc) { showToast('Select a document in the results first'); return }
+    openDocumentWindow(activeTab(), doc, 'edit')
   }
 
   function buildIdFilter(doc) {
     return JSON.stringify({ _id: doc._id })
+  }
+
+  // Pop the selected document into a document window (Rust open_document_window). `mode`
+  // is 'edit' (the single reusable editor window) or 'view' (an unlimited read-only
+  // display window).
+  function openDocumentWindow(tab, doc, mode) {
+    const target = {
+      connId: tab.connectionId,
+      db: tab.dbName,
+      coll: tab.collectionName,
+      idFilter: buildIdFilter(doc),
+      label: (doc._id !== null && typeof doc._id === 'object')
+        ? JSON.stringify(doc._id)
+        : String(doc._id),
+      mode: mode,
+    }
+    invoke('open_document_window', { target: target })
   }
 
   async function onDocSave(jsonStr) {
@@ -115,7 +135,6 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
   const fieldEditError   = ref(null)
   const removeFieldName  = ref(null)   // field pending remove-confirm
   const removeFieldError = ref(null)
-  const viewJsonDoc      = ref(null)   // document shown read-only
   const showUpdateDialog = ref(false)
   const showDeleteDialog = ref(false)
   const showClearConfirm = ref(false)
@@ -186,24 +205,11 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
 
     // Whole-document actions.
     switch (action) {
-      case 'doc:view_json': viewJsonDoc.value = doc; return
-      case 'doc:edit_json': openEdit(); return
-      // Edit Document in Window: pop the selected document out into the dedicated
-      // editor window (Studio-3T-style Cmd/Ctrl+J). The single window retargets when
-      // fired again on a different document.
-      case 'doc:edit_window': {
-        const target = {
-          connId: tab.connectionId,
-          db: tab.dbName,
-          coll: tab.collectionName,
-          idFilter: buildIdFilter(doc),
-          label: (doc._id !== null && typeof doc._id === 'object')
-            ? JSON.stringify(doc._id)
-            : String(doc._id),
-        }
-        invoke('open_document_window', { target: target })
-        return
-      }
+      // Pop the selected document into a window. 'view' opens an unlimited read-only
+      // display window; 'edit' (Cmd/Ctrl+J) opens the single reusable editor window,
+      // which retargets when fired again on a different document.
+      case 'doc:view_json': openDocumentWindow(tab, doc, 'view'); return
+      case 'doc:edit_json': openDocumentWindow(tab, doc, 'edit'); return
       case 'doc:delete':    crudError.value = null; showDeleteConfirm.value = true; return
       case 'doc:add_field':
         fieldEditError.value = null
@@ -425,7 +431,6 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
     fieldEditError: fieldEditError,
     removeFieldName: removeFieldName,
     removeFieldError: removeFieldError,
-    viewJsonDoc: viewJsonDoc,
     showUpdateDialog: showUpdateDialog,
     showDeleteDialog: showDeleteDialog,
     showClearConfirm: showClearConfirm,

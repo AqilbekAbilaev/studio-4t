@@ -40,9 +40,11 @@ const editorTheme = EditorView.theme(
 )
 
 // Build the editor's extension set. `onChange` syncs edits back to the component (for
-// the dirty flag); `onSave` runs when the user presses Cmd/Ctrl+S.
-export function buildExtensions({ onChange, onSave }) {
-  return [
+// the dirty flag); `onSave` runs when the user presses Cmd/Ctrl+S. `readOnly` makes the
+// editor a non-editable viewer (used by the read-only "view" window): the document can be
+// selected/copied and navigated, but not changed — so no Save keymap or change listener.
+export function buildExtensions({ onChange, onSave, readOnly = false }) {
+  const base = [
     lineNumbers(),
     highlightActiveLine(),
     highlightActiveLineGutter(),
@@ -54,6 +56,17 @@ export function buildExtensions({ onChange, onSave }) {
     javascript(),
     syntaxHighlighting(highlightStyle),
     editorTheme,
+  ]
+  if (readOnly) {
+    return [
+      ...base,
+      EditorState.readOnly.of(true),
+      EditorView.editable.of(false),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
+    ]
+  }
+  return [
+    ...base,
     keymap.of([
       { key: 'Mod-s', preventDefault: true, run: () => { onSave(); return true } },
       ...closeBracketsKeymap,

@@ -15,7 +15,6 @@ import JsonResultView from './JsonResultView.vue'
 import TreeResultView from './TreeResultView.vue'
 import ExplainResultView from './ExplainResultView.vue'
 import QueryCodeView from './QueryCodeView.vue'
-import JsonDoc from './JsonDoc.vue'
 import BaseModal from '../base/BaseModal.vue'
 import { useDocumentActions } from '../../composables/useDocumentActions'
 
@@ -170,7 +169,7 @@ const {
   drillPath,
   showDocModal, docModalMode, showDeleteConfirm, crudError,
   openInsert, openEdit, onDocSave, copySelectedDocument, onDeleteConfirm,
-  fieldEdit, fieldEditError, removeFieldName, removeFieldError, viewJsonDoc,
+  fieldEdit, fieldEditError, removeFieldName, removeFieldError,
   showUpdateDialog, showDeleteDialog, showClearConfirm, clearConfirmText, clearBusy, clearError,
   onFieldEditSave, onRemoveFieldConfirm, onClearConfirm, onUpdateDialogDone, onDeleteDialogDone,
 } = useDocumentActions({
@@ -440,21 +439,6 @@ const isCountDisabled = computed(() =>
     </div>
   </BaseModal>
 
-  <!-- Read-only document JSON view -->
-  <BaseModal
-    v-if="viewJsonDoc"
-    title="View Document (JSON)"
-    width="680px" max-width="94vw" height="520px" max-height="92vh"
-    @close="viewJsonDoc = null"
-  >
-    <div class="vj-body">
-      <JsonDoc :value="viewJsonDoc" />
-    </div>
-    <div class="del-footer">
-      <span class="spacer"></span>
-      <button class="btn" @click="viewJsonDoc = null">Close</button>
-    </div>
-  </BaseModal>
 
   <!-- Collection: Update / Delete dialogs -->
   <UpdateDocumentsModal
@@ -725,7 +709,6 @@ const isCountDisabled = computed(() =>
 .cc-input:focus { border-color: var(--accent); }
 
 /* Read-only document JSON viewer body (sized via BaseModal's width/height props). */
-.vj-body { flex: 1; overflow: auto; padding: 12px 16px; }
 
 /* CRUD error banner */
 .crud-err-banner {

@@ -776,7 +776,6 @@ function handleMenuAction(id) {
     case 'doc:rename_field':
     case 'doc:view_json':
     case 'doc:edit_json':
-    case 'doc:edit_window':
     case 'doc:delete':
       requestDocMenuAction(id); return
 
@@ -893,7 +892,7 @@ function onGlobalKeydown(e) {
     else if (k === 'p' && !e.shiftKey) id = 'edit:preferences'
     else if (k === 'b' && !e.shiftKey) id = 'coll:vqb'
     else if (k === 'r' && !e.shiftKey) id = 'view:refresh'
-    else if (k === 'j' && !e.shiftKey) id = 'doc:edit_window'
+    else if (k === 'j' && !e.shiftKey) id = 'doc:edit_json'
   } else if (!mod && !e.altKey && !e.shiftKey) {
     if (e.key === 'F4') id = 'coll:aggregation'
     else if (e.key === 'F10') id = 'coll:open_tab'

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -7,23 +7,26 @@ import { buildExtensions, EditorView, EditorState } from '../../utils/docEditor'
 import { parseDocumentJson } from '../../utils/docJson'
 import { errMessage } from '../../utils/errors'
 
-// The pop-out document editor (Studio-3T-style Cmd/Ctrl+J). It is the SINGLE reusable
-// "doc-editor" window: opened by the Rust open_document_window command, seeded from the
-// window URL on first load, and retargeted in place via the 'document-target' event.
+// The pop-out document window (Studio-3T-style Cmd/Ctrl+J). Opened by the Rust
+// open_document_window command, seeded from the window URL on first load. Two modes:
+//   - 'edit' (default): the SINGLE reusable "doc-editor" window, retargeted in place via
+//     the 'document-target' event; editable + saveable.
+//   - 'view': a read-only display window (unlimited independent instances) — no editing,
+//     no Save, no retarget.
 
 const editorHost = ref(null)   // container the CodeMirror view mounts into
 let view = null
 
-// Current target ({ connId, db, coll, idFilter, label }) and editor state.
+// Current target ({ connId, db, coll, idFilter, label, mode }) and editor state.
 const target   = ref(null)
+const mode     = ref('edit')                          // 'edit' | 'view'
+const readonly = computed(() => mode.value === 'view')
 const title    = ref('Edit Document')
 const text     = ref('')
 const dirty    = ref(false)
 const loading  = ref(false)
 const saving   = ref(false)
 const jsonErr  = ref(null)
-const saved    = ref(false)   // brief "Saved" confirmation state
-let savedTimer = null
 
 // Read the initial target from the window URL query (?connId=&db=&coll=&idFilter=&label=).
 function targetFromUrl() {
@@ -39,6 +42,7 @@ function targetFromUrl() {
     coll: coll,
     idFilter: idFilter,
     label: p.get('label') || '',
+    mode: p.get('mode') || 'edit',
   }
 }
 
@@ -54,7 +58,6 @@ function setEditorText(value) {
 function onEditorChange(value) {
   text.value = value
   dirty.value = true
-  saved.value = false
 }
 
 // Fetch the target document and load it into the editor. Reuses find_documents with the
@@ -65,9 +68,11 @@ async function loadTarget(next) {
     return
   }
   target.value = next
+  mode.value = next.mode === 'view' ? 'view' : 'edit'
   // The real OS window owns the titlebar, so reflect the document there rather than
   // drawing our own (a custom top bar would double up with the native one).
-  title.value = next.label ? `Edit Document — ${next.label}` : 'Edit Document'
+  const verb = readonly.value ? 'View Document' : 'Edit Document'
+  title.value = next.label ? `${verb} — ${next.label}` : verb
   getCurrentWindow().setTitle(title.value).catch(() => {})
   loading.value = true
   jsonErr.value = null
@@ -90,7 +95,6 @@ async function loadTarget(next) {
       setEditorText(JSON.stringify(doc, null, 2))
     }
     dirty.value = false
-    saved.value = false
   } catch (e) {
     jsonErr.value = errMessage(e)
   } finally {
@@ -105,7 +109,7 @@ function confirmDiscardIfDirty() {
 }
 
 async function onSave() {
-  if (!target.value || saving.value) return
+  if (readonly.value || !target.value || saving.value) return
   jsonErr.value = null
   try {
     parseDocumentJson(text.value)
@@ -128,12 +132,11 @@ async function onSave() {
       coll: target.value.coll,
     })
     dirty.value = false
-    saved.value = true
-    clearTimeout(savedTimer)
-    savedTimer = setTimeout(() => { saved.value = false }, 2000)
+    // Saving is the terminal action for the editor window — close it. The grid behind it
+    // was already refreshed via the document-saved event above.
+    await getCurrentWindow().close()
   } catch (e) {
     jsonErr.value = errMessage(e)
-  } finally {
     saving.value = false
   }
 }
@@ -149,7 +152,7 @@ onMounted(async () => {
   view = new EditorView({
     state: EditorState.create({
       doc: '',
-      extensions: buildExtensions({ onChange: onEditorChange, onSave: onSave }),
+      extensions: buildExtensions({ onChange: onEditorChange, onSave: onSave, readOnly: readonly.value }),
     }),
     parent: editorHost.value,
   })
@@ -165,7 +168,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  clearTimeout(savedTimer)
   if (unlisten) unlisten()
   if (view) view.destroy()
 })
@@ -179,11 +181,11 @@ onBeforeUnmount(() => {
 
     <div class="footer">
       <span v-if="loading" class="hint">Loading…</span>
-      <span v-else-if="saved" class="hint saved">Saved</span>
+      <span v-else-if="readonly" class="hint">Read-only</span>
       <span v-else-if="dirty" class="hint">Unsaved changes</span>
       <span class="spacer"></span>
       <button class="btn" @click="onClose">Close</button>
-      <button class="btn primary" :disabled="saving || loading" @click="onSave">
+      <button v-if="!readonly" class="btn primary" :disabled="saving || loading" @click="onSave">
         {{ saving ? 'Saving…' : 'Save' }}
       </button>
     </div>
@@ -227,7 +229,6 @@ onBeforeUnmount(() => {
 }
 
 .hint { font-size: 12px; color: var(--text-faint); }
-.hint.saved { color: var(--ok-text, var(--link)); }
 .spacer { flex: 1; }
 
 .btn {
