@@ -3,7 +3,6 @@ import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import { parseField } from '../utils/queryParser'
-import { generateCode, LANGUAGES } from '../utils/queryCodegen'
 import BaseIcon from './BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
 import FieldEditModal from './FieldEditModal.vue'
@@ -15,6 +14,7 @@ import StateMessage from './StateMessage.vue'
 import JsonResultView from './JsonResultView.vue'
 import TreeResultView from './TreeResultView.vue'
 import ExplainResultView from './ExplainResultView.vue'
+import QueryCodeView from './QueryCodeView.vue'
 import JsonDoc from './JsonDoc.vue'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
 import { valueToClipboard, valueToEjson, documentToClipboard, fieldPath } from '../utils/clipboardCopy'
@@ -570,28 +570,6 @@ const isCountDisabled = computed(() =>
   props.isAggregate || !props.activeTab || props.activeTab.kind !== 'collection'
 )
 
-// ── query code ─────────────────────────────────────────
-// Target language for the generated snippet (session-scoped, defaults to Shell).
-const queryCodeLang = ref('shell')
-
-const queryCode = computed(() => {
-  const tab = props.activeTab
-  if (!tab || tab.kind !== 'collection') return ''
-  return generateCode({
-    collection: tab.collectionName,
-    mode: tab.mode,
-    filter: tab.filter,
-    projection: tab.projection,
-    sort: tab.sort,
-    skip: tab.skip,
-    limit: tab.limit,
-    pipeline: tab.pipeline,
-  }, queryCodeLang.value)
-})
-
-function copyQueryCode() {
-  writeClipboard(queryCode.value, 'Query code copied to clipboard')
-}
 </script>
 
 <template>
@@ -728,23 +706,11 @@ function copyQueryCode() {
     />
 
     <!-- Query Code sub-tab -->
-    <template v-else-if="rtab === 'Query Code'">
-      <div class="explain-toolbar">
-        <label class="et-verbosity">
-          <span class="et-verbosity-label">Language</span>
-          <select class="et-select" v-model="queryCodeLang">
-            <option v-for="lang in LANGUAGES" :key="lang.id" :value="lang.id">{{ lang.label }}</option>
-          </select>
-        </label>
-        <span class="et-spacer"></span>
-        <button class="et-btn qcode-copy" type="button" @click="copyQueryCode">
-          <BaseIcon name="copy" :size="14" /> Copy
-        </button>
-      </div>
-      <div class="qcode-view">
-        <pre class="qcode-pre"><span v-if="queryCodeLang === 'shell'" class="qcode-prompt">&gt;</span>{{ queryCodeLang === 'shell' ? ' ' + queryCode : queryCode }}</pre>
-      </div>
-    </template>
+    <QueryCodeView
+      v-else-if="rtab === 'Query Code'"
+      :active-tab="activeTab"
+      @toast="emit('toast', $event)"
+    />
 
     <!-- Explain sub-tab -->
     <ExplainResultView
@@ -1049,36 +1015,6 @@ function copyQueryCode() {
     repeating-linear-gradient(to bottom, var(--bg-row) 0 25px, var(--bg-row-alt) 25px 50px);
 }
 
-/* Toolbar shell + select shared by the Query Code sub-tab (and duplicated in
-   ExplainResultView.vue, which uses the same toolbar). */
-.explain-toolbar { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border-soft); flex: 0 0 auto; }
-.et-btn {
-  appearance: none;
-  border: none;
-  background: transparent;
-  padding: 5px 12px;
-  font-size: 12px;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-.et-btn + .et-btn { border-left: 1px solid var(--border-soft); }
-.et-btn:hover { background: var(--bg-hover); color: var(--text); }
-.et-btn.on { background: var(--accent); color: #fff; }
-.et-spacer { flex: 1; }
-.et-verbosity { display: inline-flex; align-items: center; gap: 7px; }
-.et-verbosity-label { font-size: 11px; color: var(--text-dim); }
-.et-select {
-  appearance: none;
-  background: var(--bg-input);
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
-  color: var(--text);
-  font-size: 12px;
-  padding: 4px 9px;
-  cursor: pointer;
-}
-.et-select:focus { outline: none; border-color: var(--accent); }
-
 /* page size dropdown */
 .page-size-wrap { position: relative; }
 .page-size { cursor: pointer; }
@@ -1104,29 +1040,6 @@ function copyQueryCode() {
 }
 .psm-item:hover { background: var(--bg-hover); color: var(--text); }
 .psm-item.on    { color: var(--accent); font-weight: 600; }
-
-/* Query Code sub-tab */
-.qcode-copy {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
-  color: var(--text-dim);
-}
-.qcode-copy:hover { background: var(--bg-hover); color: var(--text); }
-.qcode-view { flex: 1; overflow: auto; padding: 16px 20px; }
-.qcode-pre {
-  font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-all;
-  -webkit-user-select: text;
-  user-select: text;
-}
-.qcode-prompt { color: var(--text-faint); margin-right: 8px; }
 
 /* Footer */
 .rfooter {
