@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
-import ResultTable from './results/ResultTable.vue'
-import TreeView from './base/TreeView.vue'
-import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
-import { buildExtensions, EditorView, EditorState } from '../utils/shellEditor'
+import { errMessage } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import ResultTable from '../results/ResultTable.vue'
+import TreeView from '../base/TreeView.vue'
+import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
+import { buildExtensions, EditorView, EditorState } from '../../utils/shellEditor'
 
 // IntelliShell, Studio-3T style: a code editor on top, the command's output in
 // the reused result grid (Table / JSON / Tree) below, plus a Console tab for

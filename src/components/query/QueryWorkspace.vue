@@ -9,7 +9,7 @@ import QueryBar from './QueryBar.vue'
 import PipelineEditor from './PipelineEditor.vue'
 import ResultsPanel from '../results/ResultsPanel.vue'
 // Lazy-loaded so CodeMirror (a large dep) is only fetched when a shell tab opens.
-const ShellConsole = defineAsyncComponent(() => import('../ShellConsole.vue'))
+const ShellConsole = defineAsyncComponent(() => import('../app/ShellConsole.vue'))
 import QueryBrowserModal from './QueryBrowserModal.vue'
 import { parseField, parsePipeline } from '../../utils/queryParser'
 

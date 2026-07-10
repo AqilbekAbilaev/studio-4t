@@ -17,7 +17,7 @@ import ConnectionTree from './components/connection/ConnectionTree.vue'
 import QueryWorkspace from './components/query/QueryWorkspace.vue'
 import SplitContainer from './components/base/SplitContainer.vue'
 import ContextMenu from './components/base/ContextMenu.vue'
-import AppModals from './components/AppModals.vue'
+import AppModals from './components/app/AppModals.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';

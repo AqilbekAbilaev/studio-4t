@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { getVersion, getName, getTauriVersion } from '@tauri-apps/api/app'
-import BaseIcon from './base/BaseIcon.vue'
+import BaseIcon from '../base/BaseIcon.vue'
 
 // Help → About. Shows the real application name/version reported by the Tauri
 // runtime (never hardcoded), plus the build's Tauri version.
