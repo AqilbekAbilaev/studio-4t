@@ -132,6 +132,7 @@ pub fn run() {
             set_connection_tag,
             update_last_accessed,
             open_connect_window,
+            open_document_window,
             list_databases,
             create_collection,
             drop_database,

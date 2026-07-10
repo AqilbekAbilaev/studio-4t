@@ -215,6 +215,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Separator,
                 Spec::Action { id: "doc:view_json", label: "View Document (JSON)…", accel: None, gate: Some(Gate::Document) },
                 Spec::Action { id: "doc:edit_json", label: "Edit Document (JSON)…", accel: None, gate: Some(Gate::Document) },
+                Spec::Action { id: "doc:edit_window", label: "Edit Document in Window", accel: Some("CmdOrCtrl+J"), gate: Some(Gate::Document) },
                 Spec::Action { id: "doc:delete", label: "Delete Document", accel: None, gate: Some(Gate::Document) },
             ],
         ),
@@ -593,6 +594,69 @@ pub fn open_connect_window(app: &AppHandle) {
     .ok();
 }
 
+// The document a pop-out editor window is pointed at. Sent from the frontend as a plain
+// object (camelCase), passed on the first-open URL, and re-broadcast as the
+// `document-target` event when the single window is retargeted at a different document.
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentTarget {
+    pub conn_id: String,
+    pub db: String,
+    pub coll: String,
+    pub id_filter: String,
+    pub label: String,
+}
+
+// Percent-encode a value for safe inclusion in the window URL's query string. Kept local
+// (no extra crate) — every byte that isn't an unreserved URL character becomes %XX.
+fn percent_encode(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.as_bytes() {
+        let b = *byte;
+        let unreserved = b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.' || b == b'~';
+        if unreserved {
+            out.push(b as char);
+        } else {
+            out.push('%');
+            out.push_str(&format!("{:02X}", b));
+        }
+    }
+    out
+}
+
+// Open (or retarget) the SINGLE reusable document-editor window. If it already exists we
+// re-point it via the `document-target` event and focus it; otherwise we build it, seeding
+// the initial target on the URL query so the first load has its document even before the
+// page registers its event listener.
+pub fn open_document_window(app: &AppHandle, target: DocumentTarget) {
+    if let Some(w) = app.get_webview_window("doc-editor") {
+        match app.emit_to("doc-editor", "document-target", target.clone()) {
+            Ok(val) => val,
+            Err(_e) => (),
+        };
+        w.set_focus().ok();
+        return;
+    }
+
+    let query = format!(
+        "connId={}&db={}&coll={}&idFilter={}&label={}",
+        percent_encode(&target.conn_id),
+        percent_encode(&target.db),
+        percent_encode(&target.coll),
+        percent_encode(&target.id_filter),
+        percent_encode(&target.label),
+    );
+    let url = format!("src/pages/document.html?{}", query);
+
+    WebviewWindowBuilder::new(app, "doc-editor", WebviewUrl::App(url.into()))
+        .title("Edit Document")
+        .inner_size(720.0, 640.0)
+        .resizable(true)
+        .center()
+        .build()
+        .ok();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -698,7 +762,7 @@ mod tests {
             assert_eq!(gate_of(id), Gate::DocumentField, "{id} should gate on a field");
         }
         // Whole-document actions.
-        for id in ["doc:add_field", "doc:view_json", "doc:edit_json", "doc:delete"] {
+        for id in ["doc:add_field", "doc:view_json", "doc:edit_json", "doc:edit_window", "doc:delete"] {
             assert_eq!(gate_of(id), Gate::Document, "{id} should gate on a document");
         }
         // Collection document-editing actions gate on an active collection.

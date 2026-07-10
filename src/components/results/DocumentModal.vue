@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
+import { parseDocumentJson } from '../../utils/docJson'
 
 const props = defineProps({
   mode:       { type: String, required: true },  // 'insert' | 'edit'
@@ -17,15 +18,10 @@ watch(() => props.initialDoc, (doc) => {
 
 function onSave() {
   jsonErr.value = null
-  let parsed
   try {
-    parsed = JSON.parse(text.value)
+    parseDocumentJson(text.value)
   } catch (e) {
-    jsonErr.value = `Invalid JSON: ${e.message}`
-    return
-  }
-  if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
-    jsonErr.value = 'Document must be a JSON object'
+    jsonErr.value = e.message
     return
   }
   emit('save', text.value)

@@ -27,6 +27,7 @@ export default defineConfig(async () => ({
       input: {
         main: "index.html",
         connect: "src/pages/connect.html",
+        document: "src/pages/document.html",
       },
     },
   },

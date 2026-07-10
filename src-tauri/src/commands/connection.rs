@@ -511,3 +511,8 @@ pub fn update_last_accessed(
 pub fn open_connect_window(app: tauri::AppHandle) {
     crate::menu::open_connect_window(&app);
 }
+
+#[tauri::command]
+pub fn open_document_window(app: tauri::AppHandle, target: crate::menu::DocumentTarget) {
+    crate::menu::open_document_window(&app, target);
+}

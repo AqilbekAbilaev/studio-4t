@@ -188,6 +188,22 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
     switch (action) {
       case 'doc:view_json': viewJsonDoc.value = doc; return
       case 'doc:edit_json': openEdit(); return
+      // Edit Document in Window: pop the selected document out into the dedicated
+      // editor window (Studio-3T-style Cmd/Ctrl+J). The single window retargets when
+      // fired again on a different document.
+      case 'doc:edit_window': {
+        const target = {
+          connId: tab.connectionId,
+          db: tab.dbName,
+          coll: tab.collectionName,
+          idFilter: buildIdFilter(doc),
+          label: (doc._id !== null && typeof doc._id === 'object')
+            ? JSON.stringify(doc._id)
+            : String(doc._id),
+        }
+        invoke('open_document_window', { target: target })
+        return
+      }
       case 'doc:delete':    crudError.value = null; showDeleteConfirm.value = true; return
       case 'doc:add_field':
         fieldEditError.value = null

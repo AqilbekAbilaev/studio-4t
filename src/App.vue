@@ -81,6 +81,22 @@ onMounted(async () => {
   // custom bar used. (menu.rs emits the clicked item's id.)
   listen('menu-action', (e) => handleMenuAction(e.payload))
 
+  // The pop-out document editor emits this after a save. Re-run any open collection tab
+  // that shows the affected collection so the grid reflects the edit (find tabs only —
+  // runRestoredTab re-runs a tab's stored find query in place; aggregate tabs no-op).
+  listen('document-saved', (e) => {
+    const payload = e.payload || {}
+    for (const tab of tabs.value) {
+      if (tab.kind === 'collection' && tab.hasRun
+          && tab.connectionId === payload.connId
+          && tab.dbName === payload.db
+          && tab.collectionName === payload.coll) {
+        tab._restored = true
+        runRestoredTab(tab)
+      }
+    }
+  })
+
   // On Linux the native menu carries no accelerators (they'd swallow editing keys
   // on WebKitGTK — see menu.rs), so we keep our own keyboard shortcuts there. On
   // macOS/Windows the native menu owns the accelerators, so we don't double-bind.
@@ -760,6 +776,7 @@ function handleMenuAction(id) {
     case 'doc:rename_field':
     case 'doc:view_json':
     case 'doc:edit_json':
+    case 'doc:edit_window':
     case 'doc:delete':
       requestDocMenuAction(id); return
 
@@ -876,6 +893,7 @@ function onGlobalKeydown(e) {
     else if (k === 'p' && !e.shiftKey) id = 'edit:preferences'
     else if (k === 'b' && !e.shiftKey) id = 'coll:vqb'
     else if (k === 'r' && !e.shiftKey) id = 'view:refresh'
+    else if (k === 'j' && !e.shiftKey) id = 'doc:edit_window'
   } else if (!mod && !e.altKey && !e.shiftKey) {
     if (e.key === 'F4') id = 'coll:aggregation'
     else if (e.key === 'F10') id = 'coll:open_tab'

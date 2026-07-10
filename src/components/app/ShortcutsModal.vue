@@ -23,6 +23,7 @@ const GROUPS = computed(() => [
     items: [
       { keys: ['↑', '↓', '←', '→'], desc: 'Move the cell selection' },
       { keys: [`${mod}`, 'C'], desc: 'Copy the selected cell value' },
+      { keys: [`${mod}`, 'J'], desc: 'Edit the selected document in a window' },
       { keys: ['Enter'], desc: 'Commit an inline cell edit' },
       { keys: ['Esc'], desc: 'Cancel an edit / clear the selection' },
     ],
