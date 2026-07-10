@@ -2,8 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './BaseIcon.vue'
-import StateMessage from './StateMessage.vue'
+import BaseIcon from './base/BaseIcon.vue'
+import StateMessage from './base/StateMessage.vue'
 
 // Opened from App.vue for a connection node. Fetches admin `serverStatus` once
 // and surfaces the headline fields; the full document is available raw below.

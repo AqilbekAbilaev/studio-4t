@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import BaseIcon from './BaseIcon.vue'
+import BaseIcon from './base/BaseIcon.vue'
 import { generateCode, LANGUAGES } from '../utils/queryCodegen'
 
 // Query Code sub-tab: the active tab's query rendered as a copy-ready snippet in a

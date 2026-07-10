@@ -7,7 +7,7 @@
 // locally; the parent performs the actual document mutation + save and can feed a
 // backend error back in via `saveError` (the dialog stays open on error).
 import { ref, computed, watch } from 'vue'
-import BaseIcon from './BaseIcon.vue'
+import BaseIcon from './base/BaseIcon.vue'
 import { BSON_TYPES, buildTypedValue } from '../utils/docEdit'
 
 const props = defineProps({

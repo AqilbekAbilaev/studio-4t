@@ -2,8 +2,8 @@
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
-import BaseIcon from './BaseIcon.vue'
-import StateMessage from './StateMessage.vue'
+import BaseIcon from './base/BaseIcon.vue'
+import StateMessage from './base/StateMessage.vue'
 
 // Top-bar "SQL" tool. Translates a simple SQL SELECT into the equivalent MongoDB
 // find query (filter / projection / sort / limit / skip) and the shell command,

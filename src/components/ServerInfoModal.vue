@@ -2,8 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './BaseIcon.vue'
-import StateMessage from './StateMessage.vue'
+import BaseIcon from './base/BaseIcon.vue'
+import StateMessage from './base/StateMessage.vue'
 
 // Reused for the extra Server Info menu entries (Build Info / Host Info / Replica
 // Set Status). Shows the flat scalar fields as cards and the full document raw.

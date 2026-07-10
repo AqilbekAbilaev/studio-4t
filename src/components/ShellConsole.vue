@@ -2,9 +2,9 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
-import BaseIcon from './BaseIcon.vue'
+import BaseIcon from './base/BaseIcon.vue'
 import ResultTable from './ResultTable.vue'
-import TreeView from './TreeView.vue'
+import TreeView from './base/TreeView.vue'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
 import { buildExtensions, EditorView, EditorState } from '../utils/shellEditor'
 

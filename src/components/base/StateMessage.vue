@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import BaseIcon from './BaseIcon.vue'
-import { errTitle } from '../utils/errors'
+import { errTitle } from '../../utils/errors'
 
 // A shared loading / empty / error placeholder for result and tree surfaces.
 // For errors, an optional `code` (from errCode) drives an actionable hint + icon.

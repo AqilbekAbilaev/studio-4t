@@ -1,6 +1,6 @@
 <script setup>
 import { inject } from 'vue'
-import BaseIcon from './BaseIcon.vue'
+import BaseIcon from './base/BaseIcon.vue'
 import { indexKeyLabel, indexSpecJson, isIndexHidden } from '../utils/indexSpec'
 import ConnectionManager from './ConnectionManager.vue'
 import ServerStatusModal from './ServerStatusModal.vue'

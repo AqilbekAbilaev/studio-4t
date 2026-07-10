@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
-import BaseIcon from './BaseIcon.vue'
+import BaseIcon from './base/BaseIcon.vue'
 
 // Open Map-Reduce for a collection: enter map / reduce / (optional) finalize JS and
 // an output collection (blank = inline), run mapReduce, and show the raw result.

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import BaseIcon from './BaseIcon.vue'
-import { colorHex, tabColorName } from '../utils/tabColor.js'
+import { colorHex, tabColorName } from '../../utils/tabColor.js'
 
 const props = defineProps({
   tabs:         { type: Array,  required: true },

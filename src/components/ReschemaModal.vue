@@ -3,8 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage, errCode } from '../utils/errors'
 import { mongoStringify, syntaxHighlight } from '../utils/mongoFormat'
-import BaseIcon from './BaseIcon.vue'
-import StateMessage from './StateMessage.vue'
+import BaseIcon from './base/BaseIcon.vue'
+import StateMessage from './base/StateMessage.vue'
 
 // Top-bar "Reschema" tool for the active collection. Builds an ordered list of
 // transform ops (rename / remove / change type / move nested) and runs them as a

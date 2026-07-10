@@ -1,5 +1,5 @@
 <script setup>
-import BaseIcon from './BaseIcon.vue'
+import BaseIcon from './base/BaseIcon.vue'
 
 const cards = [
   ['connect',   'Connect to a database', 'Open the Connection Manager and pick a server.'],

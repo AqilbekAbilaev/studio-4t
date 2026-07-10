@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import BaseIcon from './BaseIcon.vue'
+import BaseIcon from './base/BaseIcon.vue'
 
 // A read-only reference of the keyboard shortcuts the app actually handles
 // (opened from Help → Keyboard Shortcuts). Keep this list in sync with the real

@@ -3,8 +3,8 @@ import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
 import { parseField } from '../utils/queryParser'
-import BaseIcon from './BaseIcon.vue'
-import StateMessage from './StateMessage.vue'
+import BaseIcon from './base/BaseIcon.vue'
+import StateMessage from './base/StateMessage.vue'
 
 // Add / Edit Validator for a collection. Fetches the current validator on open so an
 // existing rule is never silently overwritten, then writes changes via collMod.

@@ -5,8 +5,8 @@ import { listen } from '@tauri-apps/api/event'
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { errMessage } from '../utils/errors'
 import { scheduleSummary } from '../utils/taskSchedule'
-import BaseIcon from './BaseIcon.vue'
-import StateMessage from './StateMessage.vue'
+import BaseIcon from './base/BaseIcon.vue'
+import StateMessage from './base/StateMessage.vue'
 
 // The Tasks panel: saved, parameterised invocations of an existing operation
 // (Export / Import / Data Masking / SQL Migration / IntelliShell Script) that the

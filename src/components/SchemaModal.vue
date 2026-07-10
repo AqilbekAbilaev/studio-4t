@@ -2,8 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './BaseIcon.vue'
-import StateMessage from './StateMessage.vue'
+import BaseIcon from './base/BaseIcon.vue'
+import StateMessage from './base/StateMessage.vue'
 
 // Opened from App.vue for a collection node. Samples documents server-side and
 // infers the field/type shape, the way Studio-3T's Schema Explorer does.

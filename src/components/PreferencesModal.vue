@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
-import BaseIcon from './BaseIcon.vue'
+import BaseIcon from './base/BaseIcon.vue'
 
 // App preferences. Persisted via update_settings; on save the parent adopts the
 // new default so newly opened collection tabs use it.

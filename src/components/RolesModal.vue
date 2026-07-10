@@ -2,8 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errMessage } from '../utils/errors'
-import BaseIcon from './BaseIcon.vue'
-import StateMessage from './StateMessage.vue'
+import BaseIcon from './base/BaseIcon.vue'
+import StateMessage from './base/StateMessage.vue'
 
 // Manage Roles for a database: read-only listing of the custom (non-built-in) roles.
 const props = defineProps({
