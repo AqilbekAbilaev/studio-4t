@@ -412,7 +412,7 @@ function fmtDate(iso) {
         </dl>
       </div>
       <div class="sub-footer">
-        <button class="btn primary" @click="viewTarget = null">Close</button>
+        <button class="btn" @click="viewTarget = null">Close</button>
       </div>
     </div>
   </div>
@@ -567,7 +567,7 @@ function fmtDate(iso) {
 .gf-act.danger { color: var(--danger-text); border-color: var(--danger-text); }
 .gf-act:disabled { opacity: .5; cursor: default; }
 
-.gf-row.selected { background: var(--bg-selected, var(--bg-hover)); box-shadow: inset 2px 0 0 var(--accent); }
+.gf-row.selected { background: var(--bg-active); box-shadow: inset 2px 0 0 var(--accent); }
 
 /* Sub-form overlays (rename / metadata / view / copy bucket) sit above the modal. */
 .overlay.sub { z-index: 80; }
@@ -605,17 +605,18 @@ function fmtDate(iso) {
   border-top: 1px solid var(--border);
 }
 .btn {
-  height: 30px;
+  height: 28px;
   padding: 0 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  border: none;
   background: var(--bg-input);
   color: var(--text);
   font-size: 13px;
   cursor: pointer;
 }
 .btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover:not(:disabled) { opacity: .88; }
 .btn.primary:disabled { opacity: .55; cursor: default; }
 .vf-list { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 12.5px; }
 .vf-list dt { color: var(--text-faint); }
