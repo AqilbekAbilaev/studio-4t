@@ -12,11 +12,10 @@ import DeleteDocumentsModal from './DeleteDocumentsModal.vue'
 import VisualQueryBuilder from './VisualQueryBuilder.vue'
 import ResultTable from './ResultTable.vue'
 import StateMessage from './StateMessage.vue'
-import ExplainGraph from './ExplainGraph.vue'
 import JsonResultView from './JsonResultView.vue'
 import TreeResultView from './TreeResultView.vue'
+import ExplainResultView from './ExplainResultView.vue'
 import JsonDoc from './JsonDoc.vue'
-import { buildExplainTree } from '../utils/explainTree'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
 import { valueToClipboard, valueToEjson, documentToClipboard, fieldPath } from '../utils/clipboardCopy'
 
@@ -547,18 +546,6 @@ function onDeleteDialogDone(message) {
   emit('requery', true)
 }
 
-// The explain document normalized into a render-ready node-graph tree (Result root
-// + stage tree). Parsing lives in the util; the graph component only draws it.
-const explainTree = computed(() =>
-  buildExplainTree(
-    props.activeTab && props.activeTab.explainResult,
-    props.activeTab && props.activeTab.explainStorage,
-  )
-)
-
-// Explain sub-tab view mode: 'graph' (default) or 'json' (the raw plan document).
-const explainView = ref('graph')
-
 // ── paging range / count ──────────────────────────────
 // "<from> to <to>" of the current page, skip-aware; appends "of <N>" only when a
 // count has been taken for the still-current filter.
@@ -760,46 +747,11 @@ function copyQueryCode() {
     </template>
 
     <!-- Explain sub-tab -->
-    <div v-else-if="rtab === 'Explain'" class="explain-view">
-      <div v-if="activeTab.explainRunning" class="explain-msg">Running explain…</div>
-      <div v-else-if="activeTab.explainError" class="run-error">{{ activeTab.explainError }}</div>
-      <template v-else-if="activeTab.explainResult">
-        <div class="explain-toolbar">
-          <div class="explain-toggle" role="group" aria-label="Explain view">
-            <button
-              type="button"
-              class="et-btn"
-              :class="{ on: explainView === 'graph' }"
-              :aria-pressed="explainView === 'graph'"
-              @click="explainView = 'graph'"
-            >Graph</button>
-            <button
-              type="button"
-              class="et-btn"
-              :class="{ on: explainView === 'json' }"
-              :aria-pressed="explainView === 'json'"
-              @click="explainView = 'json'"
-            >View JSON</button>
-          </div>
-          <span class="et-spacer"></span>
-          <label class="et-verbosity">
-            <span class="et-verbosity-label">Detail</span>
-            <select
-              class="et-select"
-              :value="activeTab.explainVerbosity || 'executionStats'"
-              @change="emit('explain-verbosity', $event.target.value)"
-            >
-              <option value="executionStats">Execution stats</option>
-              <option value="queryPlanner">Query planner</option>
-              <option value="allPlansExecution">All plans</option>
-            </select>
-          </label>
-        </div>
-        <ExplainGraph v-if="explainView === 'graph'" :tree="explainTree" />
-        <JsonDoc v-else class="json-doc" :value="activeTab.explainResult" />
-      </template>
-      <div v-else class="explain-msg">Run a query, then this tab shows its execution plan.</div>
-    </div>
+    <ExplainResultView
+      v-else-if="rtab === 'Explain'"
+      :active-tab="activeTab"
+      @explain-verbosity="emit('explain-verbosity', $event)"
+    />
 
     <!-- Other sub-tabs placeholder -->
     <div v-else class="empty-rows" style="padding:32px;color:var(--text-faint);font-size:12px;display:flex;align-items:center;justify-content:center">
@@ -1097,16 +1049,9 @@ function copyQueryCode() {
     repeating-linear-gradient(to bottom, var(--bg-row) 0 25px, var(--bg-row-alt) 25px 50px);
 }
 
-/* The multi-document JSON view lives in JsonResultView.vue; the single-document
-   highlighted block lives in JsonDoc.vue. The rule below is layout only — it sizes the
-   JsonDoc (its root carries `.json-doc`) to fill the Explain "View JSON" pane. */
-.explain-view { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.explain-view > .json-doc { flex: 1; overflow: auto; padding: 12px 16px; }
-.explain-msg { padding: 32px; color: var(--text-faint); font-size: 12px; display: flex; align-items: center; justify-content: center; }
-
-/* Graph / View JSON toggle */
+/* Toolbar shell + select shared by the Query Code sub-tab (and duplicated in
+   ExplainResultView.vue, which uses the same toolbar). */
 .explain-toolbar { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border-soft); flex: 0 0 auto; }
-.explain-toggle { display: inline-flex; border: 1px solid var(--border-soft); border-radius: 7px; overflow: hidden; }
 .et-btn {
   appearance: none;
   border: none;
@@ -1200,7 +1145,6 @@ function copyQueryCode() {
 .fitem.clickable { cursor: pointer; }
 .fitem.clickable:hover { color: var(--text); }
 .fitem.faded { opacity: .4; cursor: default; }
-.run-error { padding: 10px 14px; color: var(--danger-text); font-size: 12px; }
 
 /* Delete confirm dialog */
 .del-overlay {
