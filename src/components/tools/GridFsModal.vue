@@ -2,10 +2,10 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage, errCode } from '../utils/errors'
-import { parseField } from '../utils/queryParser'
-import BaseIcon from './base/BaseIcon.vue'
-import StateMessage from './base/StateMessage.vue'
+import { errMessage, errCode } from '../../utils/errors'
+import { parseField } from '../../utils/queryParser'
+import BaseIcon from '../base/BaseIcon.vue'
+import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
 // upload / download / delete / rename / edit-metadata files, plus bucket copy/drop.

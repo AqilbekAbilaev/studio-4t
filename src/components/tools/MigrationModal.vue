@@ -1,9 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
-import StateMessage from './base/StateMessage.vue'
+import { errMessage, errCode } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar "SQL Migration" for the active collection. Generates a CREATE TABLE +
 // INSERT script from the collection, the way Studio-3T's SQL Migration does.

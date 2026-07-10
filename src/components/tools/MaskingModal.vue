@@ -2,9 +2,9 @@
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
-import StateMessage from './base/StateMessage.vue'
+import { errMessage, errCode } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar "Data Masking" tool for the active collection. Lists the collection's
 // fields (from a sample document) and lets the user pick a masking strategy per

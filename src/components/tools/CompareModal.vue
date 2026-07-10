@@ -1,9 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
-import StateMessage from './base/StateMessage.vue'
+import { errMessage, errCode } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar "Compare" for a database: diff two collections by _id, the way
 // Studio-3T's Data Compare does.

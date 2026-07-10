@@ -1,9 +1,9 @@
 <script setup>
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
-import StateMessage from './base/StateMessage.vue'
+import { errMessage, errCode } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar "Search in…" for the active database. Scans every collection for a
 // value anywhere in a document (case-insensitive), the way Studio-3T does.
