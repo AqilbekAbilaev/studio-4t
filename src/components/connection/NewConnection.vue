@@ -6,6 +6,7 @@ import { errMessage } from '../../utils/errors'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import BaseIcon from '../base/BaseIcon.vue'
 import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../../data/connectionOptions.js'
+import { partitionUriOptions } from '../../utils/connectionUri.js'
 
 const props = defineProps({
   editConn: { type: Object, default: null },
@@ -151,6 +152,11 @@ const extraOptions = Object.fromEntries(
   )
 )
 
+// Unknown options captured when importing a connection string (no dedicated field and
+// not in the catalog). Kept reactive so buildOptions carries them through on save, so an
+// imported URI never loses a parameter — matching Studio 3T's import.
+const importedExtraOptions = ref({})
+
 // maxStalenessSeconds / readPreferenceTags are only valid alongside a
 // non-primary read preference; the driver rejects the whole URI otherwise.
 // Standalone has no read preference at all.
@@ -172,7 +178,7 @@ function optionDisabled(opt) {
 // field plus any preserved unknown options. Disabled/hidden/empty are omitted
 // so the built URI only ever carries valid, driver-accepted parameters.
 function buildOptions() {
-  const out = { ...extraOptions }
+  const out = { ...extraOptions, ...importedExtraOptions.value }
   for (const group of OPTION_GROUPS) {
     for (const opt of group.options) {
       if (!optionVisible(opt) || optionDisabled(opt)) continue
@@ -355,6 +361,17 @@ function parseUri(raw) {
     useTls.value = true
     if (params.get('tlsAllowInvalidCertificates') === 'true') tlsAllowInvalidCerts.value = true
   }
+
+  // Route every remaining option so the import preserves it (Studio 3T parity): catalog
+  // keys fill the Advanced tab, read preference / TLS files fill their dedicated fields,
+  // and anything else is kept verbatim to be re-emitted on save.
+  const routed = partitionUriOptions(params, KNOWN_OPTION_KEYS)
+  Object.assign(advancedOptions.value, routed.known)
+  importedExtraOptions.value = routed.extra
+  if (routed.readPreference) readPreference.value = routed.readPreference
+  if (routed.tlsCaFile) tlsCaFile.value = routed.tlsCaFile
+  if (routed.tlsCertKeyFile) tlsCertKeyFile.value = routed.tlsCertKeyFile
+  if (routed.tls) useTls.value = true
 
   return true
 }
