@@ -4,13 +4,14 @@ import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { installInputUndo } from './utils/inputUndo'
-import { parseField, parsePipeline } from './utils/queryParser'
+import { parseField } from './utils/queryParser'
 import { errMessage } from './utils/errors'
 import { deriveMenuContext, resolveMenuTarget } from './utils/menuContext'
 import { isProtectedIndex, indexKeyLabel, indexSpecJson, isIndexHidden } from './utils/indexSpec'
 import { useIndexes } from './composables/useIndexes'
 import { useSshHostKey } from './composables/useSshHostKey'
 import { useQueryRunner } from './composables/useQueryRunner'
+import { useDbActions } from './composables/useDbActions'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -326,47 +327,6 @@ const clipboardQuery = ref(null)
 const contextMenu = ref(null)
 const tagOverrides = ref({})
 
-const addCollectionTarget = ref(null)   // { connId, dbName } | null
-const newCollectionName   = ref('')
-const addCollectionError  = ref(null)
-const addCollectionSaving = ref(false)
-
-const addViewTarget   = ref(null)       // { connId, dbName } | null
-const newViewName     = ref('')
-const newViewSource   = ref('')         // source collection the view reads from
-const newViewPipeline = ref('')         // aggregation pipeline (JSON array, optional)
-const addViewError    = ref(null)
-const addViewSaving   = ref(false)
-
-const addBucketTarget = ref(null)       // { connId, dbName } | null
-const newBucketName   = ref('')
-const addBucketError  = ref(null)
-const addBucketSaving = ref(false)
-
-const dropDatabaseTarget   = ref(null)  // { connId, dbName } | null
-const dropDatabaseError    = ref(null)
-const dropDatabaseDeleting = ref(false)
-
-const dropCollectionTarget   = ref(null)  // { connId, dbName, collName } | null
-const dropCollectionError    = ref(null)
-const dropCollectionDeleting  = ref(false)
-
-const renameCollectionTarget = ref(null)  // { connId, dbName, collName } | null
-const renameCollectionName   = ref('')
-const renameCollectionError  = ref(null)
-const renameCollectionSaving = ref(false)
-
-const duplicateCollectionTarget = ref(null)  // { connId, dbName, collName } | null
-const duplicateCollectionName   = ref('')
-const duplicateCollectionError  = ref(null)
-const duplicateCollectionSaving = ref(false)
-
-const addDatabaseTarget   = ref(null)  // { connId } | null
-const newDatabaseName     = ref('')
-const newDatabaseCollName = ref('')
-const addDatabaseError    = ref(null)
-const addDatabaseSaving   = ref(false)
-
 const contextActiveNodeKey = computed(() => {
   if (!contextMenu.value) return null
   const nd = contextMenu.value.nodeData
@@ -448,6 +408,51 @@ const {
 } = useSshHostKey()
 
 const { runQuery, runAggregate, cancelQuery, runRestoredTab } = useQueryRunner({ tabs: tabs, showToast: showToast })
+
+const {
+  addCollectionTarget,
+  newCollectionName,
+  addCollectionError,
+  addCollectionSaving,
+  addViewTarget,
+  newViewName,
+  newViewSource,
+  newViewPipeline,
+  addViewError,
+  addViewSaving,
+  addBucketTarget,
+  newBucketName,
+  addBucketError,
+  addBucketSaving,
+  dropDatabaseTarget,
+  dropDatabaseError,
+  dropDatabaseDeleting,
+  dropCollectionTarget,
+  dropCollectionError,
+  dropCollectionDeleting,
+  renameCollectionTarget,
+  renameCollectionName,
+  renameCollectionError,
+  renameCollectionSaving,
+  duplicateCollectionTarget,
+  duplicateCollectionName,
+  duplicateCollectionError,
+  duplicateCollectionSaving,
+  addDatabaseTarget,
+  newDatabaseName,
+  newDatabaseCollName,
+  addDatabaseError,
+  addDatabaseSaving,
+  confirmAddCollection,
+  confirmAddView,
+  confirmAddBucket,
+  confirmDropDatabase,
+  confirmDropCollection,
+  confirmRenameCollection,
+  confirmDuplicateCollection,
+  confirmAddDatabase,
+  pasteClipboard,
+} = useDbActions({ tabs: tabs, activeTabId: activeTabId, showToast: showToast, connectionTreeRef: connectionTreeRef, dbClipboard: dbClipboard })
 
 // ── active collection tracking (for tree highlight) ────────
 const activeCollectionKey = computed(() => {
@@ -1346,227 +1351,9 @@ async function handleContextAction(action) {
   showToast(action + ' — coming to Studio-4T')
 }
 
-async function confirmAddCollection() {
-  const target = addCollectionTarget.value
-  const name = newCollectionName.value.trim()
-  if (!target || !name) return
-  addCollectionSaving.value = true
-  addCollectionError.value = null
-  try {
-    await invoke('create_collection', { id: target.connId, database: target.dbName, name: name })
-    await connectionTreeRef.value.refreshConn(target.connId)
-    showToast(`Collection "${name}" created`)
-    addCollectionTarget.value = null
-  } catch (e) {
-    addCollectionError.value = errMessage(e)
-  } finally {
-    addCollectionSaving.value = false
-  }
-}
-
-async function confirmAddView() {
-  const target = addViewTarget.value
-  const name = newViewName.value.trim()
-  const source = newViewSource.value.trim()
-  if (!target || !name || !source) return
-  // Validate the (optional) pipeline up front so a typo surfaces before the round-trip.
-  const pp = parsePipeline(newViewPipeline.value)
-  if (!pp.ok) { addViewError.value = pp.error; return }
-  addViewSaving.value = true
-  addViewError.value = null
-  try {
-    await invoke('create_view', {
-      id: target.connId,
-      database: target.dbName,
-      name: name,
-      viewOn: source,
-      pipeline: pp.ejson,
-    })
-    await connectionTreeRef.value.refreshConn(target.connId)
-    showToast(`View "${name}" created`)
-    addViewTarget.value = null
-  } catch (e) {
-    addViewError.value = errMessage(e)
-  } finally {
-    addViewSaving.value = false
-  }
-}
-
 // The Validator modal owns its own fetch/save; we just confirm the result.
 function onValidatorSaved(collName) {
   showToast(`Validator saved for "${collName}"`)
-}
-
-// Paste the app clipboard (a copied collection or database) into a target database.
-// Same-connection only (uses a server-side $out); cross-connection is rejected.
-async function pasteClipboard(target) {
-  const clip = dbClipboard.value
-  if (!clip) { showToast('Nothing to paste — copy a collection or database first'); return }
-  if (clip.connId !== target.connId) {
-    showToast('Paste is only supported within the same connection')
-    return
-  }
-  try {
-    if (clip.kind === 'collection') {
-      await invoke('copy_collection', {
-        id: clip.connId,
-        sourceDatabase: clip.dbName, sourceCollection: clip.collName,
-        targetDatabase: target.dbName, targetCollection: clip.collName,
-      })
-      showToast(`Pasted "${clip.collName}" into ${target.dbName}`)
-    } else {
-      const dbs = await invoke('list_databases', { id: clip.connId })
-      const collections = (dbs.find(d => d.name === clip.dbName)?.collections) || []
-      let done = 0
-      for (const coll of collections) {
-        try {
-          await invoke('copy_collection', {
-            id: clip.connId,
-            sourceDatabase: clip.dbName, sourceCollection: coll,
-            targetDatabase: target.dbName, targetCollection: coll,
-          })
-          done++
-        } catch (_) { /* skip a collection that fails; report the rest */ }
-      }
-      showToast(`Pasted ${done} collection${done !== 1 ? 's' : ''} into ${target.dbName}`)
-    }
-    await connectionTreeRef.value.refreshConn(target.connId)
-  } catch (e) {
-    showToast('Paste failed: ' + errMessage(e))
-  }
-}
-
-// Database → Add GridFS Bucket…: a bucket is the pair of `<name>.files` and
-// `<name>.chunks` collections; create both so it appears in the GridFS view.
-async function confirmAddBucket() {
-  const target = addBucketTarget.value
-  const name = newBucketName.value.trim()
-  if (!target || !name) return
-  addBucketSaving.value = true
-  addBucketError.value = null
-  try {
-    for (const suffix of ['files', 'chunks']) {
-      await invoke('create_collection', {
-        id: target.connId,
-        database: target.dbName,
-        name: `${name}.${suffix}`,
-      })
-    }
-    await connectionTreeRef.value.refreshConn(target.connId)
-    showToast(`GridFS bucket "${name}" created`)
-    addBucketTarget.value = null
-  } catch (e) {
-    addBucketError.value = errMessage(e)
-  } finally {
-    addBucketSaving.value = false
-  }
-}
-
-async function confirmDropDatabase() {
-  const target = dropDatabaseTarget.value
-  if (!target) return
-  dropDatabaseDeleting.value = true
-  dropDatabaseError.value = null
-  try {
-    await invoke('drop_database', { id: target.connId, database: target.dbName })
-    await connectionTreeRef.value.refreshConn(target.connId)
-    tabs.value = tabs.value.filter(t => !(t.kind === 'collection' && t.connectionId === target.connId && t.dbName === target.dbName))
-    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
-      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
-    }
-    showToast(`Database "${target.dbName}" dropped`)
-    dropDatabaseTarget.value = null
-  } catch (e) {
-    dropDatabaseError.value = errMessage(e)
-  } finally {
-    dropDatabaseDeleting.value = false
-  }
-}
-
-async function confirmDropCollection() {
-  const target = dropCollectionTarget.value
-  if (!target) return
-  dropCollectionDeleting.value = true
-  dropCollectionError.value = null
-  try {
-    await invoke('drop_collection', { id: target.connId, database: target.dbName, collection: target.collName })
-    await connectionTreeRef.value.refreshConn(target.connId)
-    tabs.value = tabs.value.filter(t => !(t.kind === 'collection' && t.connectionId === target.connId && t.dbName === target.dbName && t.collectionName === target.collName))
-    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
-      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
-    }
-    showToast(`Collection "${target.collName}" dropped`)
-    dropCollectionTarget.value = null
-  } catch (e) {
-    dropCollectionError.value = errMessage(e)
-  } finally {
-    dropCollectionDeleting.value = false
-  }
-}
-
-async function confirmRenameCollection() {
-  const target = renameCollectionTarget.value
-  const newName = renameCollectionName.value.trim()
-  if (!target || !newName || newName === target.collName) return
-  renameCollectionSaving.value = true
-  renameCollectionError.value = null
-  try {
-    await invoke('rename_collection', { id: target.connId, database: target.dbName, collection: target.collName, newName: newName })
-    await connectionTreeRef.value.refreshConn(target.connId)
-    const open = tabs.value.find(t => t.kind === 'collection' && t.connectionId === target.connId && t.dbName === target.dbName && t.collectionName === target.collName)
-    if (open) {
-      open.collectionName = newName
-      open.title = newName
-    }
-    showToast(`Collection renamed to "${newName}"`)
-    renameCollectionTarget.value = null
-  } catch (e) {
-    renameCollectionError.value = errMessage(e)
-  } finally {
-    renameCollectionSaving.value = false
-  }
-}
-
-async function confirmDuplicateCollection() {
-  const target = duplicateCollectionTarget.value
-  const name = duplicateCollectionName.value.trim()
-  if (!target || !name || name === target.collName) return
-  duplicateCollectionSaving.value = true
-  duplicateCollectionError.value = null
-  try {
-    const count = await invoke('duplicate_collection', {
-      id: target.connId,
-      database: target.dbName,
-      source: target.collName,
-      target: name,
-    })
-    await connectionTreeRef.value.refreshConn(target.connId)
-    showToast(`Copied ${count} document${count === 1 ? '' : 's'} to "${name}"`)
-    duplicateCollectionTarget.value = null
-  } catch (e) {
-    duplicateCollectionError.value = errMessage(e)
-  } finally {
-    duplicateCollectionSaving.value = false
-  }
-}
-
-async function confirmAddDatabase() {
-  const target = addDatabaseTarget.value
-  const dbName = newDatabaseName.value.trim()
-  const collName = newDatabaseCollName.value.trim()
-  if (!target || !dbName || !collName) return
-  addDatabaseSaving.value = true
-  addDatabaseError.value = null
-  try {
-    await invoke('create_database', { id: target.connId, database: dbName, firstCollection: collName })
-    await connectionTreeRef.value.refreshConn(target.connId)
-    showToast(`Database "${dbName}" created`)
-    addDatabaseTarget.value = null
-  } catch (e) {
-    addDatabaseError.value = errMessage(e)
-  } finally {
-    addDatabaseSaving.value = false
-  }
 }
 
 // Open the stepped Import / Export wizard for a single collection. `nodeData` is
