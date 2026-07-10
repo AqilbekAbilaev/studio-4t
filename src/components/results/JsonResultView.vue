@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
-import { mongoStringify } from '../utils/mongoFormat'
-import { createJsonView, setJsonView } from '../utils/jsonView'
+import { mongoStringify } from '../../utils/mongoFormat'
+import { createJsonView, setJsonView } from '../../utils/jsonView'
 
 // Read-only JSON view: a CodeMirror editor (see utils/jsonView.js) that virtualizes
 // lines and folds objects/arrays natively. The buffer is each document rendered at the

@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import ExplainGraph from './ExplainGraph.vue'
 import JsonDoc from './JsonDoc.vue'
-import { buildExplainTree } from '../utils/explainTree'
+import { buildExplainTree } from '../../utils/explainTree'
 
 // Explain sub-tab: the query's execution plan, shown either as a stage graph or the raw
 // plan document. Parsing lives in buildExplainTree; ExplainGraph only draws the tree.

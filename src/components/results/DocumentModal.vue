@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
-import BaseIcon from './base/BaseIcon.vue'
+import BaseIcon from '../base/BaseIcon.vue'
 
 const props = defineProps({
   mode:       { type: String, required: true },  // 'insert' | 'edit'

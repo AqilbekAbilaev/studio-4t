@@ -1,5 +1,5 @@
 <script setup>
-import TreeView from './base/TreeView.vue'
+import TreeView from '../base/TreeView.vue'
 
 // Tree view: each result document rendered as an expandable Key / Value / Type tree
 // under a sticky column header. TreeView owns the recursive row rendering.

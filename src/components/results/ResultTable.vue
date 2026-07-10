@@ -2,9 +2,9 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../utils/errors'
-import { valueToClipboard } from '../utils/clipboardCopy'
-import BaseIcon from './base/BaseIcon.vue'
+import { errMessage } from '../../utils/errors'
+import { valueToClipboard } from '../../utils/clipboardCopy'
+import BaseIcon from '../base/BaseIcon.vue'
 
 const props = defineProps({
   activeTab: { type: Object,  required: true },
