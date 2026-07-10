@@ -1,8 +1,8 @@
 <script setup>
 import { ref, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
+import { errMessage } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
 
 const props = defineProps({
   activeTab:      { type: Object,  required: true },

@@ -1,13 +1,13 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import BaseIcon from './base/BaseIcon.vue'
+import BaseIcon from '../base/BaseIcon.vue'
 import {
   OPERATORS,
   detectType,
   generateFilter,
   generateSort,
   generateProjection,
-} from '../utils/vqbGenerator'
+} from '../../utils/vqbGenerator'
 
 const props = defineProps({
   tabs:            { type: Array,  required: true },

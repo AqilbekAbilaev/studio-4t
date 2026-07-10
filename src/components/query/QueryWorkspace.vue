@@ -1,17 +1,17 @@
 <script setup>
 import { ref, computed, nextTick, watch, defineAsyncComponent } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../utils/errors'
-import BaseIcon from './base/BaseIcon.vue'
-import TabBar from './base/TabBar.vue'
+import { errMessage } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import TabBar from '../base/TabBar.vue'
 import QuickstartPane from './QuickstartPane.vue'
 import QueryBar from './QueryBar.vue'
 import PipelineEditor from './PipelineEditor.vue'
-import ResultsPanel from './ResultsPanel.vue'
+import ResultsPanel from '../ResultsPanel.vue'
 // Lazy-loaded so CodeMirror (a large dep) is only fetched when a shell tab opens.
-const ShellConsole = defineAsyncComponent(() => import('./ShellConsole.vue'))
+const ShellConsole = defineAsyncComponent(() => import('../ShellConsole.vue'))
 import QueryBrowserModal from './QueryBrowserModal.vue'
-import { parseField, parsePipeline } from '../utils/queryParser'
+import { parseField, parsePipeline } from '../../utils/queryParser'
 
 const props = defineProps({
   tabs:           { type: Array,   required: true },

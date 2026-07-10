@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import BaseIcon from './base/BaseIcon.vue'
+import BaseIcon from '../base/BaseIcon.vue'
 
 const emit = defineEmits(['close', 'apply'])
 
