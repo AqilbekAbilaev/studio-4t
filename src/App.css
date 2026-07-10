@@ -1,0 +1,293 @@
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-window);
+}
+
+/* ── Titlebar ── */
+.titlebar {
+  height: 38px;
+  flex: none;
+  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  position: relative;
+  -webkit-app-region: drag;
+}
+.title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 500;
+  pointer-events: none;
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  flex: none;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: stretch;
+  padding: 6px 8px;
+  gap: 2px;
+}
+.tbtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: var(--text);
+  min-width: 54px;
+  position: relative;
+}
+.tbtn:hover { background: var(--bg-hover); }
+.tbtn .ic { color: var(--text-dim); position: relative; }
+.tbtn:hover .ic { color: var(--text); }
+.tbtn .lbl { font-size: 10.5px; color: var(--text-dim); white-space: nowrap; }
+.tbtn .drop { position: absolute; right: 2px; top: 3px; color: var(--text-faint); }
+.tb-sep { width: 1px; flex: none; background: var(--border-soft); margin: 6px 4px; align-self: stretch; }
+.ic-badge { position: relative; }
+.dotmark {
+  position: absolute;
+  right: -1px;
+  bottom: 1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bg-toolbar);
+}
+
+/* ── Main split ── */
+.app-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ── Left rail ── */
+.rail-left {
+  width: 26px;
+  flex: none;
+  background: var(--bg-panel-2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+}
+.rail-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: .3px;
+}
+
+/* ── Resizer ── */
+.resizer {
+  width: 3px;
+  flex: none;
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resizer-grip {
+  width: 2px;
+  height: 32px;
+  background: transparent;
+  border-radius: 1px;
+  cursor: col-resize;
+  transition: background 0.12s;
+}
+.resizer:hover .resizer-grip,
+.resizer.dragging .resizer-grip { background: var(--accent); }
+
+/* ── Split panes ── */
+/* Each pane fills its half of the SplitContainer; the focused one gets a thin
+   accent outline so it's clear which pane new tabs / menu actions target. */
+.pane-host { display: flex; flex: 1; min-width: 0; min-height: 0; position: relative; }
+.pane-host.focused::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  z-index: 5;
+}
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.5);
+  z-index: 80;
+  white-space: nowrap;
+}
+
+/* ── Add Collection / Drop Database dialogs ── */
+.del-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .5);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+}
+.del-dialog {
+  width: 400px;
+  background: var(--bg-window);
+  border-radius: 10px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.del-title {
+  height: 36px;
+  flex: none;
+  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  position: relative;
+}
+.del-title .t {
+  position: absolute;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 500;
+  pointer-events: none;
+}
+.close-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  z-index: 1;
+}
+.close-btn:hover { background: var(--bg-hover); color: var(--text); }
+.del-body {
+  padding: 20px 20px 12px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.del-body p { margin: 0 0 8px; }
+.del-error { font-size: 12px; color: var(--danger-text); margin-top: 6px; }
+.prompt-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.prompt-input:focus { outline: none; border-color: var(--accent); }
+.pipeline-input {
+  height: auto;
+  min-height: 76px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+/* Space stacked inputs in multi-field dialogs (e.g. Add View); single-input
+   dialogs like Add Collection are unaffected. */
+.del-body .prompt-input + .prompt-input { margin-top: 10px; }
+
+.idx-dialog { width: 560px; }
+.idx-msg { padding: 16px 0; color: var(--text-faint); font-size: 12px; }
+.idx-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.idx-table th { text-align: left; font-weight: 500; color: var(--text-faint); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.idx-table td { padding: 5px 8px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+.idx-name { font-family: var(--mono); }
+.idx-keys { font-family: var(--mono); color: var(--text-dim); }
+.idx-actions { text-align: right; width: 1%; white-space: nowrap; }
+.idx-create { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.idx-create-title { font-size: 12px; color: var(--text-faint); margin-bottom: 8px; }
+.idx-unique { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
+.idx-cancel-edit { margin-top: 10px; }
+.idx-row { cursor: pointer; }
+.idx-row:hover { background: var(--bg-hover); }
+.idx-row.selected { background: var(--accent-soft, var(--bg-hover)); }
+.idx-hint { margin-top: 8px; font-size: 11.5px; color: var(--text-faint); }
+.cc-prompt { margin-top: 12px; font-size: 12.5px; color: var(--text-dim); }
+.cc-prompt code, .del-body code { font-family: var(--mono); }
+.idx-detail-section { font-size: 12px; color: var(--text-faint); margin: 14px 0 6px; }
+.idx-detail-section:first-child { margin-top: 0; }
+.idx-detail-json {
+  margin: 0;
+  padding: 10px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  white-space: pre;
+}
+.idx-detail-stats { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.idx-detail-stats td { padding: 4px 8px; border-bottom: 1px solid var(--border-soft); }
+.idx-detail-stats td:first-child { color: var(--text-faint); width: 40%; }
+.del-footer {
+  height: 48px;
+  flex: none;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+}
+.spacer { flex: 1; }
+.btn {
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 5px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--bg-toolbar);
+  color: var(--text);
+}
+.btn:hover { background: var(--bg-hover); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover:not(:disabled) { opacity: .88; }
+.btn.danger { background: var(--danger); color: #fff; }
+.btn.danger:hover:not(:disabled) { background: var(--danger-hover); }
