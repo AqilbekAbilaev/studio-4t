@@ -34,7 +34,7 @@ watch(() => [props.fieldName, props.initialType, props.initialRaw], () => {
 const title = computed(() => ({
   edit:   'Edit Value / Type',
   add:    'Add Field / Value',
-  rename: 'Rename Field',
+  rename: 'Rename Field in Document',
 }[props.mode]))
 
 const showName  = computed(() => props.mode === 'add' || props.mode === 'rename')
@@ -83,6 +83,11 @@ const shownError = computed(() => localError.value || props.saveError)
           <input class="fe-input" v-model="name" spellcheck="false" autocomplete="off"
                  @keydown.enter="onSave" />
         </label>
+
+        <p v-if="mode === 'rename'" class="fe-hint">
+          Renames this field on the selected document only. To rename it across every
+          document, use the Reschema tool.
+        </p>
 
         <label v-if="showValue" class="fe-row">
           <span class="fe-lbl">Type</span>
@@ -146,6 +151,7 @@ const shownError = computed(() => localError.value || props.saveError)
 }
 .fe-input:focus { border-color: var(--accent); }
 .fe-area { resize: vertical; min-height: 96px; line-height: 1.5; }
+.fe-hint { margin: -4px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-faint); }
 .fe-error { font-size: 12px; color: var(--danger-text); }
 .fe-footer {
   height: 48px; flex: none; border-top: 1px solid var(--border);
