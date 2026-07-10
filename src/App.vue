@@ -8,6 +8,8 @@ import { parseField, parsePipeline } from './utils/queryParser'
 import { errMessage, errCode } from './utils/errors'
 import { deriveMenuContext, resolveMenuTarget } from './utils/menuContext'
 import { isProtectedIndex, indexKeyLabel, indexSpecJson, isIndexHidden } from './utils/indexSpec'
+import { useIndexes } from './composables/useIndexes'
+import { useSshHostKey } from './composables/useSshHostKey'
 import BaseIcon from './components/BaseIcon.vue'
 import ConnectionTree from './components/ConnectionTree.vue'
 import QueryWorkspace from './components/QueryWorkspace.vue'
@@ -98,10 +100,6 @@ function scheduleSaveTabs() {
 onMounted(async () => {
   // WebKitGTK has no native undo/redo for text fields — install our own so Ctrl+Z works.
   installInputUndo()
-
-  // Backend-raised SSH host-key prompts (global emits, so use the app-wide listen).
-  listen('ssh-host-key-prompt', (e) => { sshHostKeyPrompt.value = e.payload })
-  listen('ssh-host-key-changed', (e) => { sshHostKeyChanged.value = e.payload })
 
   // Native menu clicks arrive here; route them through the same handlers the
   // custom bar used. (menu.rs emits the clicked item's id.)
@@ -321,29 +319,6 @@ function applyTheme(next) {
   localStorage.setItem('s4t-theme', value)
 }
 
-// SSH host-key prompts raised by the backend during a tunnel handshake. At most
-// one of each is active at a time; the modal shows the prompt first.
-const sshHostKeyPrompt = ref(null)   // { requestId, host, port, fingerprint }
-const sshHostKeyChanged = ref(null)  // { host, port, storedFingerprint, presentedFingerprint }
-
-function onHostKeyTrust() {
-  if (sshHostKeyPrompt.value) {
-    invoke('respond_ssh_host_key', { requestId: sshHostKeyPrompt.value.requestId, trust: true })
-    sshHostKeyPrompt.value = null
-  }
-}
-function onHostKeyCancel() {
-  if (sshHostKeyPrompt.value) {
-    invoke('respond_ssh_host_key', { requestId: sshHostKeyPrompt.value.requestId, trust: false })
-    sshHostKeyPrompt.value = null
-  }
-}
-async function onHostKeyForget() {
-  if (sshHostKeyChanged.value) {
-    await invoke('forget_ssh_host', { host: sshHostKeyChanged.value.host, port: sshHostKeyChanged.value.port })
-    sshHostKeyChanged.value = null
-  }
-}
 const expandConnectionId = ref(null)
 const vqbOpen        = ref(false)
 const clipboardQuery = ref(null)
@@ -391,30 +366,6 @@ const newDatabaseCollName = ref('')
 const addDatabaseError    = ref(null)
 const addDatabaseSaving   = ref(false)
 
-const indexesTarget   = ref(null)  // { connId, dbName, collName } | null
-const indexesList     = ref([])
-const indexesLoading  = ref(false)
-const indexesError    = ref(null)
-const newIndexKeys    = ref('')
-const newIndexName    = ref('')
-const newIndexUnique  = ref(false)
-const indexCreating   = ref(false)
-const pendingDropIndex = ref(null)  // index name armed for a confirming second click
-
-// Index-menu selection & dialogs. `selectedIndex` is the index row highlighted in
-// the Indexes dialog; it drives the Index menu's enablement (see menuContext) and
-// is the target of every Index-menu action.
-const selectedIndex        = ref(null)   // the selected index doc | null
-const indexFormMode        = ref('create')  // 'create' | 'edit'
-const indexEditOriginalName = ref('')    // name of the index being edited (edit mode)
-const indexDetailsTarget   = ref(null)   // the index shown in the View Details modal | null
-const indexDetailsStats    = ref(null)   // its $indexStats entry | null
-const indexDetailsLoading  = ref(false)
-const dropIndexTarget      = ref(null)   // { name } armed for the type-to-confirm drop | null
-const dropIndexConfirmText = ref('')
-const dropIndexError       = ref(null)
-const dropIndexBusy        = ref(false)
-
 const contextActiveNodeKey = computed(() => {
   if (!contextMenu.value) return null
   const nd = contextMenu.value.nodeData
@@ -451,6 +402,49 @@ function showToast(msg) {
   toast.value = msg
   toastTimer = setTimeout(() => { toast.value = null }, 2200)
 }
+
+const {
+  indexesTarget,
+  indexesList,
+  indexesLoading,
+  indexesError,
+  newIndexKeys,
+  newIndexName,
+  newIndexUnique,
+  indexCreating,
+  pendingDropIndex,
+  selectedIndex,
+  indexFormMode,
+  indexEditOriginalName,
+  indexDetailsTarget,
+  indexDetailsStats,
+  indexDetailsLoading,
+  dropIndexTarget,
+  dropIndexConfirmText,
+  dropIndexError,
+  dropIndexBusy,
+  loadIndexes,
+  resetIndexForm,
+  closeIndexesModal,
+  confirmCreateIndex,
+  dropIndex,
+  startEditIndex,
+  openIndexDetails,
+  formatIndexSince,
+  copyIndex,
+  openDropIndexConfirm,
+  confirmDropIndex,
+  setIndexHidden,
+  openIndexes,
+} = useIndexes({ showToast: showToast })
+
+const {
+  sshHostKeyPrompt,
+  sshHostKeyChanged,
+  onHostKeyTrust,
+  onHostKeyCancel,
+  onHostKeyForget,
+} = useSshHostKey()
 
 // ── active collection tracking (for tree highlight) ────────
 const activeCollectionKey = computed(() => {
@@ -1199,16 +1193,7 @@ async function handleContextAction(action) {
   }
 
   if (action === 'Indexes…') {
-    indexesTarget.value = {
-      connId: saved.nodeData.connId,
-      dbName: saved.nodeData.dbName,
-      collName: saved.nodeData.collName,
-    }
-    indexesError.value = null
-    selectedIndex.value = null
-    pendingDropIndex.value = null
-    resetIndexForm()
-    await loadIndexes()
+    await openIndexes(saved.nodeData)
     return
   }
 
@@ -1578,245 +1563,6 @@ async function confirmAddDatabase() {
     addDatabaseError.value = errMessage(e)
   } finally {
     addDatabaseSaving.value = false
-  }
-}
-
-async function loadIndexes() {
-  const target = indexesTarget.value
-  if (!target) return
-  indexesLoading.value = true
-  indexesError.value = null
-  try {
-    indexesList.value = await invoke('list_indexes', {
-      id: target.connId,
-      database: target.dbName,
-      collection: target.collName,
-    })
-    // Re-point the selection at the reloaded index object (a fresh list replaces
-    // the old references); clear it if that index no longer exists.
-    if (selectedIndex.value) {
-      selectedIndex.value = indexesList.value.find(i => i.name === selectedIndex.value.name) || null
-    }
-  } catch (e) {
-    indexesError.value = errMessage(e)
-    indexesList.value = []
-  } finally {
-    indexesLoading.value = false
-  }
-}
-
-// Reset the create/edit form back to a blank create.
-function resetIndexForm() {
-  newIndexKeys.value = ''
-  newIndexName.value = ''
-  newIndexUnique.value = false
-  indexFormMode.value = 'create'
-  indexEditOriginalName.value = ''
-}
-
-// Closes the Indexes dialog and clears its selection/form so the Index menu
-// disables again (and any half-typed edit is discarded).
-function closeIndexesModal() {
-  indexesTarget.value = null
-  selectedIndex.value = null
-  pendingDropIndex.value = null
-  resetIndexForm()
-}
-
-async function confirmCreateIndex() {
-  const target = indexesTarget.value
-  const keys = newIndexKeys.value.trim()
-  if (!target || !keys) return
-  const editing = indexFormMode.value === 'edit' && !!indexEditOriginalName.value
-  indexCreating.value = true
-  indexesError.value = null
-  try {
-    // MongoDB has no in-place index edit, so an edit drops the original first and
-    // recreates it from the (possibly changed) form values.
-    if (editing) {
-      await invoke('drop_index', {
-        id: target.connId,
-        database: target.dbName,
-        collection: target.collName,
-        name: indexEditOriginalName.value,
-      })
-    }
-    await invoke('create_index', {
-      id: target.connId,
-      database: target.dbName,
-      collection: target.collName,
-      keys: keys,
-      unique: newIndexUnique.value,
-      name: newIndexName.value.trim(),
-    })
-    resetIndexForm()
-    await loadIndexes()
-    showToast(editing ? 'Index updated' : 'Index created')
-  } catch (e) {
-    indexesError.value = errMessage(e)
-  } finally {
-    indexCreating.value = false
-  }
-}
-
-// Two-click guard: the first click arms a row, the second actually drops it.
-async function dropIndex(name) {
-  if (pendingDropIndex.value !== name) {
-    pendingDropIndex.value = name
-    return
-  }
-  const target = indexesTarget.value
-  if (!target) return
-  indexesError.value = null
-  try {
-    await invoke('drop_index', {
-      id: target.connId,
-      database: target.dbName,
-      collection: target.collName,
-      name: name,
-    })
-    pendingDropIndex.value = null
-    await loadIndexes()
-    showToast(`Index "${name}" dropped`)
-  } catch (e) {
-    indexesError.value = errMessage(e)
-    pendingDropIndex.value = null
-  }
-}
-
-// --- Index menu actions (operate on the selected row in the Indexes dialog) ---
-
-// The selected index, or null with a nudge if somehow invoked without one. The
-// Index-menu gate guarantees a selection, so this is just defensive.
-function requireSelectedIndex() {
-  if (!indexesTarget.value || !selectedIndex.value) {
-    showToast('Select an index first')
-    return null
-  }
-  return selectedIndex.value
-}
-
-// Edit Index…: pre-fill the create form with the selected index as a starting
-// point and switch it to edit mode (save = drop-and-recreate).
-function startEditIndex() {
-  const idx = requireSelectedIndex()
-  if (!idx) return
-  if (isProtectedIndex(idx.name)) {
-    showToast('The _id index cannot be edited')
-    return
-  }
-  newIndexKeys.value = indexKeyLabel(idx) ? JSON.stringify(idx.key) : ''
-  newIndexName.value = idx.name || ''
-  newIndexUnique.value = !!idx.unique
-  indexFormMode.value = 'edit'
-  indexEditOriginalName.value = idx.name
-}
-
-// View Details: show the full spec (read-only) plus usage stats when available.
-async function openIndexDetails() {
-  const idx = requireSelectedIndex()
-  if (!idx) return
-  const target = indexesTarget.value
-  indexDetailsTarget.value = idx
-  indexDetailsStats.value = null
-  indexDetailsLoading.value = true
-  try {
-    const all = await invoke('index_stats', {
-      id: target.connId,
-      database: target.dbName,
-      collection: target.collName,
-    })
-    indexDetailsStats.value = all.find(s => s.name === idx.name) || null
-  } catch (e) {
-    // $indexStats can be unsupported (older server, non-replicated deployment);
-    // the spec is still shown, just without usage numbers.
-    indexDetailsStats.value = null
-  } finally {
-    indexDetailsLoading.value = false
-  }
-}
-
-// $indexStats.accesses.since is a BSON date, which crosses the wire as relaxed
-// Extended JSON (a string, or a { $date } wrapper). Render whichever we get as a
-// plain string rather than "[object Object]".
-function formatIndexSince(value) {
-  if (value == null) return '—'
-  if (typeof value === 'object') {
-    const inner = value.$date
-    if (inner == null) return JSON.stringify(value)
-    return typeof inner === 'object' ? (inner.$numberLong ?? JSON.stringify(inner)) : inner
-  }
-  return value
-}
-
-// Copy Index: put the full index definition on the clipboard as pretty JSON.
-function copyIndex() {
-  const idx = requireSelectedIndex()
-  if (!idx) return
-  navigator.clipboard.writeText(indexSpecJson(idx))
-  showToast('Index copied')
-}
-
-// Drop Index: open the type-to-confirm dialog; never for the _id_ index.
-function openDropIndexConfirm() {
-  const idx = requireSelectedIndex()
-  if (!idx) return
-  if (isProtectedIndex(idx.name)) {
-    showToast('The _id index cannot be dropped')
-    return
-  }
-  dropIndexTarget.value = { name: idx.name }
-  dropIndexConfirmText.value = ''
-  dropIndexError.value = null
-}
-
-async function confirmDropIndex() {
-  const target = indexesTarget.value
-  const drop = dropIndexTarget.value
-  if (!target || !drop) return
-  if (dropIndexConfirmText.value !== drop.name) return
-  dropIndexBusy.value = true
-  dropIndexError.value = null
-  try {
-    await invoke('drop_index', {
-      id: target.connId,
-      database: target.dbName,
-      collection: target.collName,
-      name: drop.name,
-    })
-    dropIndexTarget.value = null
-    await loadIndexes()
-    showToast(`Index "${drop.name}" dropped`)
-  } catch (e) {
-    dropIndexError.value = errMessage(e)
-  } finally {
-    dropIndexBusy.value = false
-  }
-}
-
-// Hide / Unhide Index: toggle the planner-visibility flag without a rebuild.
-async function setIndexHidden(hidden) {
-  const idx = requireSelectedIndex()
-  if (!idx) return
-  if (isProtectedIndex(idx.name)) {
-    showToast('The _id index cannot be hidden')
-    return
-  }
-  const target = indexesTarget.value
-  const name = idx.name
-  indexesError.value = null
-  try {
-    await invoke('set_index_hidden', {
-      id: target.connId,
-      database: target.dbName,
-      collection: target.collName,
-      name: name,
-      hidden: hidden,
-    })
-    await loadIndexes()
-    showToast(hidden ? `Index "${name}" hidden` : `Index "${name}" unhidden`)
-  } catch (e) {
-    indexesError.value = errMessage(e)
   }
 }
 
