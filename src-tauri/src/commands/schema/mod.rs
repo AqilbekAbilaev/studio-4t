@@ -163,17 +163,14 @@ pub(crate) fn infer_schema(docs: &[bson::Document]) -> SchemaReport {
     }
 }
 
-/// Sample documents from a collection and infer its schema: for every field
-/// (nested and array-embedded paths flattened with dot notation) report how many
-/// sampled documents contain it and the distribution of BSON types it holds.
-/// Uses `$sample` for a representative random draw and the shared query-time cap
-/// so a huge collection can't hang the UI.
-#[tauri::command]
-pub async fn analyze_schema(
-    ctx: State<'_, AppContext>,
-    id: String,
-    database: String,
-    collection: String,
+// Sample a collection with `$sample` and infer its schema. Shared by `analyze_schema`
+// (returns it to the UI) and `export_schema` (writes it to a file), so both see the
+// same clamped sample and inference.
+async fn sampled_schema(
+    ctx: &AppContext,
+    id: &str,
+    database: &str,
+    collection: &str,
     sample_size: Option<i64>,
 ) -> Result<SchemaReport, AppError> {
     let requested = match sample_size {
@@ -182,7 +179,7 @@ pub async fn analyze_schema(
     };
     let size = requested.clamp(MIN_SAMPLE_SIZE, MAX_SAMPLE_SIZE);
 
-    let col = match ctx.collection(&id, &database, &collection).await {
+    let col = match ctx.collection(id, database, collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
@@ -199,6 +196,72 @@ pub async fn analyze_schema(
     };
 
     Ok(infer_schema(&docs))
+}
+
+/// Sample documents from a collection and infer its schema: for every field
+/// (nested and array-embedded paths flattened with dot notation) report how many
+/// sampled documents contain it and the distribution of BSON types it holds.
+/// Uses `$sample` for a representative random draw and the shared query-time cap
+/// so a huge collection can't hang the UI.
+#[tauri::command]
+pub async fn analyze_schema(
+    ctx: State<'_, AppContext>,
+    id: String,
+    database: String,
+    collection: String,
+    sample_size: Option<i64>,
+) -> Result<SchemaReport, AppError> {
+    sampled_schema(&ctx, &id, &database, &collection, sample_size).await
+}
+
+/// Render a schema report as CSV: one row per field with its coverage and per-type
+/// breakdown. Pure, so it is unit-tested directly.
+pub(crate) fn schema_report_to_csv(report: &SchemaReport) -> String {
+    let mut out = String::from("Field,Present,Coverage %,Types\n");
+    for field in &report.fields {
+        let coverage = if report.sampled > 0 {
+            (field.present as f64) * 100.0 / (report.sampled as f64)
+        } else {
+            0.0
+        };
+        let types = field
+            .types
+            .iter()
+            .map(|type_count| format!("{} ({})", type_count.bson_type, type_count.count))
+            .collect::<Vec<String>>()
+            .join("; ");
+        out.push_str(&super::csv_escape(&field.path));
+        out.push(',');
+        out.push_str(&field.present.to_string());
+        out.push(',');
+        out.push_str(&format!("{coverage:.1}"));
+        out.push(',');
+        out.push_str(&super::csv_escape(&types));
+        out.push('\n');
+    }
+    out
+}
+
+/// Analyze a collection's schema and write the report to `path` as CSV (Studio 3T's
+/// "export schema documentation"). Returns the number of fields written.
+#[tauri::command]
+pub async fn export_schema(
+    ctx: State<'_, AppContext>,
+    id: String,
+    database: String,
+    collection: String,
+    sample_size: Option<i64>,
+    path: String,
+) -> Result<u64, AppError> {
+    let report = match sampled_schema(&ctx, &id, &database, &collection, sample_size).await {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let csv = schema_report_to_csv(&report);
+    match std::fs::write(&path, csv) {
+        Ok(_) => Ok(report.fields.len() as u64),
+        Err(e) => Err(AppError::Io(e)),
+    }
 }
 
 #[cfg(test)]

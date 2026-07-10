@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errMessage, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -41,6 +42,41 @@ async function analyze() {
 }
 
 onMounted(analyze)
+
+const exporting = ref(false)
+const exportMsg = ref(null)
+
+// Export the current schema report to a CSV file (Studio-3T's schema documentation).
+// The backend re-samples with the same sample size so the file matches what's shown.
+async function exportCsv() {
+  let path
+  try {
+    path = await saveDialog({
+      defaultPath: `${props.target.collName}-schema.csv`,
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    })
+  } catch (e) {
+    exportMsg.value = errMessage(e)
+    return
+  }
+  if (!path) return
+  exporting.value = true
+  exportMsg.value = null
+  try {
+    const count = await invoke('export_schema', {
+      id: props.target.connId,
+      database: props.target.dbName,
+      collection: props.target.collName,
+      sampleSize: sampleSize.value,
+      path: String(path),
+    })
+    exportMsg.value = `Exported ${count} field${count === 1 ? '' : 's'} to CSV`
+  } catch (e) {
+    exportMsg.value = errMessage(e)
+  } finally {
+    exporting.value = false
+  }
+}
 
 // Depth for indentation: nesting is encoded in the dotted path.
 function depth(path) {
@@ -103,6 +139,16 @@ const fields = computed(() => (report.value ? report.value.fields : []))
             Sampled {{ report.sampled }} document{{ report.sampled === 1 ? '' : 's' }},
             {{ fields.length }} field{{ fields.length === 1 ? '' : 's' }}
           </div>
+          <span v-if="exportMsg" class="sc-export-msg">{{ exportMsg }}</span>
+          <button
+            class="sc-export"
+            type="button"
+            :class="{ 'no-count': !(report && !loading) }"
+            :disabled="loading || exporting || !fields.length"
+            @click="exportCsv"
+          >
+            <BaseIcon name="export" :size="13" /> {{ exporting ? 'Exporting…' : 'Export CSV' }}
+          </button>
         </div>
 
         <StateMessage v-if="loading" mode="loading" label="Analyzing schema…" />
@@ -236,6 +282,22 @@ const fields = computed(() => (report.value ? report.value.fields : []))
   font-size: 12px;
 }
 .sc-count { font-size: 12px; color: var(--text-faint); margin-left: auto; }
+.sc-export-msg { font-size: 12px; color: var(--text-dim); }
+.sc-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sc-export.no-count { margin-left: auto; }
+.sc-export:hover:not(:disabled) { background: var(--bg-hover); }
+.sc-export:disabled { opacity: 0.5; cursor: default; }
 
 .sc-head {
   display: grid;

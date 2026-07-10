@@ -94,3 +94,41 @@ fn fields_are_sorted_by_path() {
     let paths: Vec<&str> = report.fields.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(paths, vec!["a", "b", "c"]);
 }
+
+#[test]
+fn csv_has_header_and_one_row_per_field() {
+    let docs = vec![
+        doc! { "name": "a", "age": 30 },
+        doc! { "name": "b" },
+    ];
+    let report = infer_schema(&docs);
+    let csv = super::schema_report_to_csv(&report);
+    let lines: Vec<&str> = csv.lines().collect();
+    assert_eq!(lines[0], "Field,Present,Coverage %,Types");
+    // header + one row per field (age, name)
+    assert_eq!(lines.len(), 1 + report.fields.len());
+}
+
+#[test]
+fn csv_reports_coverage_and_types() {
+    // "age" appears in 1 of 2 docs → 50.0% coverage, type int.
+    let docs = vec![doc! { "name": "a", "age": 30 }, doc! { "name": "b" }];
+    let report = infer_schema(&docs);
+    let csv = super::schema_report_to_csv(&report);
+    let age_line = csv.lines().find(|l| l.starts_with("age,")).unwrap();
+    assert_eq!(age_line, "age,1,50.0,int (1)");
+}
+
+#[test]
+fn csv_lists_multiple_types_semicolon_separated() {
+    // A field holding two types across the sample lists both, "; "-separated. The
+    // separator is deliberately not a comma, so the cell needs no CSV quoting.
+    let docs = vec![doc! { "x": 1 }, doc! { "x": "s" }];
+    let report = infer_schema(&docs);
+    let csv = super::schema_report_to_csv(&report);
+    let x_line = csv.lines().find(|l| l.starts_with("x,")).unwrap();
+    assert!(x_line.contains("int (1)"));
+    assert!(x_line.contains("string (1)"));
+    assert!(x_line.contains("; "));
+    assert!(!x_line.contains('"'));
+}

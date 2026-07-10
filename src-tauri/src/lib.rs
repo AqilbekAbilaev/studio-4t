@@ -197,6 +197,7 @@ pub fn run() {
             push_shell_command,
             clear_shell_history,
             analyze_schema,
+            export_schema,
             translate_sql,
             export_masked_collection,
             collection_stats,
