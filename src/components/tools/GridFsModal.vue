@@ -498,12 +498,20 @@ function fmtDate(iso) {
 }
 .gf-controls { display: flex; align-items: flex-end; gap: 14px; }
 .gf-f { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
+/* Native <select> needs appearance:none + a drawn chevron, or WebKitGTK renders
+   the OS widget (white) and ignores the themed background. Mirrors .iew-select. */
 .gf-select {
-  background: var(--bg-input);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  background-color: var(--bg-input);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a94' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 5px;
-  padding: 4px 8px;
+  padding: 4px 26px 4px 8px;
   font-size: 12.5px;
   min-width: 160px;
 }
