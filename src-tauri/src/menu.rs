@@ -185,6 +185,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "coll:stats", label: "Collection Stats", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:mask", label: "Mask Collection/View", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:schema", label: "View Schema", accel: None, gate: Some(Gate::Collection) },
+                Spec::Action { id: "coll:history", label: "Collection History", accel: None, gate: Some(Gate::Collection) },
                 Spec::Placeholder { id: "coll:reschema", label: "Reschema…" },
                 Spec::Action { id: "coll:compare", label: "Compare To…", accel: None, gate: Some(Gate::Database) },
                 Spec::Separator,

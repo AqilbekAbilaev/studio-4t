@@ -77,6 +77,7 @@ const MENUS = {
     { label: 'Open Aggregation Editor',icon: 'aggregate' },
     { sep: true },
     { label: 'View Schema',    icon: 'schema' },
+    { label: 'Collection History', icon: 'history' },
     { label: 'Indexes…' },
     { label: 'Collection Stats' },
     { sep: true },

@@ -1,3 +1,4 @@
+use crate::collection_history::{CollectionHistoryStore, HistoryEntry};
 use crate::error::AppError;
 use mongodb::bson;
 use serde::Serialize;
@@ -7,6 +8,37 @@ use super::{
     collect_values, next_document, parse_ejson_document, parse_json_documents, parse_pipeline,
     MAX_QUERY_TIME, AppContext,
 };
+
+// Canonical Extended-JSON string for a value, used to persist history pre-images so any
+// BSON type round-trips.
+fn history_ejson(value: &bson::Bson) -> String {
+    value.clone().into_canonical_extjson().to_string()
+}
+
+// Record one single-document change to the history store (best-effort: a failure to record
+// never fails the mutation that already happened). `before` is the pre-image for
+// update/delete; None for insert.
+fn record_history(
+    history: &CollectionHistoryStore,
+    conn_id: &str,
+    database: &str,
+    collection: &str,
+    op: &str,
+    doc_id: &bson::Bson,
+    before: Option<&bson::Document>,
+) {
+    let entry = HistoryEntry {
+        id: uuid::Uuid::new_v4().to_string(),
+        conn_id: conn_id.to_string(),
+        database: database.to_string(),
+        collection: collection.to_string(),
+        op: op.to_string(),
+        at: chrono::Utc::now().timestamp_millis(),
+        doc_id: history_ejson(doc_id),
+        before: before.map(|doc| history_ejson(&bson::Bson::Document(doc.clone()))),
+    };
+    let _ = history.push(entry);
+}
 
 /// Fallback page size when a caller sends a non-positive `limit`. MongoDB treats
 /// `limit <= 0` as "no limit", which would stream an entire collection into
@@ -217,6 +249,7 @@ pub async fn count_documents(
 #[tauri::command]
 pub async fn insert_document(
     ctx: State<'_, AppContext>,
+    history: State<'_, CollectionHistoryStore>,
     id: String,
     database: String,
     collection: String,
@@ -234,6 +267,8 @@ pub async fn insert_document(
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };
+    // Record the insert so it can be undone (restore = delete this document).
+    record_history(&history, &id, &database, &collection, "insert", &result.inserted_id, None);
     Ok(result.inserted_id.to_string())
 }
 
@@ -271,6 +306,7 @@ pub async fn insert_documents(
 #[tauri::command]
 pub async fn replace_document(
     ctx: State<'_, AppContext>,
+    history: State<'_, CollectionHistoryStore>,
     id: String,
     database: String,
     collection: String,
@@ -289,18 +325,32 @@ pub async fn replace_document(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
+    // Capture the pre-image before replacing, so the edit can be undone.
+    let before = match col.find_one(filter_doc.clone()).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
     // MongoDB errors if the replacement contains an _id that differs from the filter.
     // Remove it unconditionally — the existing _id is preserved by replace_one.
     replacement.remove("_id");
     match col.replace_one(filter_doc, replacement).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(AppError::Mongo(e)),
+        Ok(_) => {}
+        Err(e) => return Err(AppError::Mongo(e)),
     }
+    if let Some(before_doc) = before {
+        let doc_id = match before_doc.get("_id") {
+            Some(val) => val.clone(),
+            None => bson::Bson::Null,
+        };
+        record_history(&history, &id, &database, &collection, "update", &doc_id, Some(&before_doc));
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn delete_document(
     ctx: State<'_, AppContext>,
+    history: State<'_, CollectionHistoryStore>,
     id: String,
     database: String,
     collection: String,
@@ -314,10 +364,23 @@ pub async fn delete_document(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
+    // Capture the pre-image before deleting, so the delete can be undone.
+    let before = match col.find_one(filter_doc.clone()).await {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Mongo(e)),
+    };
     match col.delete_one(filter_doc).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(AppError::Mongo(e)),
+        Ok(_) => {}
+        Err(e) => return Err(AppError::Mongo(e)),
     }
+    if let Some(before_doc) = before {
+        let doc_id = match before_doc.get("_id") {
+            Some(val) => val.clone(),
+            None => bson::Bson::Null,
+        };
+        record_history(&history, &id, &database, &collection, "delete", &doc_id, Some(&before_doc));
+    }
+    Ok(())
 }
 
 /// Whether an update document is in operator form (every top-level key starts with

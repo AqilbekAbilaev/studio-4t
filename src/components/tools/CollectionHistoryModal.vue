@@ -1,0 +1,202 @@
+<script setup>
+import { ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { errMessage, errCode } from '../../utils/errors'
+import BaseIcon from '../base/BaseIcon.vue'
+import StateMessage from '../base/StateMessage.vue'
+
+// Collection History: the app's record of single-document changes (insert / update /
+// delete) made to this collection, newest-first, each restorable — Studio-3T's
+// undo-your-edits safety net. Opened from App.vue for a collection node.
+const props = defineProps({
+  target: { type: Object, required: true },  // { connId, connName, dbName, collName }
+})
+defineEmits(['close'])
+
+const loading = ref(true)
+const error = ref(null)
+const errorCode = ref(null)
+const entries = ref([])
+const busyId = ref(null)   // entry currently being restored
+const notice = ref(null)
+
+async function load() {
+  loading.value = true
+  error.value = null
+  errorCode.value = null
+  try {
+    entries.value = await invoke('list_collection_history', {
+      id: props.target.connId,
+      database: props.target.dbName,
+      collection: props.target.collName,
+    })
+  } catch (e) {
+    error.value = errMessage(e)
+    errorCode.value = errCode(e)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
+
+const OP_LABEL = { insert: 'Inserted', update: 'Edited', delete: 'Deleted' }
+const RESTORE_LABEL = { insert: 'Undo insert', update: 'Revert edit', delete: 'Restore' }
+
+function whenText(ms) {
+  try { return new Date(ms).toLocaleString() } catch (_) { return String(ms) }
+}
+
+// Compact id text: unwrap an ObjectId ({$oid}) to ObjectId("…"), else show the raw JSON.
+function idText(docIdJson) {
+  try {
+    const parsed = JSON.parse(docIdJson)
+    if (parsed && typeof parsed === 'object' && typeof parsed.$oid === 'string') {
+      return `ObjectId("${parsed.$oid}")`
+    }
+    return typeof parsed === 'object' ? JSON.stringify(parsed) : String(parsed)
+  } catch (_) {
+    return docIdJson
+  }
+}
+
+async function restore(entry) {
+  busyId.value = entry.id
+  notice.value = null
+  error.value = null
+  try {
+    await invoke('restore_history', { entryId: entry.id })
+    notice.value = `${OP_LABEL[entry.op] || entry.op} document restored`
+  } catch (e) {
+    error.value = errMessage(e)
+    errorCode.value = errCode(e)
+  } finally {
+    busyId.value = null
+  }
+}
+
+async function clearAll() {
+  try {
+    await invoke('clear_collection_history', {
+      id: props.target.connId,
+      database: props.target.dbName,
+      collection: props.target.collName,
+    })
+    entries.value = []
+    notice.value = 'History cleared'
+  } catch (e) {
+    error.value = errMessage(e)
+  }
+}
+</script>
+
+<template>
+  <div class="overlay" @mousedown.self="$emit('close')">
+    <div class="dialog">
+      <div class="dlg-title">
+        <div class="t">Collection History — {{ target.dbName }}.{{ target.collName }}</div>
+        <button class="close-btn" @click="$emit('close')">
+          <BaseIcon name="close" :size="14" />
+        </button>
+      </div>
+
+      <div class="ch-body">
+        <div class="ch-controls">
+          <div class="ch-note" v-if="!loading && !error">
+            {{ entries.length }} recorded change{{ entries.length === 1 ? '' : 's' }}
+            <span v-if="notice" class="ch-ok">· {{ notice }}</span>
+          </div>
+          <span class="ch-spacer"></span>
+          <button class="ch-clear" :disabled="loading || !entries.length" @click="clearAll">
+            <BaseIcon name="trash" :size="13" /> Clear history
+          </button>
+        </div>
+
+        <StateMessage v-if="loading" mode="loading" label="Loading history…" />
+        <StateMessage v-else-if="error" mode="error" :message="error" :code="errorCode" />
+        <StateMessage
+          v-else-if="!entries.length"
+          mode="empty"
+          label="No changes recorded yet"
+        />
+        <div v-else class="ch-list">
+          <div v-for="entry in entries" :key="entry.id" class="ch-item">
+            <span class="ch-op" :class="'op-' + entry.op">{{ OP_LABEL[entry.op] || entry.op }}</span>
+            <div class="ch-mid">
+              <code class="ch-id">{{ idText(entry.doc_id) }}</code>
+              <span class="ch-when">{{ whenText(entry.at) }}</span>
+            </div>
+            <button
+              class="ch-restore"
+              :disabled="busyId === entry.id"
+              @click="restore(entry)"
+            >{{ busyId === entry.id ? 'Restoring…' : (RESTORE_LABEL[entry.op] || 'Restore') }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+}
+.dialog {
+  width: 640px; max-width: calc(100vw - 40px); max-height: calc(100vh - 80px);
+  background: var(--bg-window); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.dlg-title {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px 12px 16px; border-bottom: 1px solid var(--border);
+}
+.dlg-title .t { font-size: 13px; font-weight: 600; color: var(--text); }
+.close-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border: none; background: none;
+  color: var(--text-dim); cursor: pointer; border-radius: 5px;
+}
+.close-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+.ch-body { padding: 14px 16px 16px; display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+.ch-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ch-note { font-size: 12px; color: var(--text-dim); }
+.ch-ok { color: var(--green, #2f9e63); }
+.ch-spacer { flex: 1; }
+.ch-clear {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg-input); color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.ch-clear:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+.ch-clear:disabled { opacity: .5; cursor: default; }
+
+.ch-list { display: flex; flex-direction: column; gap: 6px; }
+.ch-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: 7px;
+  background: var(--bg-field);
+}
+.ch-op {
+  flex: none; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; padding: 2px 7px; border-radius: 4px;
+  background: var(--bg-panel-2); color: var(--text-dim);
+}
+.ch-op.op-delete { color: var(--terra, #c9614f); }
+.ch-op.op-update { color: var(--amber, #c6851f); }
+.ch-op.op-insert { color: var(--accent); }
+.ch-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ch-id { font-family: var(--mono); font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-when { font-size: 11px; color: var(--text-faint); }
+.ch-restore {
+  flex: none; background: var(--accent); color: #fff; border: none;
+  border-radius: 5px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+}
+.ch-restore:hover:not(:disabled) { filter: brightness(1.06); }
+.ch-restore:disabled { opacity: .6; cursor: default; }
+</style>

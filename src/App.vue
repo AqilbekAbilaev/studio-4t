@@ -292,6 +292,7 @@ const {
   gridfsRequest,
   compareTarget,
   schemaTarget,
+  historyTarget,
   showSqlModal,
   showTasksModal,
   maskingTarget,
@@ -748,6 +749,7 @@ function handleMenuAction(id) {
     case 'coll:stats':
     case 'db:collection_stats': menuNode('Collection Stats', 'collection'); return
     case 'coll:schema':        menuNode('View Schema', 'collection'); return
+    case 'coll:history':       menuNode('Collection History', 'collection'); return
     case 'coll:rename':        menuNode('Rename Collection…', 'collection'); return
     case 'coll:duplicate':     menuNode('Duplicate Collection…', 'collection'); return
     case 'coll:drop':          menuNode('Drop Collection…', 'collection'); return
@@ -1232,6 +1234,16 @@ async function handleContextAction(action) {
 
   if (action === 'View Schema' && saved.type === 'collection') {
     schemaTarget.value = {
+      connId: saved.nodeData.connId,
+      connName: saved.nodeData.connName,
+      dbName: saved.nodeData.dbName,
+      collName: saved.nodeData.collName,
+    }
+    return
+  }
+
+  if (action === 'Collection History' && saved.type === 'collection') {
+    historyTarget.value = {
       connId: saved.nodeData.connId,
       connName: saved.nodeData.connName,
       dbName: saved.nodeData.dbName,

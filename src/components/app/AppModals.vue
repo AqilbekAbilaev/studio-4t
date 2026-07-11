@@ -14,6 +14,7 @@ import FunctionsModal from '../admin/FunctionsModal.vue'
 import MapReduceModal from '../query/MapReduceModal.vue'
 import ServerChartsModal from '../admin/ServerChartsModal.vue'
 import SchemaModal from '../tools/SchemaModal.vue'
+import CollectionHistoryModal from '../tools/CollectionHistoryModal.vue'
 import SqlModal from '../query/SqlModal.vue'
 import TasksModal from '../admin/TasksModal.vue'
 import MaskingModal from '../tools/MaskingModal.vue'
@@ -52,6 +53,7 @@ const {
   gridfsRequest,
   compareTarget,
   schemaTarget,
+  historyTarget,
   showSqlModal,
   showTasksModal,
   maskingTarget,
@@ -236,6 +238,13 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       v-if="schemaTarget"
       :target="schemaTarget"
       @close="schemaTarget = null"
+    />
+
+    <!-- Collection History modal -->
+    <CollectionHistoryModal
+      v-if="historyTarget"
+      :target="historyTarget"
+      @close="historyTarget = null"
     />
 
     <!-- SQL → MQL translator -->

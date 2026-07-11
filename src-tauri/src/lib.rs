@@ -7,6 +7,7 @@
 #![deny(clippy::await_holding_lock)]
 
 mod commands;
+mod collection_history;
 mod default_queries;
 mod error;
 mod export_watermarks;
@@ -32,6 +33,7 @@ mod tasks;
 mod uri;
 
 use commands::*;
+use collection_history::CollectionHistoryStore;
 use default_queries::DefaultQueryStorage;
 use export_watermarks::ExportWatermarkStorage;
 use folders::FolderStorage;
@@ -65,6 +67,7 @@ pub fn run() {
             app.manage(TabStorage::new(data_dir.join("tabs.json")));
             app.manage(NodeTagStorage::new(data_dir.join("node_tags.json")));
             app.manage(ExportWatermarkStorage::new(data_dir.join("export_watermarks.json")));
+            app.manage(CollectionHistoryStore::new(data_dir.join("collection_history.json")));
             // The host-key trust store is shared between the pool (real connect)
             // and the test_ssh_connection command, so both honor the same TOFU
             // record. Managed as an Arc so the pool can own a clone.
@@ -201,6 +204,9 @@ pub fn run() {
             clear_shell_history,
             analyze_schema,
             export_schema,
+            list_collection_history,
+            clear_collection_history,
+            restore_history,
             translate_sql,
             export_masked_collection,
             collection_stats,
