@@ -1,0 +1,92 @@
+name: Release
+
+# Builds installable OzenDB bundles for macOS, Linux, and Windows and attaches
+# them to a GitHub Release. Trigger by pushing a version tag, e.g.:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# The release is created as a DRAFT so you can review the artifacts and write
+# notes before publishing. Builds are UNSIGNED for now — code-signing secrets
+# (Apple Developer ID, Windows cert) can be wired in later without changing the
+# shape of this workflow.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# tauri-action needs write access to create the release and upload assets.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Single universal binary covers Apple Silicon + Intel Macs.
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+          # Build on 22.04 (not latest) for broader glibc/webkit compatibility.
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Both Apple targets are required to link the macOS universal binary.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            build-essential \
+            file
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # IntelliShell's boa_engine needs a larger compile-time stack or rustc
+          # can overflow while building it. 16 MiB is comfortably above the need.
+          RUST_MIN_STACK: '16777216'
+        with:
+          # Use the pushed tag (e.g. v0.1.0) for a tag trigger; fall back to a
+          # nightly-style tag for manual runs so they don't collide.
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('nightly-{0}', github.run_number) }}
+          releaseName: ${{ github.ref_type == 'tag' && format('OzenDB {0}', github.ref_name) || 'OzenDB nightly' }}
+          releaseDraft: true
+          prerelease: ${{ github.ref_type != 'tag' }}
+          args: ${{ matrix.args }}
