@@ -79,3 +79,23 @@ pub fn clear_shell_history(
 ) -> Result<(), AppError> {
     history.clear(&connection_id)
 }
+
+/// Read a shell script file the user picked (Open Script). Returns its text so
+/// the editor can load it. The frontend chooses the path via the OS file dialog.
+#[tauri::command]
+pub fn read_shell_script(path: String) -> Result<String, AppError> {
+    match std::fs::read_to_string(&path) {
+        Ok(val) => Ok(val),
+        Err(e) => return Err(AppError::Io(e)),
+    }
+}
+
+/// Write the editor's contents to a shell script file (Save Script). The
+/// frontend chooses the path via the OS save dialog.
+#[tauri::command]
+pub fn write_shell_script(path: String, contents: String) -> Result<(), AppError> {
+    match std::fs::write(&path, contents) {
+        Ok(_) => Ok(()),
+        Err(e) => return Err(AppError::Io(e)),
+    }
+}

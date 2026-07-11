@@ -211,6 +211,8 @@ pub fn run() {
             get_shell_history,
             push_shell_command,
             clear_shell_history,
+            read_shell_script,
+            write_shell_script,
             analyze_schema,
             export_schema,
             list_collection_history,

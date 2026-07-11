@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errMessage } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import ResultTable from '../results/ResultTable.vue'
@@ -181,6 +182,62 @@ async function clearHistory() {
   } catch (_) {}
 }
 
+// ── Save / open shell scripts ──────────────────────────
+// A shell tab isn't tied to a file; these let the user load a .js script into
+// the editor or write the current editor contents out. `tab.scriptPath`
+// remembers the last file so a re-save defaults to it.
+async function openScript() {
+  let path
+  try {
+    path = await openDialog({
+      multiple: false,
+      filters: [{ name: 'JavaScript', extensions: ['js'] }],
+    })
+  } catch (e) {
+    reportScriptError('Open failed: ' + errMessage(e))
+    return
+  }
+  if (!path) return  // user cancelled
+  try {
+    const text = await invoke('read_shell_script', { path: String(path) })
+    props.activeTab.code = text
+    props.activeTab.scriptPath = String(path)
+    setEditorDoc(text)
+  } catch (e) {
+    reportScriptError('Open failed: ' + errMessage(e))
+  }
+}
+
+async function saveScript() {
+  const tab = props.activeTab
+  // Prefer the editor's live text over tab.code in case a keystroke hasn't
+  // flushed through onChange yet.
+  const contents = view ? view.state.doc.toString() : (tab.code || '')
+  let path
+  try {
+    path = await saveDialog({
+      defaultPath: tab.scriptPath || 'script.js',
+      filters: [{ name: 'JavaScript', extensions: ['js'] }],
+    })
+  } catch (e) {
+    reportScriptError('Save failed: ' + errMessage(e))
+    return
+  }
+  if (!path) return  // user cancelled
+  try {
+    await invoke('write_shell_script', { path: String(path), contents: contents })
+    tab.scriptPath = String(path)
+  } catch (e) {
+    reportScriptError('Save failed: ' + errMessage(e))
+  }
+}
+
+// Surface a file error in the Console tab, the shell's existing error channel.
+function reportScriptError(message) {
+  props.activeTab.runError = message
+  props.activeTab.resultTab = 'Console'
+}
+
 function formatScalar(value) {
   if (value === undefined) return ''
   try {
@@ -221,6 +278,13 @@ function formatScalar(value) {
           >{{ cmd }}</div>
         </div>
       </div>
+      <div class="tb-sep"></div>
+      <button class="qbtn" @click="openScript" title="Load a .js script into the editor">
+        <BaseIcon name="folder" :size="16" class="ic" /> Open
+      </button>
+      <button class="qbtn" @click="saveScript" title="Save the editor contents to a .js file">
+        <BaseIcon name="save" :size="16" class="ic" /> Save
+      </button>
       <span class="tb-spacer"></span>
       <span class="shell-db"><BaseIcon name="dbSmall" :size="14" /> {{ activeTab.dbName }}</span>
     </div>

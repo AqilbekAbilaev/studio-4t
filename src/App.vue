@@ -53,7 +53,7 @@ function projectSession() {
             id: t.id, kind: 'shell', title: t.title, color: t.color,
             paneId: t.paneId || 'p0',
             connectionId: t.connectionId, connectionName: t.connectionName,
-            dbName: t.dbName, code: t.code,
+            dbName: t.dbName, code: t.code, scriptPath: t.scriptPath || null,
           }
         : {
             id: t.id, kind: 'collection', title: t.title, color: t.color,
@@ -146,7 +146,7 @@ onMounted(async () => {
               connectionId: t.connectionId, connectionName: t.connectionName,
               dbName: t.dbName,
               sessionId: (crypto.randomUUID ? crypto.randomUUID() : t.id),
-              code: t.code || '', history: [], isRunning: false,
+              code: t.code || '', scriptPath: t.scriptPath || null, history: [], isRunning: false,
               results: [], resultView: 'table', resultTab: 'Console',
               runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
               logs: [], scalar: undefined, hasScalar: false,
