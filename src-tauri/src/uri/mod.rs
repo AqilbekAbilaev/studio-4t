@@ -121,9 +121,22 @@ fn push_auth_query(config: &ConnectionConfig, has_user: bool, query: &mut Vec<St
         query.push(format!("authSource={}", auth_db));
     }
     // Explicit mechanism for any mode other than "none" and the implicit default
-    // (None / empty = let the driver negotiate).
+    // (None / empty = let the driver negotiate). The UI stores short names; map them to
+    // the canonical connection-string mechanism the driver expects.
     if let Some(mech) = config.auth_mechanism.as_deref().filter(|s| !s.is_empty() && *s != "none") {
-        query.push(format!("authMechanism={}", mech));
+        query.push(format!("authMechanism={}", canonical_mechanism(mech)));
+    }
+}
+
+/// Map the UI's short auth-mechanism names to the canonical MongoDB connection-string
+/// values. Already-canonical or unknown values pass through unchanged, so a future
+/// mechanism keeps working without a code change.
+fn canonical_mechanism(mech: &str) -> &str {
+    match mech {
+        "X509" => "MONGODB-X509",
+        "AWS" => "MONGODB-AWS",
+        "OIDC" => "MONGODB-OIDC",
+        other => other,
     }
 }
 

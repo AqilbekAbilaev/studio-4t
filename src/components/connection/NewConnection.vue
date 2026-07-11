@@ -77,7 +77,44 @@ const AUTH_MODES = [
   { value: 'X509',          label: 'X.509',                           available: false },
   { value: 'GSSAPI',        label: 'Kerberos (GSSAPI)',               available: false },
   { value: 'AWS',           label: 'AWS Identity and Access Management (IAM)', available: false },
+  { value: 'OIDC',          label: 'OIDC — workload identity',        available: true  },
 ]
+
+// OIDC (MONGODB-OIDC) workload/machine identity: the driver acquires the token from the
+// cloud environment, so there's no username/password. `test` is the driver's built-in
+// test flow (reads a token file); azure/gcp need a TOKEN_RESOURCE (the audience).
+const OIDC_ENVIRONMENTS = [
+  { value: 'azure', label: 'Azure' },
+  { value: 'gcp',   label: 'GCP' },
+  { value: 'test',  label: 'Test' },
+]
+const oidcEnvironment = ref('azure')
+const oidcTokenResource = ref('')
+const oidcNeedsResource = computed(() => oidcEnvironment.value === 'azure' || oidcEnvironment.value === 'gcp')
+
+// In edit mode, recover the OIDC settings from the stored authMechanismProperties string
+// (e.g. "ENVIRONMENT:azure,TOKEN_RESOURCE:api://abc"). Split each pair on its FIRST colon
+// so a resource value containing ':' (like a URL) survives.
+if (isEditMode && props.editConn.auth_mechanism === 'OIDC' && props.editConn.options) {
+  const amp = props.editConn.options.authMechanismProperties || ''
+  for (const part of amp.split(',')) {
+    const idx = part.indexOf(':')
+    if (idx === -1) continue
+    const key = part.slice(0, idx).trim()
+    const value = part.slice(idx + 1).trim()
+    if (key === 'ENVIRONMENT') oidcEnvironment.value = value || 'azure'
+    if (key === 'TOKEN_RESOURCE') oidcTokenResource.value = value
+  }
+}
+
+// The authMechanismProperties string the driver needs for the selected OIDC environment.
+function oidcMechanismProperties() {
+  let properties = `ENVIRONMENT:${oidcEnvironment.value}`
+  if (oidcNeedsResource.value && oidcTokenResource.value.trim()) {
+    properties += `,TOKEN_RESOURCE:${oidcTokenResource.value.trim()}`
+  }
+  return properties
+}
 
 const authModeOpen = ref(false)
 
@@ -191,6 +228,12 @@ function buildOptions() {
   if (readPrefActive.value) {
     out.readPreference = readPreference.value
   }
+  // OIDC carries its environment/token-resource as authMechanismProperties.
+  if (authMode.value === 'OIDC') {
+    out.authMechanismProperties = oidcMechanismProperties()
+  } else {
+    delete out.authMechanismProperties
+  }
   return out
 }
 
@@ -258,6 +301,10 @@ function buildUriForTest() {
     if (tlsCaFile.value) params.push(`tlsCAFile=${encodeURIComponent(tlsCaFile.value)}`)
     if (tlsCertKeyFile.value) params.push(`tlsCertificateKeyFile=${encodeURIComponent(tlsCertKeyFile.value)}`)
     if (tlsAllowInvalidCerts.value) params.push('tlsAllowInvalidCertificates=true')
+  }
+  // OIDC needs its mechanism in the test URI (other mechanisms negotiate via credentials).
+  if (authMode.value === 'OIDC') {
+    params.push('authMechanism=MONGODB-OIDC')
   }
   // Advanced-tab options, appended verbatim to mirror the backend's passthrough.
   for (const [key, value] of Object.entries(buildOptions())) {
@@ -351,10 +398,24 @@ function parseUri(raw) {
 
   const mech = params.get('authMechanism')
   if (mech) {
-    const mechMap = { 'MONGODB-X509': 'X509', 'MONGODB-AWS': 'AWS' }
+    const mechMap = { 'MONGODB-X509': 'X509', 'MONGODB-AWS': 'AWS', 'MONGODB-OIDC': 'OIDC' }
     authMode.value = mechMap[mech] || mech
   } else if (!username.value) {
     authMode.value = 'none'
+  }
+
+  // Recover OIDC environment / token resource from authMechanismProperties so an imported
+  // OIDC string round-trips (buildOptions re-emits it from these fields on save).
+  if (authMode.value === 'OIDC') {
+    const amp = params.get('authMechanismProperties') || ''
+    for (const part of amp.split(',')) {
+      const idx = part.indexOf(':')
+      if (idx === -1) continue
+      const key = part.slice(0, idx).trim()
+      const value = part.slice(idx + 1).trim()
+      if (key === 'ENVIRONMENT') oidcEnvironment.value = value || 'azure'
+      if (key === 'TOKEN_RESOURCE') oidcTokenResource.value = value
+    }
   }
 
   if (params.get('tls') === 'true' || params.get('ssl') === 'true') {
@@ -661,7 +722,7 @@ async function save() {
             </div>
           </div>
 
-          <template v-if="authMode !== 'none'">
+          <template v-if="authMode !== 'none' && authMode !== 'OIDC'">
             <div class="nc-field">
               <label>User name</label>
               <input class="nc-input" v-model="username" />
@@ -681,6 +742,23 @@ async function save() {
             </div>
             <div v-if="authMode === 'PLAIN'" class="nc-hint">
               LDAP (PLAIN) requires SSL/TLS. Enable SSL in the SSL tab.
+            </div>
+          </template>
+
+          <template v-else-if="authMode === 'OIDC'">
+            <div class="nc-field">
+              <label>Environment</label>
+              <select class="nc-input" v-model="oidcEnvironment">
+                <option v-for="e in OIDC_ENVIRONMENTS" :key="e.value" :value="e.value">{{ e.label }}</option>
+              </select>
+            </div>
+            <div v-if="oidcNeedsResource" class="nc-field">
+              <label>Token resource</label>
+              <input class="nc-input" v-model="oidcTokenResource" spellcheck="false" placeholder="e.g. api://&lt;app-id&gt;" />
+            </div>
+            <div class="nc-hint">
+              Workload-identity OIDC: the token is obtained from the {{ oidcEnvironment }} environment — no username or password.
+              Interactive (device-flow) OIDC isn't supported yet.
             </div>
           </template>
         </div>

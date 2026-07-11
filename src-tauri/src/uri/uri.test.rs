@@ -307,3 +307,31 @@ fn extract_stops_at_query_string() {
         Some("localhost:27017".into())
     );
 }
+
+#[test]
+fn canonical_mechanism_maps_short_names() {
+    assert_eq!(canonical_mechanism("OIDC"), "MONGODB-OIDC");
+    assert_eq!(canonical_mechanism("X509"), "MONGODB-X509");
+    assert_eq!(canonical_mechanism("AWS"), "MONGODB-AWS");
+    assert_eq!(canonical_mechanism("SCRAM-SHA-256"), "SCRAM-SHA-256");
+}
+
+#[test]
+fn build_uri_oidc_emits_canonical_mechanism_and_properties() {
+    let mut options = std::collections::BTreeMap::new();
+    options.insert(
+        String::from("authMechanismProperties"),
+        String::from("ENVIRONMENT:azure,TOKEN_RESOURCE:api://abc"),
+    );
+    let config = ConnectionConfig {
+        auth_mechanism: Some(String::from("OIDC")),
+        options: options,
+        ..base_config()
+    };
+    let uri = build_uri(&config, None);
+    // OIDC uses no username → no credentials, no authSource.
+    assert!(!uri.contains('@'));
+    assert!(!uri.contains("authSource"));
+    assert!(uri.contains("authMechanism=MONGODB-OIDC"));
+    assert!(uri.contains("authMechanismProperties=ENVIRONMENT:azure,TOKEN_RESOURCE:api://abc"));
+}
