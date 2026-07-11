@@ -77,6 +77,55 @@ async function dropUser(user) {
     pendingDrop.value = null
   }
 }
+
+// ── Copy users to another connection/database ───────────────────
+// Passwords can't be transferred (MongoDB won't export a usable hash), so each copied
+// user gets a generated temporary password that must be reset.
+const showCopy = ref(false)
+const connections = ref([])
+const copyTargetConn = ref('')
+const copyTargetDb = ref('')
+const copying = ref(false)
+const copyError = ref(null)
+const copyResults = ref(null)  // [{ user, status, temp_password, roles, message }] | null
+
+async function openCopyPanel() {
+  showCopy.value = !showCopy.value
+  if (!showCopy.value) return
+  copyResults.value = null
+  copyError.value = null
+  copyTargetDb.value = props.target.dbName
+  try {
+    connections.value = await invoke('list_connections')
+    copyTargetConn.value = props.target.connId
+  } catch (e) {
+    copyError.value = errMessage(e)
+  }
+}
+
+async function runCopyUsers() {
+  const targetDb = copyTargetDb.value.trim()
+  if (!copyTargetConn.value || !targetDb) return
+  copying.value = true
+  copyError.value = null
+  copyResults.value = null
+  try {
+    copyResults.value = await invoke('copy_users_to_connection', {
+      sourceId: props.target.connId,
+      sourceDatabase: props.target.dbName,
+      targetId: copyTargetConn.value,
+      targetDatabase: targetDb,
+    })
+  } catch (e) {
+    copyError.value = errMessage(e)
+  } finally {
+    copying.value = false
+  }
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).catch(() => {})
+}
 </script>
 
 <template>
@@ -92,6 +141,54 @@ async function dropUser(user) {
           <button class="btn primary" :disabled="busy" @click="showCreate = !showCreate">
             <BaseIcon name="plus" :size="12" /> Add User
           </button>
+          <button class="btn" :class="{ armed: showCopy }" :disabled="busy || !users.length" @click="openCopyPanel">
+            <BaseIcon name="export" :size="12" /> Copy Users To…
+          </button>
+        </div>
+
+        <div v-if="showCopy" class="um-copy">
+          <div class="um-copy-row">
+            <label class="um-copy-lbl">Target connection</label>
+            <select v-model="copyTargetConn" class="um-input">
+              <option v-for="c in connections" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+          </div>
+          <div class="um-copy-row">
+            <label class="um-copy-lbl">Target database</label>
+            <input v-model="copyTargetDb" class="um-input" spellcheck="false" placeholder="database" />
+          </div>
+          <p class="um-copy-note">
+            Roles are copied as-is. Passwords can't be transferred — each user is created with a
+            <strong>temporary password</strong> that must be reset.
+          </p>
+          <div class="um-create-actions">
+            <button class="btn" @click="showCopy = false">Close</button>
+            <button class="btn primary" :disabled="!copyTargetConn || !copyTargetDb.trim() || copying" @click="runCopyUsers">
+              {{ copying ? 'Copying…' : 'Copy Users' }}
+            </button>
+          </div>
+          <div v-if="copyError" class="um-error">{{ copyError }}</div>
+
+          <table v-if="copyResults" class="um-table um-copy-results">
+            <thead>
+              <tr><th>User</th><th>Status</th><th>Temporary password</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in copyResults" :key="r.user">
+                <td>{{ r.user }}</td>
+                <td :class="r.status === 'created' ? 'um-ok' : 'um-fail'">
+                  {{ r.status === 'created' ? 'Created' : (r.message || 'Failed') }}
+                </td>
+                <td>
+                  <button v-if="r.temp_password" class="um-pw" :title="'Click to copy'" @click="copyText(r.temp_password)">
+                    {{ r.temp_password }} <BaseIcon name="copy" :size="11" />
+                  </button>
+                  <span v-else>—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="copyResults && !copyResults.length" class="um-copy-note">No users to copy.</p>
         </div>
 
         <div v-if="showCreate" class="um-create">
@@ -170,4 +267,21 @@ async function dropUser(user) {
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:disabled { opacity: .55; cursor: default; }
 .danger-btn.armed { background: var(--danger-text); border-color: var(--danger-text); color: #fff; }
+.btn.armed { background: var(--bg-hover); border-color: var(--accent); }
+
+.um-bar { gap: 8px; }
+.um-copy { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }
+.um-copy-row { display: flex; align-items: center; gap: 10px; }
+.um-copy-lbl { width: 140px; flex: none; font-size: 12px; color: var(--text-dim); }
+.um-copy-note { margin: 2px 0 0; font-size: 12px; color: var(--text-dim); }
+.um-copy-note strong { color: var(--text); }
+.um-copy-results { margin-top: 6px; }
+.um-ok { color: var(--cell-str-green, var(--text)); }
+.um-fail { color: var(--danger-text); }
+.um-pw {
+  font-family: var(--mono); font-size: 11.5px; color: var(--text);
+  background: var(--bg-window); border: 1px solid var(--border-soft); border-radius: 5px;
+  padding: 3px 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.um-pw:hover { border-color: var(--accent); }
 </style>

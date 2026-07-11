@@ -225,6 +225,7 @@ pub fn run() {
             gridfs_copy_bucket,
             list_users,
             create_user,
+            copy_users_to_connection,
             drop_user,
             list_roles,
             list_functions,
