@@ -148,38 +148,45 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
     }
   }
 
-  // Paste the app clipboard (a copied collection or database) into a target database.
-  // Same-connection only (uses a server-side $out); cross-connection is rejected.
+  // Copy one collection from the clipboard's connection to the paste target. Same
+  // connection uses the fast server-side `$out`; a different connection streams the
+  // documents across via `copy_collection_to_connection`.
+  async function copyOneCollection(clip, target, sourceCollection, targetCollection) {
+    if (clip.connId === target.connId) {
+      await invoke('copy_collection', {
+        id: clip.connId,
+        sourceDatabase: clip.dbName, sourceCollection: sourceCollection,
+        targetDatabase: target.dbName, targetCollection: targetCollection,
+      })
+    } else {
+      await invoke('copy_collection_to_connection', {
+        sourceId: clip.connId, sourceDatabase: clip.dbName, sourceCollection: sourceCollection,
+        targetId: target.connId, targetDatabase: target.dbName, targetCollection: targetCollection,
+      })
+    }
+  }
+
+  // Paste the app clipboard (a copied collection or database) into a target database,
+  // on the same connection or a different one (cross-server).
   async function pasteClipboard(target) {
     const clip = dbClipboard.value
     if (!clip) { showToast('Nothing to paste — copy a collection or database first'); return }
-    if (clip.connId !== target.connId) {
-      showToast('Paste is only supported within the same connection')
-      return
-    }
+    const crossServer = clip.connId !== target.connId
     try {
       if (clip.kind === 'collection') {
-        await invoke('copy_collection', {
-          id: clip.connId,
-          sourceDatabase: clip.dbName, sourceCollection: clip.collName,
-          targetDatabase: target.dbName, targetCollection: clip.collName,
-        })
-        showToast(`Pasted "${clip.collName}" into ${target.dbName}`)
+        await copyOneCollection(clip, target, clip.collName, clip.collName)
+        showToast(`Pasted "${clip.collName}" into ${target.dbName}${crossServer ? ' (cross-server)' : ''}`)
       } else {
         const dbs = await invoke('list_databases', { id: clip.connId })
         const collections = (dbs.find(d => d.name === clip.dbName)?.collections) || []
         let done = 0
         for (const coll of collections) {
           try {
-            await invoke('copy_collection', {
-              id: clip.connId,
-              sourceDatabase: clip.dbName, sourceCollection: coll,
-              targetDatabase: target.dbName, targetCollection: coll,
-            })
+            await copyOneCollection(clip, target, coll, coll)
             done++
           } catch (_) { /* skip a collection that fails; report the rest */ }
         }
-        showToast(`Pasted ${done} collection${done !== 1 ? 's' : ''} into ${target.dbName}`)
+        showToast(`Pasted ${done} collection${done !== 1 ? 's' : ''} into ${target.dbName}${crossServer ? ' (cross-server)' : ''}`)
       }
       await connectionTreeRef.value.refreshConn(target.connId)
     } catch (e) {

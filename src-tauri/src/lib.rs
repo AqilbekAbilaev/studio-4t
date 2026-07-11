@@ -232,6 +232,7 @@ pub fn run() {
             drop_function,
             map_reduce,
             copy_collection,
+            copy_collection_to_connection,
             compare_collections,
             list_folders,
             create_folder,
