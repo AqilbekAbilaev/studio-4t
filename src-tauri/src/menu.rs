@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{
@@ -313,6 +314,7 @@ fn build_submenu(
     app: &AppHandle,
     name: &str,
     specs: &[Spec],
+    overrides: &HashMap<String, String>,
     gated: &mut Vec<(MenuItem<Wry>, Gate)>,
 ) -> tauri::Result<Submenu<Wry>> {
     let submenu = match Submenu::new(app, name, true) {
@@ -370,7 +372,18 @@ fn build_submenu(
                 // On macOS the app menu's predefined Quit already owns ⌘Q, so the
                 // File → Exit item must not register it a second time.
                 let is_mac_exit = cfg!(target_os = "macos") && *id == "file:exit";
-                let accelerator = if accelerators_enabled() && !is_mac_exit { *accel } else { None };
+                // A user rebind (overrides) wins over the built-in default; fall
+                // back to the static accel when the id isn't customized. Owned so
+                // the string outlives this closure.
+                let effective: Option<String> = match overrides.get(*id) {
+                    Some(custom) => Some(custom.clone()),
+                    None => accel.map(|a| a.to_string()),
+                };
+                let accelerator = if accelerators_enabled() && !is_mac_exit {
+                    effective.as_deref()
+                } else {
+                    None
+                };
                 // Gated items start disabled; the frontend pushes the real context
                 // right after load. Always-on items (gate: None) start enabled.
                 let enabled = gate.is_none();
@@ -497,7 +510,10 @@ fn build_app_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
 
 // Builds the full native menu and returns it together with the gated item handles
 // (for later enable/disable updates).
-pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Vec<(MenuItem<Wry>, Gate)>)> {
+pub fn build(
+    app: &AppHandle,
+    overrides: &HashMap<String, String>,
+) -> tauri::Result<(Menu<Wry>, Vec<(MenuItem<Wry>, Gate)>)> {
     let menu = match Menu::new(app) {
         Ok(val) => val,
         Err(e) => return Err(e),
@@ -517,7 +533,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Vec<(MenuItem<Wry>, G
     }
 
     for (name, specs) in menus().iter() {
-        let submenu = match build_submenu(app, name, specs, &mut gated) {
+        let submenu = match build_submenu(app, name, specs, overrides, &mut gated) {
             Ok(val) => val,
             Err(e) => return Err(e),
         };

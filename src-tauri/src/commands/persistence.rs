@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::history::{now_ms, HistoryStorage, QueryHistoryEntry};
 use crate::default_queries::{DefaultQuery, DefaultQueryStorage};
+use crate::keybindings::KeybindingStorage;
 use crate::node_tags::NodeTagStorage;
 use crate::saved_queries::{SavedQueryEntry, SavedQueryStorage};
 use crate::tabs::TabStorage;
@@ -34,6 +35,34 @@ pub fn update_settings(
     };
     match settings.save(&new_settings) {
         Ok(_) => Ok(new_settings),
+        Err(e) => return Err(e),
+    }
+}
+
+/// Current keyboard-shortcut bindings (menu-action id -> accelerator string).
+/// Empty until the user customizes anything; the frontend layers these over its
+/// built-in defaults.
+#[tauri::command]
+pub fn get_keybindings(keybindings: State<'_, KeybindingStorage>) -> HashMap<String, String> {
+    keybindings.load()
+}
+
+/// Persist the full effective set of shortcut bindings. Blank accelerators are
+/// dropped so an unbound entry can't linger as a phantom binding; the native
+/// menu picks the new accelerators up on next launch.
+#[tauri::command]
+pub fn update_keybindings(
+    keybindings: State<'_, KeybindingStorage>,
+    bindings: HashMap<String, String>,
+) -> Result<HashMap<String, String>, AppError> {
+    let mut cleaned: HashMap<String, String> = HashMap::new();
+    for (id, accel) in bindings.into_iter() {
+        if accel.trim().is_empty() == false {
+            cleaned.insert(id, accel);
+        }
+    }
+    match keybindings.save(&cleaned) {
+        Ok(_) => Ok(cleaned),
         Err(e) => return Err(e),
     }
 }

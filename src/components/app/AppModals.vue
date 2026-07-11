@@ -155,9 +155,10 @@ const {
   onWizardImported,
   onReschemaApplied,
   onPrefsSaved,
+  onKeybindingsSaved,
 } = ctx.handlers
 
-const { defaultQueryLimit, theme } = ctx.prefs
+const { defaultQueryLimit, theme, keyBindings } = ctx.prefs
 
 const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
 </script>
@@ -338,9 +339,11 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       @close="compareTarget = null"
     />
 
-    <!-- Keyboard Shortcuts reference -->
+    <!-- Keyboard Shortcuts (customizable) -->
     <ShortcutsModal
       v-if="showShortcuts"
+      :bindings="keyBindings"
+      @save="onKeybindingsSaved"
       @close="showShortcuts = false"
     />
 

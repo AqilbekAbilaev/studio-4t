@@ -6,6 +6,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
 import { errMessage } from './utils/errors'
+import { mergeBindings, matchBinding } from './utils/keybindings'
 import { useIndexes } from './composables/useIndexes'
 import { useSshHostKey } from './composables/useSshHostKey'
 import { useQueryRunner } from './composables/useQueryRunner'
@@ -111,6 +112,12 @@ onMounted(async () => {
       defaultQueryLimit.value = Number(settings.default_query_limit)
     }
     if (settings && settings.theme) applyTheme(settings.theme)
+  } catch (_) {}
+
+  // Load custom keyboard shortcuts so the JS handler (Linux) honors rebinds.
+  try {
+    const overrides = await invoke('get_keybindings')
+    keyBindings.value = mergeBindings(overrides)
   } catch (_) {}
 
   // Restore persisted database/collection colour tags so they survive a restart.
@@ -307,6 +314,9 @@ const {
 } = modalsApi
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
 const theme = ref('dark')             // from settings; drives <html data-theme>
+// Effective keyboard shortcuts (defaults + user overrides). The JS key handler
+// reads these on Linux; the native menu reads the same persisted store at build.
+const keyBindings = ref(mergeBindings(null))
 
 // Apply a theme everywhere it needs to live: the ref (for the Preferences select),
 // the <html> attribute (which the CSS tokens key off), and the localStorage mirror
@@ -886,21 +896,8 @@ function onGlobalKeydown(e) {
   if (t && t.closest && t.closest('input, textarea, [contenteditable], .cm-editor, .monaco-editor')) {
     return
   }
-  const mod = e.ctrlKey || e.metaKey
-  let id = null
-  if (mod && !e.altKey) {
-    const k = e.key.toLowerCase()
-    if (k === 'n' && !e.shiftKey) id = 'file:connect'
-    else if (k === 'l' && e.shiftKey) id = 'file:sql'
-    else if (k === 'l' && !e.shiftKey) id = 'file:intellishell'
-    else if (k === 'p' && !e.shiftKey) id = 'edit:preferences'
-    else if (k === 'b' && !e.shiftKey) id = 'coll:vqb'
-    else if (k === 'r' && !e.shiftKey) id = 'view:refresh'
-    else if (k === 'j' && !e.shiftKey) id = 'doc:edit_json'
-  } else if (!mod && !e.altKey && !e.shiftKey) {
-    if (e.key === 'F4') id = 'coll:aggregation'
-    else if (e.key === 'F10') id = 'coll:open_tab'
-  }
+  // Match the event against the current (possibly customized) bindings.
+  const id = matchBinding(e, keyBindings.value)
   if (id) {
     e.preventDefault()
     handleMenuAction(id)
@@ -1796,6 +1793,18 @@ function onPrefsSaved(payload) {
   applyTheme(payload.theme)
 }
 
+// Shortcuts editor saved: persist the new bindings and adopt them live. The JS
+// handler picks them up immediately; the native menu bar reflects them on next
+// launch (it's built once from the same store).
+async function onKeybindingsSaved(bindings) {
+  try {
+    const saved = await invoke('update_keybindings', { bindings: bindings })
+    keyBindings.value = mergeBindings(saved)
+  } catch (e) {
+    showToast(errMessage(e))
+  }
+}
+
 // Everything the extracted AppModals.vue needs, bundled behind one provide/inject.
 // Grouped by concern; AppModals destructures each group back to the same identifier
 // names the moved template already uses, so that template stays verbatim.
@@ -1811,8 +1820,9 @@ provide('appModals', {
     onWizardImported: onWizardImported,
     onReschemaApplied: onReschemaApplied,
     onPrefsSaved: onPrefsSaved,
+    onKeybindingsSaved: onKeybindingsSaved,
   },
-  prefs: { defaultQueryLimit: defaultQueryLimit, theme: theme },
+  prefs: { defaultQueryLimit: defaultQueryLimit, theme: theme, keyBindings: keyBindings },
   tabRename: { renameTabTarget: renameTabTarget, renameTabValue: renameTabValue, confirmRenameTab: confirmRenameTab },
 })
 </script>

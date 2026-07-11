@@ -13,6 +13,7 @@ mod error;
 mod export_watermarks;
 mod folders;
 mod history;
+mod keybindings;
 #[cfg(test)]
 mod integration_tests;
 mod json_store;
@@ -38,6 +39,7 @@ use default_queries::DefaultQueryStorage;
 use export_watermarks::ExportWatermarkStorage;
 use folders::FolderStorage;
 use history::HistoryStorage;
+use keybindings::KeybindingStorage;
 use known_hosts::KnownHostsStore;
 use node_tags::NodeTagStorage;
 use pool::ConnectionPool;
@@ -66,6 +68,7 @@ pub fn run() {
             app.manage(SettingsStorage::new(data_dir.join("settings.json")));
             app.manage(TabStorage::new(data_dir.join("tabs.json")));
             app.manage(NodeTagStorage::new(data_dir.join("node_tags.json")));
+            app.manage(KeybindingStorage::new(data_dir.join("keybindings.json")));
             app.manage(ExportWatermarkStorage::new(data_dir.join("export_watermarks.json")));
             app.manage(CollectionHistoryStore::new(data_dir.join("collection_history.json")));
             // The host-key trust store is shared between the pool (real connect)
@@ -98,7 +101,11 @@ pub fn run() {
             // which routes them through the existing handlers. The gated item
             // handles are kept in managed state so `set_menu_context` can toggle
             // their enabled flag as the selection changes.
-            let (native_menu, gated_items) = match menu::build(app.handle()) {
+            // Custom shortcut accelerators (empty = built-in defaults). Read once
+            // here so the native menu is built with the user's bindings; a rebind
+            // made later takes effect on the next launch.
+            let key_overrides = app.state::<KeybindingStorage>().load();
+            let (native_menu, gated_items) = match menu::build(app.handle(), &key_overrides) {
                 Ok(val) => val,
                 Err(e) => return Err(e.into()),
             };
@@ -163,6 +170,8 @@ pub fn run() {
             import_connections,
             get_settings,
             update_settings,
+            get_keybindings,
+            update_keybindings,
             insert_document,
             insert_documents,
             replace_document,
