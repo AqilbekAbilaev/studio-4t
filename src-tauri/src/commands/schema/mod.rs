@@ -219,31 +219,94 @@ pub async fn analyze_schema(
 pub(crate) fn schema_report_to_csv(report: &SchemaReport) -> String {
     let mut out = String::from("Field,Present,Coverage %,Types\n");
     for field in &report.fields {
-        let coverage = if report.sampled > 0 {
-            (field.present as f64) * 100.0 / (report.sampled as f64)
-        } else {
-            0.0
-        };
-        let types = field
-            .types
-            .iter()
-            .map(|type_count| format!("{} ({})", type_count.bson_type, type_count.count))
-            .collect::<Vec<String>>()
-            .join("; ");
+        let coverage = coverage_percent(field.present, report.sampled);
         out.push_str(&super::csv_escape(&field.path));
         out.push(',');
         out.push_str(&field.present.to_string());
         out.push(',');
         out.push_str(&format!("{coverage:.1}"));
         out.push(',');
-        out.push_str(&super::csv_escape(&types));
+        out.push_str(&super::csv_escape(&types_summary(field)));
         out.push('\n');
     }
     out
 }
 
-/// Analyze a collection's schema and write the report to `path` as CSV (Studio 3T's
-/// "export schema documentation"). Returns the number of fields written.
+// Percent-of-sample coverage for a field, guarding an empty sample.
+fn coverage_percent(present: u64, sampled: u64) -> f64 {
+    if sampled > 0 {
+        (present as f64) * 100.0 / (sampled as f64)
+    } else {
+        0.0
+    }
+}
+
+// Render a field's per-type breakdown as "type (count); …".
+fn types_summary(field: &FieldSchema) -> String {
+    field
+        .types
+        .iter()
+        .map(|type_count| format!("{} ({})", type_count.bson_type, type_count.count))
+        .collect::<Vec<String>>()
+        .join("; ")
+}
+
+/// Build a Word (.docx) schema-documentation report: a heading plus a table with one row
+/// per field (coverage and per-type breakdown). Written to `path`.
+fn write_schema_docx(
+    report: &SchemaReport,
+    collection: &str,
+    path: &str,
+) -> Result<(), AppError> {
+    use docx_rs::*;
+
+    fn cell(text: &str, bold: bool) -> TableCell {
+        let mut run = Run::new().add_text(text);
+        if bold {
+            run = run.bold();
+        }
+        TableCell::new().add_paragraph(Paragraph::new().add_run(run))
+    }
+
+    let heading = Paragraph::new().add_run(
+        Run::new()
+            .bold()
+            .add_text(format!("Schema — {} ({} sampled)", collection, report.sampled)),
+    );
+
+    let mut rows = vec![TableRow::new(vec![
+        cell("Field", true),
+        cell("Present", true),
+        cell("Coverage %", true),
+        cell("Types", true),
+    ])];
+    for field in &report.fields {
+        let coverage = coverage_percent(field.present, report.sampled);
+        rows.push(TableRow::new(vec![
+            cell(&field.path, false),
+            cell(&field.present.to_string(), false),
+            cell(&format!("{coverage:.1}"), false),
+            cell(&types_summary(field), false),
+        ]));
+    }
+
+    let file = match std::fs::File::create(path) {
+        Ok(val) => val,
+        Err(e) => return Err(AppError::Io(e)),
+    };
+    let result = Docx::new()
+        .add_paragraph(heading)
+        .add_table(Table::new(rows))
+        .build()
+        .pack(file);
+    match result {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::Bson(format!("Could not write .docx: {e}"))),
+    }
+}
+
+/// Analyze a collection's schema and write the report to `path` as Studio-3T's schema
+/// documentation. `format` is "csv" (default) or "docx". Returns the number of fields.
 #[tauri::command]
 pub async fn export_schema(
     ctx: State<'_, AppContext>,
@@ -252,15 +315,24 @@ pub async fn export_schema(
     collection: String,
     sample_size: Option<i64>,
     path: String,
+    format: Option<String>,
 ) -> Result<u64, AppError> {
     let report = match sampled_schema(&ctx, &id, &database, &collection, sample_size).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let csv = schema_report_to_csv(&report);
-    match std::fs::write(&path, csv) {
-        Ok(_) => Ok(report.fields.len() as u64),
-        Err(e) => Err(AppError::Io(e)),
+    let is_docx = format.as_deref() == Some("docx");
+    if is_docx {
+        match write_schema_docx(&report, &collection, &path) {
+            Ok(_) => Ok(report.fields.len() as u64),
+            Err(e) => Err(e),
+        }
+    } else {
+        let csv = schema_report_to_csv(&report);
+        match std::fs::write(&path, csv) {
+            Ok(_) => Ok(report.fields.len() as u64),
+            Err(e) => Err(AppError::Io(e)),
+        }
     }
 }
 

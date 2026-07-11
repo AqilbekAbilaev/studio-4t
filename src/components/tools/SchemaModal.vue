@@ -45,15 +45,18 @@ onMounted(analyze)
 
 const exporting = ref(false)
 const exportMsg = ref(null)
+const exportFormat = ref('csv')  // 'csv' | 'docx'
 
-// Export the current schema report to a CSV file (Studio-3T's schema documentation).
-// The backend re-samples with the same sample size so the file matches what's shown.
-async function exportCsv() {
+// Export the current schema report (Studio-3T's schema documentation) as CSV or a Word
+// document. The backend re-samples with the same sample size so the file matches the view.
+async function exportSchema() {
+  const format = exportFormat.value
+  const ext = format === 'docx' ? 'docx' : 'csv'
   let path
   try {
     path = await saveDialog({
-      defaultPath: `${props.target.collName}-schema.csv`,
-      filters: [{ name: 'CSV', extensions: ['csv'] }],
+      defaultPath: `${props.target.collName}-schema.${ext}`,
+      filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
     })
   } catch (e) {
     exportMsg.value = errMessage(e)
@@ -69,8 +72,9 @@ async function exportCsv() {
       collection: props.target.collName,
       sampleSize: sampleSize.value,
       path: String(path),
+      format: format,
     })
-    exportMsg.value = `Exported ${count} field${count === 1 ? '' : 's'} to CSV`
+    exportMsg.value = `Exported ${count} field${count === 1 ? '' : 's'} to ${ext.toUpperCase()}`
   } catch (e) {
     exportMsg.value = errMessage(e)
   } finally {
@@ -140,14 +144,22 @@ const fields = computed(() => (report.value ? report.value.fields : []))
             {{ fields.length }} field{{ fields.length === 1 ? '' : 's' }}
           </div>
           <span v-if="exportMsg" class="sc-export-msg">{{ exportMsg }}</span>
+          <select
+            v-model="exportFormat"
+            class="sc-select sc-export-fmt"
+            :class="{ 'no-count': !(report && !loading) }"
+            :disabled="loading || exporting || !fields.length"
+          >
+            <option value="csv">CSV</option>
+            <option value="docx">Word (.docx)</option>
+          </select>
           <button
             class="sc-export"
             type="button"
-            :class="{ 'no-count': !(report && !loading) }"
             :disabled="loading || exporting || !fields.length"
-            @click="exportCsv"
+            @click="exportSchema"
           >
-            <BaseIcon name="export" :size="13" /> {{ exporting ? 'Exporting…' : 'Export CSV' }}
+            <BaseIcon name="export" :size="13" /> {{ exporting ? 'Exporting…' : 'Export' }}
           </button>
         </div>
 
@@ -295,7 +307,8 @@ const fields = computed(() => (report.value ? report.value.fields : []))
   font-size: 12px;
   cursor: pointer;
 }
-.sc-export.no-count { margin-left: auto; }
+.sc-export-fmt.no-count { margin-left: auto; }
+.sc-export-fmt { margin-left: 0; }
 .sc-export:hover:not(:disabled) { background: var(--bg-hover); }
 .sc-export:disabled { opacity: 0.5; cursor: default; }
 
