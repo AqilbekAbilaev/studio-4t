@@ -582,7 +582,7 @@ async function save() {
       <div class="nci-body">
         <p class="nci-lead">
           If you have a connection string (SRV or standard), e.g. for your MongoDB deployment,
-          you can paste it here and Studio-4T will auto-configure your connection settings for you.
+          you can paste it here and OzenDB will auto-configure your connection settings for you.
         </p>
 
         <label class="nci-radio" @click="mode = 'uri'">
@@ -689,7 +689,7 @@ async function save() {
             </select>
           </div>
           <div class="nc-hint">
-            Studio-4T currently targets MongoDB.
+            OzenDB currently targets MongoDB.
             PostgreSQL &amp; MySQL engines arrive in a future release.
           </div>
         </div>

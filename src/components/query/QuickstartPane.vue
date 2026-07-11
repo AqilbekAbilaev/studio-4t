@@ -11,7 +11,7 @@ const cards = [
 
 <template>
   <div class="quickstart">
-    <h1>Welcome to Studio-4T</h1>
+    <h1>Welcome to OzenDB</h1>
     <p>The cross-database workspace. MongoDB today — PostgreSQL, MySQL and more on the roadmap.</p>
     <div class="qs-grid">
       <div v-for="[ic, title, desc] in cards" :key="title" class="qs-card">

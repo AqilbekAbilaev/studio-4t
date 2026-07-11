@@ -1,13 +1,13 @@
 //! Integration tests against a live MongoDB.
 //!
-//! These are skipped unless `STUDIO4T_TEST_MONGODB` is set (to a `host` or
+//! These are skipped unless `OZENDB_TEST_MONGODB` is set (to a `host` or
 //! `host:port`). When set, they exercise the real URI-building + driver paths the
 //! commands rely on — paging `find`, `count_documents`, and `aggregate` — against
 //! a throwaway database that is dropped at the end. Default `cargo test` stays
 //! green everywhere because each test returns early when the variable is absent.
 //!
 //! Run them with, e.g.:
-//!   STUDIO4T_TEST_MONGODB=127.0.0.1:27017 cargo test integration
+//!   OZENDB_TEST_MONGODB=127.0.0.1:27017 cargo test integration
 
 use crate::storage::{ConnectionConfig, HostEntry};
 use crate::uri;
@@ -17,7 +17,7 @@ use mongodb::Client;
 /// A `ConnectionConfig` pointing at the test server, or `None` when the env var
 /// is unset (so the caller skips).
 fn test_config() -> Option<ConnectionConfig> {
-    let target = match std::env::var("STUDIO4T_TEST_MONGODB") {
+    let target = match std::env::var("OZENDB_TEST_MONGODB") {
         Ok(val) => val,
         Err(_) => return None,
     };
@@ -74,12 +74,12 @@ async fn find_paging_and_count_round_trip() {
     let config = match test_config() {
         Some(val) => val,
         None => {
-            eprintln!("skipping: set STUDIO4T_TEST_MONGODB=host[:port] to run live tests");
+            eprintln!("skipping: set OZENDB_TEST_MONGODB=host[:port] to run live tests");
             return;
         }
     };
     let client = connect(&config).await;
-    let db = client.database("studio4t_it");
+    let db = client.database("ozendb_it");
     let col = db.collection::<Document>("paging");
 
     // Start from a clean slate.
@@ -147,12 +147,12 @@ async fn update_delete_many_and_clear_round_trip() {
     let config = match test_config() {
         Some(val) => val,
         None => {
-            eprintln!("skipping: set STUDIO4T_TEST_MONGODB=host[:port] to run live tests");
+            eprintln!("skipping: set OZENDB_TEST_MONGODB=host[:port] to run live tests");
             return;
         }
     };
     let client = connect(&config).await;
-    let db = client.database("studio4t_it_bulk");
+    let db = client.database("ozendb_it_bulk");
     let col = db.collection::<Document>("items");
 
     match col.drop().await {
@@ -214,12 +214,12 @@ async fn aggregate_round_trip() {
     let config = match test_config() {
         Some(val) => val,
         None => {
-            eprintln!("skipping: set STUDIO4T_TEST_MONGODB=host[:port] to run live tests");
+            eprintln!("skipping: set OZENDB_TEST_MONGODB=host[:port] to run live tests");
             return;
         }
     };
     let client = connect(&config).await;
-    let db = client.database("studio4t_it_agg");
+    let db = client.database("ozendb_it_agg");
     let col = db.collection::<Document>("nums");
 
     match col.drop().await {

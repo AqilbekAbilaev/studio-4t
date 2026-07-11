@@ -1,8 +1,8 @@
-# Studio-4T
+# OzenDB
 
 An open-source, free alternative to [Studio-3T](https://studio3t.com/) — a desktop GUI for managing MongoDB. Built with [Tauri](https://tauri.app/) (Rust backend) and [Vue.js](https://vuejs.org/) (front-end). Still a work in progress.
 
-![Studio-4T querying a collection](img/studio-4t.png)
+![OzenDB querying a collection](img/ozendb.png)
 
 # Contents
 
@@ -13,7 +13,7 @@ An open-source, free alternative to [Studio-3T](https://studio3t.com/) — a des
 - [Want to Contribute?](#want-to-contribute)
 
 ### Why?
-I really love Studio-3T however the features I really like are only included in their subscription models(Basic/Pro/Ultimate). And I have tried to find comparable open-source alternative to Studio-3T, surprisingly, I have not found anything. And that is the reason why I am developing Studio-4T in order to give back to community. When I started this project, I wanted to learn Rust because - 'why not?'. And I have a specific problem and the technology I want to learn. Bingo! 
+I really love Studio-3T however the features I really like are only included in their subscription models(Basic/Pro/Ultimate). And I have tried to find comparable open-source alternative to Studio-3T, surprisingly, I have not found anything. And that is the reason why I am developing OzenDB in order to give back to community. When I started this project, I wanted to learn Rust because - 'why not?'. And I have a specific problem and the technology I want to learn. Bingo! 
 
 I wanted a tool that is (plus what Studio-3T provides):
 - Open-source and free.
@@ -21,7 +21,7 @@ I wanted a tool that is (plus what Studio-3T provides):
 - Not buggy (on my Fedora work laptop with a multi-monitor setup, Studio-3T very often just freezes without any feedback).
 - More customizable.
 
-`Studio-4T` will check all of those boxes in the future for me.
+`OzenDB` will check all of those boxes in the future for me.
 
 ### Prerequisites
 

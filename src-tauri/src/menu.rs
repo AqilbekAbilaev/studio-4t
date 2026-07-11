@@ -477,7 +477,7 @@ fn build_app_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
     };
     Submenu::with_items(
         app,
-        "Studio-4T",
+        "OzenDB",
         true,
         &[
             &about,

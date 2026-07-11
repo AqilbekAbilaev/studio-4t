@@ -187,7 +187,7 @@ pub fn apply_field_map(doc: &bson::Document, mapping: &[FieldMap]) -> bson::Docu
 // enough rows; `read_records` recognizes it and treats it as a clean stop rather
 // than a parse failure. The parsers have no early-exit hook other than a `flush`
 // that returns `Err`, so this is how the preview avoids reading a huge file whole.
-const PREVIEW_ENOUGH: &str = "__studio4t_preview_enough__";
+const PREVIEW_ENOUGH: &str = "__ozendb_preview_enough__";
 
 // Read up to `limit` documents from an import file, reusing the same streaming
 // CSV/JSON parsers the importer uses. Runs on the calling (blocking) thread.

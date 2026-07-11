@@ -71,7 +71,7 @@ export const OPTION_GROUPS = [
   {
     title: 'Miscellaneous',
     options: [
-      { key: 'appName', label: 'App name', type: 'string', placeholder: 'Studio-4T' },
+      { key: 'appName', label: 'App name', type: 'string', placeholder: 'OzenDB' },
       { key: 'loadBalanced', label: 'Load balanced', type: 'bool' },
       {
         key: 'uuidRepresentation', label: 'UUID representation', type: 'enum',

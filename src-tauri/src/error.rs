@@ -90,7 +90,7 @@ impl serde::Serialize for AppError {
         let code = self.code();
         match code {
             "validation" | "bson" => {}
-            _ => eprintln!("[studio-4t] error [{}]: {}", code, self),
+            _ => eprintln!("[ozendb] error [{}]: {}", code, self),
         }
         let wire = WireError {
             code: code,

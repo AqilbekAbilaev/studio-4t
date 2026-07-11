@@ -230,7 +230,7 @@ fn export_csv_transform_dropping_a_field_removes_its_column() {
 
 fn temp_xlsx_path(tag: &str) -> std::path::PathBuf {
     let mut path = std::env::temp_dir();
-    path.push(format!("studio4t-xlsx-test-{}-{}.xlsx", std::process::id(), tag));
+    path.push(format!("ozendb-xlsx-test-{}-{}.xlsx", std::process::id(), tag));
     path
 }
 

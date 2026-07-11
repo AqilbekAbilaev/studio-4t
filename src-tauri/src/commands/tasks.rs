@@ -336,7 +336,7 @@ async fn run_and_announce(app: &AppHandle, task: &TaskDef) {
     let run = run_task_now(app, task).await;
     match persist_run(app, &task.id, &run) {
         Ok(()) => {}
-        Err(e) => eprintln!("[studio-4t] task run persist failed: {}", e),
+        Err(e) => eprintln!("[ozendb] task run persist failed: {}", e),
     }
     let event = TaskRanEvent {
         task_id: task.id.clone(),
@@ -344,7 +344,7 @@ async fn run_and_announce(app: &AppHandle, task: &TaskDef) {
     };
     match app.emit("task-ran", event) {
         Ok(()) => {}
-        Err(e) => eprintln!("[studio-4t] task-ran emit failed: {}", e),
+        Err(e) => eprintln!("[ozendb] task-ran emit failed: {}", e),
     }
 }
 

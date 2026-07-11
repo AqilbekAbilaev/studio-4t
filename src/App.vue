@@ -575,7 +575,7 @@ function handleTool(name, target = null) {
     return
   }
   const label = TOOLS.find(t => t.name === name)?.label || name
-  showToast(`${label} — coming to Studio-4T`)
+  showToast(`${label} — coming to OzenDB`)
 }
 
 // After a Reschema apply: a new collection changes the tree, so refresh that
@@ -1306,7 +1306,7 @@ async function handleContextAction(action) {
     return
   }
 
-  showToast(action + ' — coming to Studio-4T')
+  showToast(action + ' — coming to OzenDB')
 }
 
 // The Validator modal owns its own fetch/save; we just confirm the result.

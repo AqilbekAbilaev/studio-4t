@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "studio-4T",
+  "productName": "OzenDB",
   "version": "0.1.0",
-  "identifier": "com.studio-4t.app",
+  "identifier": "com.ozendb.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Studio-4T",
+        "title": "OzenDB",
         "maximized": true
       }
     ],

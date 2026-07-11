@@ -1,18 +1,18 @@
-# Contributing to Studio-4T
+# Contributing to OzenDB
 
-Thanks for your interest in improving Studio-4T — an open-source, free desktop GUI for MongoDB.
+Thanks for your interest in improving OzenDB — an open-source, free desktop GUI for MongoDB.
 Contributions of all kinds are welcome: bug reports, features, docs, and fixes.
 
 ## Contributor License Agreement (required)
 
-Studio-4T is offered under a **dual-license** model: the community edition is **GPL-3.0**, and a
+OzenDB is offered under a **dual-license** model: the community edition is **GPL-3.0**, and a
 separate commercial license funds ongoing development. So that this stays possible, **all
 contributions require agreeing to the [Contributor License Agreement](CLA.md)** before they can be
 merged.
 
 For now, indicate your agreement by adding this line to your pull request description:
 
-> I have read and agree to the Studio-4T Contributor License Agreement.
+> I have read and agree to the OzenDB Contributor License Agreement.
 
 (An automated CLA check may be added later.)
 

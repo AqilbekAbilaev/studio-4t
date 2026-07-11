@@ -4080,6 +4080,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "ozendb"
+version = "0.1.0"
+dependencies = [
+ "boa_engine",
+ "boa_gc",
+ "chrono",
+ "docx-rs",
+ "futures-util",
+ "keyring",
+ "mongodb",
+ "russh",
+ "rust_xlsxwriter",
+ "serde",
+ "serde_json",
+ "struson",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "p256"
 version = "0.14.0-rc.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6129,32 +6155,6 @@ dependencies = [
  "serde_core",
  "strum",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "studio-4t"
-version = "0.1.0"
-dependencies = [
- "boa_engine",
- "boa_gc",
- "chrono",
- "docx-rs",
- "futures-util",
- "keyring",
- "mongodb",
- "russh",
- "rust_xlsxwriter",
- "serde",
- "serde_json",
- "struson",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "uuid",
 ]
 
 [[package]]

@@ -1,12 +1,12 @@
-# Studio-4T Individual Contributor License Agreement (CLA)
+# OzenDB Individual Contributor License Agreement (CLA)
 
 > **⚠️ Draft — not yet legal advice.** This document is adapted from the widely used
 > [Apache Software Foundation Individual CLA (ICLA) v2.0](https://www.apache.org/licenses/icla.pdf).
-> It is intended to let the Project Owner offer Studio-4T under both the open-source GPL-3.0
+> It is intended to let the Project Owner offer OzenDB under both the open-source GPL-3.0
 > license **and** a separate commercial/proprietary license (dual licensing). **Have a lawyer
 > review this before relying on it commercially.**
 
-Thank you for your interest in contributing to Studio-4T (the "Project"), owned by
+Thank you for your interest in contributing to OzenDB (the "Project"), owned by
 **Akhilbek Abilaev** (the "Project Owner", "we", or "us").
 
 This Contributor License Agreement ("Agreement") documents the rights granted by contributors to
@@ -92,7 +92,7 @@ would make these representations inaccurate in any respect.
 ## How to sign
 
 *(Signature mechanism to be finalized. For now, a contributor indicates agreement by stating in
-their pull request: "I have read and agree to the Studio-4T Contributor License Agreement.")*
+their pull request: "I have read and agree to the OzenDB Contributor License Agreement.")*
 
 - **Full name:** _______________________
 - **GitHub username:** _______________________

@@ -139,7 +139,7 @@ fn docx_export_writes_a_valid_zip() {
     let docs = vec![doc! { "name": "a", "age": 30 }, doc! { "name": "b" }];
     let report = infer_schema(&docs);
     let mut path = std::env::temp_dir();
-    path.push(format!("studio4t-schema-test-{}.docx", std::process::id()));
+    path.push(format!("ozendb-schema-test-{}.docx", std::process::id()));
     let path_str = path.to_str().unwrap();
     super::write_schema_docx(&report, "people", path_str).unwrap();
     let bytes = std::fs::read(&path).unwrap();

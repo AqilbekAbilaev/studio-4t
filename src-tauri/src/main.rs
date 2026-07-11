@@ -5,5 +5,5 @@ fn main() {
     // std::env::set_var("GTK_OVERLAY_SCROLLING", "0");
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
 
-    studio_4t_lib::run()
+    ozendb_lib::run()
 }

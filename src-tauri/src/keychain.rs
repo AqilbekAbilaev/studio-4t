@@ -1,6 +1,6 @@
 use crate::error::AppError;
 
-const SERVICE: &str = "studio-4t";
+const SERVICE: &str = "ozendb";
 
 pub fn set(id: &str, password: &str) -> Result<(), AppError> {
     let entry = match keyring::Entry::new(SERVICE, id) {

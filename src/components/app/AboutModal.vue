@@ -7,7 +7,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 // runtime (never hardcoded), plus the build's Tauri version.
 defineEmits(['close'])
 
-const name = ref('Studio-4T')
+const name = ref('OzenDB')
 const version = ref('')
 const tauriVersion = ref('')
 
