@@ -28,12 +28,12 @@ longer-term goal of supporting more databases.
   connection with roles and a temporary password), profiler, current operations, validators,
   and background tasks.
 - **Shell** — IntelliShell, an embedded mongosh-style JavaScript shell with a CodeMirror editor,
-  Mongo-aware autocomplete, a persistent per-session context, and per-connection history.
+  Mongo-aware autocomplete, a persistent per-session context, per-connection history, and
+  save / open of `.js` scripts.
+- **Personalization** — light / dark theme toggle; customizable keyboard shortcuts (rebind the
+  menu-action combos, applied live in-app and on the native menu bar).
 
 ## Planned 📋
 
-- Light / dark theme toggle
-- Keyboard-shortcut customization
-- Save / open shell scripts
 - Downloadable pre-built binaries
 - Support for databases beyond MongoDB (longer term)
