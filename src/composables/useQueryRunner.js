@@ -1,3 +1,4 @@
+import { markRaw } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../utils/errors'
 import { parseField } from '../utils/queryParser'
@@ -42,13 +43,18 @@ export function useQueryRunner({ tabs, showToast }) {
     const t0 = Date.now()
     const { addToHistory = true, ...queryParams } = params
     try {
-      tab.results = await invoke('find_documents', {
+      const docs = await invoke('find_documents', {
         id:         tab.connectionId,
         database:   tab.dbName,
         collection: tab.collectionName,
         ...queryParams,
         comment:    runId,
       })
+      // markRaw each document so Vue keeps the array reactive (row add / remove /
+      // replace still update the grid) without deep-proxying every nested field of
+      // every document — the result set is display-only and replaced wholesale, so
+      // the per-node proxies were pure memory + CPU overhead on large results.
+      tab.results = docs.map((doc) => markRaw(doc))
       tab.hasRun = true
       tab.elapsedMs = Date.now() - t0
       showToast(`Query returned ${tab.results.length} document${tab.results.length !== 1 ? 's' : ''} in ${(tab.elapsedMs / 1000).toFixed(3)}s`)
@@ -98,7 +104,7 @@ export function useQueryRunner({ tabs, showToast }) {
         ...params,
         comment:    runId,
       })
-      tab.results = res.documents
+      tab.results = res.documents.map((doc) => markRaw(doc))
       tab.hasRun = true
       tab.elapsedMs = Date.now() - t0
       if (res.truncated) {

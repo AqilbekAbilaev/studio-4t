@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
@@ -595,7 +595,7 @@ async function commitInlineEdit() {
       limit: 1,
     })
     if (refreshed.length) {
-      tab.results.splice(edit.rowIdx, 1, refreshed[0])
+      tab.results.splice(edit.rowIdx, 1, markRaw(refreshed[0]))
     } else {
       tab.results.splice(edit.rowIdx, 1)
     }
