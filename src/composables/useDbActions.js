@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../utils/errors'
+import { errText } from '../utils/errors'
 import { parsePipeline } from '../utils/queryParser'
 
 // Collection/database CRUD-dialog state + confirm actions (add/drop/rename/duplicate
@@ -114,7 +114,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       showToast(`Collection "${name}" created`)
       addCollectionTarget.value = null
     } catch (e) {
-      addCollectionError.value = errMessage(e)
+      addCollectionError.value = errText(e)
     } finally {
       addCollectionSaving.value = false
     }
@@ -142,7 +142,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       showToast(`View "${name}" created`)
       addViewTarget.value = null
     } catch (e) {
-      addViewError.value = errMessage(e)
+      addViewError.value = errText(e)
     } finally {
       addViewSaving.value = false
     }
@@ -190,7 +190,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       }
       await connectionTreeRef.value.refreshConn(target.connId)
     } catch (e) {
-      showToast('Paste failed: ' + errMessage(e))
+      showToast('Paste failed: ' + errText(e))
     }
   }
 
@@ -214,7 +214,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       showToast(`GridFS bucket "${name}" created`)
       addBucketTarget.value = null
     } catch (e) {
-      addBucketError.value = errMessage(e)
+      addBucketError.value = errText(e)
     } finally {
       addBucketSaving.value = false
     }
@@ -235,7 +235,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       showToast(`Database "${target.dbName}" dropped`)
       dropDatabaseTarget.value = null
     } catch (e) {
-      dropDatabaseError.value = errMessage(e)
+      dropDatabaseError.value = errText(e)
     } finally {
       dropDatabaseDeleting.value = false
     }
@@ -256,7 +256,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       showToast(`Collection "${target.collName}" dropped`)
       dropCollectionTarget.value = null
     } catch (e) {
-      dropCollectionError.value = errMessage(e)
+      dropCollectionError.value = errText(e)
     } finally {
       dropCollectionDeleting.value = false
     }
@@ -279,7 +279,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       showToast(`Collection renamed to "${newName}"`)
       renameCollectionTarget.value = null
     } catch (e) {
-      renameCollectionError.value = errMessage(e)
+      renameCollectionError.value = errText(e)
     } finally {
       renameCollectionSaving.value = false
     }
@@ -302,7 +302,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       showToast(`Copied ${count} document${count === 1 ? '' : 's'} to "${name}"`)
       duplicateCollectionTarget.value = null
     } catch (e) {
-      duplicateCollectionError.value = errMessage(e)
+      duplicateCollectionError.value = errText(e)
     } finally {
       duplicateCollectionSaving.value = false
     }
@@ -321,7 +321,7 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
       showToast(`Database "${dbName}" created`)
       addDatabaseTarget.value = null
     } catch (e) {
-      addDatabaseError.value = errMessage(e)
+      addDatabaseError.value = errText(e)
     } finally {
       addDatabaseSaving.value = false
     }

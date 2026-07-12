@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import ResultTable from '../results/ResultTable.vue'
 import TreeView from '../base/TreeView.vue'
@@ -148,7 +148,7 @@ async function run(codeOverride) {
     }
   } catch (e) {
     tab.elapsedMs = Date.now() - t0
-    tab.runError = errMessage(e)
+    tab.runError = errText(e)
     tab.results = []
     tab.hasScalar = false
     tab.resultTab = 'Console'
@@ -194,7 +194,7 @@ async function openScript() {
       filters: [{ name: 'JavaScript', extensions: ['js'] }],
     })
   } catch (e) {
-    reportScriptError('Open failed: ' + errMessage(e))
+    reportScriptError('Open failed: ' + errText(e))
     return
   }
   if (!path) return  // user cancelled
@@ -204,7 +204,7 @@ async function openScript() {
     props.activeTab.scriptPath = String(path)
     setEditorDoc(text)
   } catch (e) {
-    reportScriptError('Open failed: ' + errMessage(e))
+    reportScriptError('Open failed: ' + errText(e))
   }
 }
 
@@ -220,7 +220,7 @@ async function saveScript() {
       filters: [{ name: 'JavaScript', extensions: ['js'] }],
     })
   } catch (e) {
-    reportScriptError('Save failed: ' + errMessage(e))
+    reportScriptError('Save failed: ' + errText(e))
     return
   }
   if (!path) return  // user cancelled
@@ -228,7 +228,7 @@ async function saveScript() {
     await invoke('write_shell_script', { path: String(path), contents: contents })
     tab.scriptPath = String(path)
   } catch (e) {
-    reportScriptError('Save failed: ' + errMessage(e))
+    reportScriptError('Save failed: ' + errText(e))
   }
 }
 

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../utils/errors'
+import { errText, errCode } from '../utils/errors'
 import { parseField } from '../utils/queryParser'
 
 // Query execution: running find/aggregate queries against a tab, cancelling an
@@ -26,7 +26,7 @@ export function useQueryRunner({ tabs, showToast }) {
       showToast(killed > 0 ? 'Query cancelled' : 'Query already finished')
     } catch (e) {
       tab.cancelled = false
-      showToast('Cancel not permitted on this server: ' + errMessage(e))
+      showToast('Cancel not permitted on this server: ' + errText(e))
     }
   }
 
@@ -72,7 +72,7 @@ export function useQueryRunner({ tabs, showToast }) {
         tab.runError = 'Query cancelled.'
         tab.runErrorCode = null
       } else {
-        tab.runError = errMessage(e)
+        tab.runError = errText(e)
         tab.runErrorCode = errCode(e)
       }
     } finally {
@@ -123,7 +123,7 @@ export function useQueryRunner({ tabs, showToast }) {
         tab.runError = 'Query cancelled.'
         tab.runErrorCode = null
       } else {
-        tab.runError = errMessage(e)
+        tab.runError = errText(e)
         tab.runErrorCode = errCode(e)
       }
     } finally {

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../../utils/errors'
+import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -68,7 +68,7 @@ onMounted(async () => {
     await fetchStatus()
     await fetchList()
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     loading.value = false
@@ -89,7 +89,7 @@ async function applyLevel() {
     await fetchStatus()
     await fetchList()
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     applying.value = false
@@ -103,7 +103,7 @@ async function refreshList() {
   try {
     await fetchList()
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     refreshing.value = false

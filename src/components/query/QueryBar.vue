@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import { DATE_TAGS } from '../../utils/dateTags'
 import BaseIcon from '../base/BaseIcon.vue'
 
@@ -134,7 +134,7 @@ async function setDefaultQuery() {
     showDefaultMenu.value = false
     emit('toast', 'Default query set for this collection.')
   } catch (e) {
-    emit('toast', 'Failed: ' + errMessage(e))
+    emit('toast', 'Failed: ' + errText(e))
   }
 }
 
@@ -150,7 +150,7 @@ async function clearDefaultQuery() {
     showDefaultMenu.value = false
     emit('toast', 'Default query cleared.')
   } catch (e) {
-    emit('toast', 'Failed: ' + errMessage(e))
+    emit('toast', 'Failed: ' + errText(e))
   }
 }
 
@@ -173,7 +173,7 @@ async function saveCurrentQuery() {
     saveName.value = ''
     emit('toast', `Saved as "${name}"`)
   } catch (e) {
-    emit('toast', 'Save failed: ' + errMessage(e))
+    emit('toast', 'Save failed: ' + errText(e))
   }
 }
 

@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 
 // App preferences. Persisted via update_settings; on save the parent adopts the
@@ -32,7 +32,7 @@ async function save() {
     })
     emit('close')
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     saving.value = false
   }

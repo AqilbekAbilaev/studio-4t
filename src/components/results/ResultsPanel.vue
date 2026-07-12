@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
 import DocumentModal from './DocumentModal.vue'
@@ -137,7 +137,7 @@ async function goLast() {
     tab.skip = total === 0 ? 0 : Math.floor((total - 1) / limit) * limit
     emit('requery', false)
   } catch (e) {
-    emit('toast', 'Count failed: ' + errMessage(e))
+    emit('toast', 'Count failed: ' + errText(e))
   }
 }
 
@@ -148,7 +148,7 @@ async function countDocuments() {
     const total = await fetchCount(tab)
     emit('toast', `${total.toLocaleString()} document${total !== 1 ? 's' : ''} match this query`)
   } catch (e) {
-    emit('toast', 'Count failed: ' + errMessage(e))
+    emit('toast', 'Count failed: ' + errText(e))
   }
 }
 

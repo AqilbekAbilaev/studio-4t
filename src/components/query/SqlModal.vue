@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -23,7 +23,7 @@ async function translate() {
   try {
     result.value = await invoke('translate_sql', { sql: sql.value })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     result.value = null
   }
 }

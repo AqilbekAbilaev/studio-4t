@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage, errCode } from '../../utils/errors'
+import { errText, errCode } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -83,7 +83,7 @@ async function doRename() {
     renameTarget.value = null
     await loadFiles()
   } catch (e) {
-    subError.value = errMessage(e)
+    subError.value = errText(e)
   } finally {
     busy.value = false
   }
@@ -111,7 +111,7 @@ async function doSetMeta() {
     metaTarget.value = null
     await loadFiles()
   } catch (e) {
-    subError.value = errMessage(e)
+    subError.value = errText(e)
   } finally {
     busy.value = false
   }
@@ -131,7 +131,7 @@ async function doCopyBucket() {
     copyBucketOpen.value = false
     await loadBuckets()
   } catch (e) {
-    subError.value = errMessage(e)
+    subError.value = errText(e)
   } finally {
     busy.value = false
   }
@@ -153,7 +153,7 @@ async function dropBucket() {
     await loadBuckets()
     await loadFiles()
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     busy.value = false
   }
@@ -174,7 +174,7 @@ async function loadBuckets() {
       selectedBucket.value = buckets.value[0]
     }
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   }
 }
@@ -190,7 +190,7 @@ async function loadFiles() {
       bucket: selectedBucket.value,
     })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
     files.value = []
   } finally {
@@ -225,7 +225,7 @@ async function upload() {
     await loadBuckets()
     await loadFiles()
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     busy.value = false
@@ -249,7 +249,7 @@ async function download(file) {
     })
     emit('toast', `Downloaded ${file.filename}`)
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     busy.value = false
@@ -272,7 +272,7 @@ async function confirmDelete(file) {
     emit('toast', `Deleted ${file.filename}`)
     await loadFiles()
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     busy.value = false

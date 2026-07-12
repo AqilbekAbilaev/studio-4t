@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage, errCode } from '../../utils/errors'
+import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -52,7 +52,7 @@ onMounted(async () => {
       }))
     }
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     loading.value = false
@@ -102,7 +102,7 @@ async function runExport() {
     emit('toast', `Exported ${count} masked document${count === 1 ? '' : 's'}`)
     emit('close')
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     exporting.value = false

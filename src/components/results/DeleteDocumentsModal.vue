@@ -6,7 +6,7 @@
 // can never run against a scope the user hasn't seen.
 import { ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
 
@@ -39,7 +39,7 @@ async function onCount() {
     matched.value = total
     countedFilter.value = filter.value
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     busy.value = false
   }
@@ -61,7 +61,7 @@ async function onDelete() {
     })
     emit('done', `Deleted ${deleted} document${deleted !== 1 ? 's' : ''}`)
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     busy.value = false
   }

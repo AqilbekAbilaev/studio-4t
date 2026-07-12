@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, nextTick, watch, defineAsyncComponent } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import TabBar from '../base/TabBar.vue'
 import QuickstartPane from './QuickstartPane.vue'
@@ -153,7 +153,7 @@ async function runExplain() {
       })
       tab.explainResult = result
     } catch (e) {
-      tab.explainError = errMessage(e)
+      tab.explainError = errText(e)
       tab.explainResult = null
     } finally {
       tab.explainRunning = false
@@ -197,7 +197,7 @@ async function runExplain() {
       tab.explainStorage = null
     }
   } catch (e) {
-    tab.explainError = errMessage(e)
+    tab.explainError = errText(e)
     tab.explainResult = null
   } finally {
     tab.explainRunning = false

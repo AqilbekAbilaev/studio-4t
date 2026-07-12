@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -31,7 +31,7 @@ onMounted(async () => {
     if (info.validation_level) level.value = info.validation_level
     if (info.validation_action) action.value = info.validation_action
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     loading.value = false
   }
@@ -60,7 +60,7 @@ async function save() {
     emit('saved', props.target.collName)
     emit('close')
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     saving.value = false
   }

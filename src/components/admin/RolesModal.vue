@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -19,7 +19,7 @@ onMounted(async () => {
   try {
     roles.value = await invoke('list_roles', { id: props.target.connId, database: props.target.dbName })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     loading.value = false
   }

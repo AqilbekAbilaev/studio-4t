@@ -5,7 +5,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
-import { errMessage } from './utils/errors'
+import { errText } from './utils/errors'
 import { mergeBindings, matchBinding } from './utils/keybindings'
 import { useIndexes } from './composables/useIndexes'
 import { useSshHostKey } from './composables/useSshHostKey'
@@ -1346,7 +1346,7 @@ async function exportDatabase(nodeData) {
   try {
     dir = await openDialog({ directory: true, title: `Export all collections in ${nodeData.dbName}` })
   } catch (e) {
-    showToast('Export failed: ' + errMessage(e))
+    showToast('Export failed: ' + errText(e))
     return
   }
   if (!dir) return  // user cancelled
@@ -1355,7 +1355,7 @@ async function exportDatabase(nodeData) {
     const dbs = await invoke('list_databases', { id: nodeData.connId })
     collections = (dbs.find(d => d.name === nodeData.dbName)?.collections) || []
   } catch (e) {
-    showToast('Export failed: ' + errMessage(e))
+    showToast('Export failed: ' + errText(e))
     return
   }
   if (!collections.length) { showToast('No collections to export'); return }
@@ -1388,7 +1388,7 @@ async function importDatabase(nodeData) {
       filters: [{ name: 'JSON or CSV', extensions: ['json', 'csv'] }],
     })
   } catch (e) {
-    showToast('Import failed: ' + errMessage(e))
+    showToast('Import failed: ' + errText(e))
     return
   }
   if (!paths || !paths.length) return  // user cancelled
@@ -1801,7 +1801,7 @@ async function onKeybindingsSaved(bindings) {
     const saved = await invoke('update_keybindings', { bindings: bindings })
     keyBindings.value = mergeBindings(saved)
   } catch (e) {
-    showToast(errMessage(e))
+    showToast(errText(e))
   }
 }
 

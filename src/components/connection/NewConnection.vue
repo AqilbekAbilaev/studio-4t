@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { emit as tauriEmit } from '@tauri-apps/api/event'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import BaseIcon from '../base/BaseIcon.vue'
 import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../../data/connectionOptions.js'
@@ -480,7 +480,7 @@ async function testConnection() {
     }
     status.value = { type: 'success', message: 'Connected successfully.' }
   } catch (e) {
-    status.value = { type: 'error', message: errMessage(e) }
+    status.value = { type: 'error', message: errText(e) }
   } finally {
     isTesting.value = false
   }
@@ -562,7 +562,7 @@ async function save() {
       await tauriEmit('connection-saved', conn)
     }
   } catch (e) {
-    status.value = { type: 'error', message: errMessage(e) }
+    status.value = { type: 'error', message: errText(e) }
     isSaving.value = false
   }
 }

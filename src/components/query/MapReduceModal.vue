@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 
 // Open Map-Reduce for a collection: enter map / reduce / (optional) finalize JS and
@@ -34,7 +34,7 @@ async function run() {
       outCollection: outCollection.value,
     })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     running.value = false
   }

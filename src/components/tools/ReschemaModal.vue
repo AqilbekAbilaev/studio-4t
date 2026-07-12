@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../../utils/errors'
+import { errText, errCode } from '../../utils/errors'
 import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -76,7 +76,7 @@ onMounted(async () => {
       fieldPaths.value = paths
     }
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     loading.value = false
@@ -141,7 +141,7 @@ async function runPreview() {
       limit: PREVIEW_LIMIT,
     })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     previewing.value = false
@@ -177,7 +177,7 @@ async function runApply() {
     })
     emit('close')
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     applying.value = false

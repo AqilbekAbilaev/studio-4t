@@ -4,7 +4,7 @@
 // syntax, parsed to Extended JSON by the shared query parser (same as the query bar).
 import { ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
 
@@ -42,7 +42,7 @@ async function onCount() {
     matched.value = total
     countedFilter.value = filter.value
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     busy.value = false
   }
@@ -67,7 +67,7 @@ async function onRun() {
     })
     emit('done', `Updated ${modified} document${modified !== 1 ? 's' : ''}`)
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     busy.value = false
   }

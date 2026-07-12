@@ -6,7 +6,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { buildExtensions, EditorView, EditorState } from '../../utils/docEditor'
 import { mongoStringify } from '../../utils/mongoFormat'
 import { parseField } from '../../utils/queryParser'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 
 // The pop-out document window (Studio-3T-style Cmd/Ctrl+J). Opened by the Rust
 // open_document_window command, seeded from the window URL on first load. Two modes:
@@ -97,7 +97,7 @@ async function loadTarget(next) {
     }
     dirty.value = false
   } catch (e) {
-    jsonErr.value = errMessage(e)
+    jsonErr.value = errText(e)
   } finally {
     loading.value = false
   }
@@ -136,7 +136,7 @@ async function onSave() {
     // was already refreshed via the document-saved event above.
     await getCurrentWindow().close()
   } catch (e) {
-    jsonErr.value = errMessage(e)
+    jsonErr.value = errText(e)
     saving.value = false
   }
 }

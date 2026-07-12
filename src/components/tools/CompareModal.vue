@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../../utils/errors'
+import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -31,7 +31,7 @@ onMounted(async () => {
     if (collections.value.length > 1) targetColl.value = collections.value[1]
     else if (collections.value.length) targetColl.value = collections.value[0]
   } catch (e) {
-    initErr.value = errMessage(e)
+    initErr.value = errText(e)
   }
 })
 
@@ -50,7 +50,7 @@ async function compare() {
       target: targetColl.value,
     })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     loading.value = false

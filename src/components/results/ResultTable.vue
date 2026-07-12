@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import { valueToClipboard } from '../../utils/clipboardCopy'
 import { dbRefOf, idFilterString } from '../../utils/dbRef'
 import BaseIcon from '../base/BaseIcon.vue'
@@ -600,7 +600,7 @@ async function commitInlineEdit() {
       tab.results.splice(edit.rowIdx, 1)
     }
   } catch (e) {
-    emit('crud-error', errMessage(e))
+    emit('crud-error', errText(e))
   }
 }
 

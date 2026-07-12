@@ -3,7 +3,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import NewConnection from './NewConnection.vue'
 import ContextMenu from '../base/ContextMenu.vue'
@@ -122,7 +122,7 @@ async function duplicateSelected() {
     selectedId.value = copy.id
     emit('toast', `Duplicated as "${copy.name}"`)
   } catch (e) {
-    emit('toast', 'Duplicate failed: ' + errMessage(e))
+    emit('toast', 'Duplicate failed: ' + errText(e))
   }
 }
 
@@ -133,7 +133,7 @@ async function copyUri() {
     await navigator.clipboard.writeText(uri)
     emit('toast', 'Connection URI copied (password excluded)')
   } catch (e) {
-    emit('toast', 'To URI failed: ' + errMessage(e))
+    emit('toast', 'To URI failed: ' + errText(e))
   }
 }
 
@@ -145,7 +145,7 @@ async function exportConnections() {
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
   } catch (e) {
-    emit('toast', 'Export failed: ' + errMessage(e))
+    emit('toast', 'Export failed: ' + errText(e))
     return
   }
   if (!path) return  // user cancelled
@@ -153,7 +153,7 @@ async function exportConnections() {
     const count = await invoke('export_connections', { path: path })
     emit('toast', `Exported ${count} connection${count !== 1 ? 's' : ''} (passwords excluded)`)
   } catch (e) {
-    emit('toast', 'Export failed: ' + errMessage(e))
+    emit('toast', 'Export failed: ' + errText(e))
   }
 }
 
@@ -165,7 +165,7 @@ async function importConnections() {
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
   } catch (e) {
-    emit('toast', 'Import failed: ' + errMessage(e))
+    emit('toast', 'Import failed: ' + errText(e))
     return
   }
   if (!path) return  // user cancelled
@@ -174,7 +174,7 @@ async function importConnections() {
     connections.value = await invoke('list_connections')
     emit('toast', `Imported ${count} connection${count !== 1 ? 's' : ''} — re-enter passwords to connect`)
   } catch (e) {
-    emit('toast', 'Import failed: ' + errMessage(e))
+    emit('toast', 'Import failed: ' + errText(e))
   }
 }
 
@@ -247,7 +247,7 @@ async function newFolder() {
   try {
     startRenameFolder(await createUniqueFolder())
   } catch (e) {
-    emit('toast', 'Create folder failed: ' + errMessage(e))
+    emit('toast', 'Create folder failed: ' + errText(e))
   }
 }
 
@@ -269,7 +269,7 @@ async function commitRenameFolder(f) {
     const target = folders.value.find(x => x.id === f.id)
     if (target) target.name = name
   } catch (e) {
-    emit('toast', 'Rename failed: ' + errMessage(e))
+    emit('toast', 'Rename failed: ' + errText(e))
   }
 }
 
@@ -290,7 +290,7 @@ async function deleteFolder(f) {
     // Connections inside were moved back to root server-side; reload to reflect.
     connections.value = await invoke('list_connections')
   } catch (e) {
-    emit('toast', 'Delete folder failed: ' + errMessage(e))
+    emit('toast', 'Delete folder failed: ' + errText(e))
   }
 }
 
@@ -334,7 +334,7 @@ async function onMovePick(value) {
       await applyMove(connId, folder.id)
       startRenameFolder(folder)
     } catch (e) {
-      emit('toast', 'Create folder failed: ' + errMessage(e))
+      emit('toast', 'Create folder failed: ' + errText(e))
     }
     return
   }
@@ -349,7 +349,7 @@ async function applyMove(connId, folderId) {
     if (c) c.folder_id = folderId
     if (folderId && !isExpanded(folderId)) expandedFolders.value.push(folderId)
   } catch (e) {
-    emit('toast', 'Move failed: ' + errMessage(e))
+    emit('toast', 'Move failed: ' + errText(e))
   }
 }
 

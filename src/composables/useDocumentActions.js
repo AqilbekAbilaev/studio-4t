@@ -1,6 +1,6 @@
 import { ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../utils/errors'
+import { errText } from '../utils/errors'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
 import { valueToClipboard, valueToEjson, documentToClipboard, fieldPath } from '../utils/clipboardCopy'
 
@@ -94,7 +94,7 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
       showDocModal.value = false
       requery(true)
     } catch (e) {
-      crudError.value = errMessage(e)
+      crudError.value = errText(e)
     } finally {
       crudSaving.value = false
     }
@@ -122,7 +122,7 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
       tab.selectedRow = -1
       requery(true)
     } catch (e) {
-      crudError.value = errMessage(e)
+      crudError.value = errText(e)
     }
   }
 
@@ -321,7 +321,7 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
       showToast(`Pasted ${count} document${count !== 1 ? 's' : ''}`)
       requery(true)
     } catch (e) {
-      showToast(errMessage(e))
+      showToast(errText(e))
     }
   }
 
@@ -358,7 +358,7 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
       fieldEdit.value = null
       tab.selectedField = null
     } catch (e) {
-      fieldEditError.value = errMessage(e)
+      fieldEditError.value = errText(e)
     }
   }
 
@@ -374,7 +374,7 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
       removeFieldName.value = null
       tab.selectedField = null
     } catch (e) {
-      removeFieldError.value = errMessage(e)
+      removeFieldError.value = errText(e)
     }
   }
 
@@ -395,7 +395,7 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
       showToast(`Cleared ${removed} document${removed !== 1 ? 's' : ''} from ${tab.collectionName}`)
       requery(true)
     } catch (e) {
-      clearError.value = errMessage(e)
+      clearError.value = errText(e)
     } finally {
       clearBusy.value = false
     }

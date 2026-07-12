@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage, errCode } from '../../utils/errors'
+import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -31,7 +31,7 @@ async function load() {
       collection: props.target.collName,
     })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     loading.value = false
@@ -68,7 +68,7 @@ async function restore(entry) {
     await invoke('restore_history', { entryId: entry.id })
     notice.value = `${OP_LABEL[entry.op] || entry.op} document restored`
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
   } finally {
     busyId.value = null
@@ -85,7 +85,7 @@ async function clearAll() {
     entries.value = []
     notice.value = 'History cleared'
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   }
 }
 </script>

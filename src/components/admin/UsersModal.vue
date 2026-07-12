@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -30,7 +30,7 @@ async function load() {
   try {
     users.value = await invoke('list_users', { id: props.target.connId, database: props.target.dbName })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     loading.value = false
   }
@@ -58,7 +58,7 @@ async function createUser() {
     newRoles.value = 'read'
     await load()
   } catch (e) {
-    createError.value = errMessage(e)
+    createError.value = errText(e)
   } finally {
     busy.value = false
   }
@@ -71,7 +71,7 @@ async function dropUser(user) {
     await invoke('drop_user', { id: props.target.connId, database: props.target.dbName, username: user.user })
     await load()
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     busy.value = false
     pendingDrop.value = null
@@ -99,7 +99,7 @@ async function openCopyPanel() {
     connections.value = await invoke('list_connections')
     copyTargetConn.value = props.target.connId
   } catch (e) {
-    copyError.value = errMessage(e)
+    copyError.value = errText(e)
   }
 }
 
@@ -117,7 +117,7 @@ async function runCopyUsers() {
       targetDatabase: targetDb,
     })
   } catch (e) {
-    copyError.value = errMessage(e)
+    copyError.value = errText(e)
   } finally {
     copying.value = false
   }

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -47,7 +47,7 @@ async function sample() {
     }
     lastNet = { in: net.bytesIn ?? 0, out: net.bytesOut ?? 0 }
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     loading.value = false
   }

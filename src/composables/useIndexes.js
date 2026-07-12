@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../utils/errors'
+import { errText } from '../utils/errors'
 import { isProtectedIndex, indexKeyLabel, indexSpecJson } from '../utils/indexSpec'
 // NOTE: indexSpecJson is needed because copyIndex() calls it. App.vue ALSO keeps
 // its own indexSpecJson import for the template — both importing the pure helper is fine.
@@ -49,7 +49,7 @@ export function useIndexes({ showToast }) {
         selectedIndex.value = indexesList.value.find(i => i.name === selectedIndex.value.name) || null
       }
     } catch (e) {
-      indexesError.value = errMessage(e)
+      indexesError.value = errText(e)
       indexesList.value = []
     } finally {
       indexesLoading.value = false
@@ -104,7 +104,7 @@ export function useIndexes({ showToast }) {
       await loadIndexes()
       showToast(editing ? 'Index updated' : 'Index created')
     } catch (e) {
-      indexesError.value = errMessage(e)
+      indexesError.value = errText(e)
     } finally {
       indexCreating.value = false
     }
@@ -130,7 +130,7 @@ export function useIndexes({ showToast }) {
       await loadIndexes()
       showToast(`Index "${name}" dropped`)
     } catch (e) {
-      indexesError.value = errMessage(e)
+      indexesError.value = errText(e)
       pendingDropIndex.value = null
     }
   }
@@ -239,7 +239,7 @@ export function useIndexes({ showToast }) {
       await loadIndexes()
       showToast(`Index "${drop.name}" dropped`)
     } catch (e) {
-      dropIndexError.value = errMessage(e)
+      dropIndexError.value = errText(e)
     } finally {
       dropIndexBusy.value = false
     }
@@ -267,7 +267,7 @@ export function useIndexes({ showToast }) {
       await loadIndexes()
       showToast(hidden ? `Index "${name}" hidden` : `Index "${name}" unhidden`)
     } catch (e) {
-      indexesError.value = errMessage(e)
+      indexesError.value = errText(e)
     }
   }
 

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -27,7 +27,7 @@ async function load() {
   try {
     functions.value = await invoke('list_functions', { id: props.target.connId, database: props.target.dbName })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     loading.value = false
   }
@@ -60,7 +60,7 @@ async function saveFunction() {
     editing.value = null
     await load()
   } catch (e) {
-    editError.value = errMessage(e)
+    editError.value = errText(e)
   } finally {
     busy.value = false
   }
@@ -73,7 +73,7 @@ async function dropFunction(fn) {
     await invoke('drop_function', { id: props.target.connId, database: props.target.dbName, name: fn.name })
     await load()
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     busy.value = false
     pendingDrop.value = null

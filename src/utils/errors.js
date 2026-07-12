@@ -37,3 +37,12 @@ const FRIENDLY_TITLES = {
 export function errTitle(code) {
   return code ? (FRIENDLY_TITLES[code] || '') : ''
 }
+
+// A calm, one-line error string for surfaces without a "Details" disclosure —
+// toasts and inline modal error areas. Prefers the friendly title for any code
+// that has one, so the driver's raw internal dumps (server-selection topology,
+// verbose auth detail) never face the user. Codes we author ourselves have no
+// friendly title and fall through to their already-readable raw message.
+export function errText(e) {
+  return errTitle(errCode(e)) || errMessage(e)
+}

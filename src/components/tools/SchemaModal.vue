@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage, errCode } from '../../utils/errors'
+import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -33,7 +33,7 @@ async function analyze() {
       sampleSize: sampleSize.value,
     })
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
     errorCode.value = errCode(e)
     report.value = null
   } finally {
@@ -59,7 +59,7 @@ async function exportSchema() {
       filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
     })
   } catch (e) {
-    exportMsg.value = errMessage(e)
+    exportMsg.value = errText(e)
     return
   }
   if (!path) return
@@ -76,7 +76,7 @@ async function exportSchema() {
     })
     exportMsg.value = `Exported ${count} field${count === 1 ? '' : 's'} to ${ext.toUpperCase()}`
   } catch (e) {
-    exportMsg.value = errMessage(e)
+    exportMsg.value = errText(e)
   } finally {
     exporting.value = false
   }

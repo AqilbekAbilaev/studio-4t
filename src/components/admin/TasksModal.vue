@@ -3,7 +3,7 @@ import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog'
-import { errMessage } from '../../utils/errors'
+import { errText } from '../../utils/errors'
 import { scheduleSummary } from '../../utils/taskSchedule'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -105,7 +105,7 @@ async function refresh() {
     tasks.value = await invoke('list_tasks')
     error.value = null
   } catch (e) {
-    error.value = errMessage(e)
+    error.value = errText(e)
   } finally {
     loading.value = false
   }
@@ -162,7 +162,7 @@ async function runNow(task) {
     emit('toast', `${task.name}: ${run.status === 'ok' ? 'ran successfully' : run.message}`)
     await refresh()
   } catch (e) {
-    emit('toast', `${task.name} failed: ${errMessage(e)}`)
+    emit('toast', `${task.name} failed: ${errText(e)}`)
   } finally {
     const next = new Set(running.value)
     next.delete(task.id)
@@ -176,7 +176,7 @@ async function remove(task) {
     await refresh()
     emit('toast', `Deleted "${task.name}"`)
   } catch (e) {
-    emit('toast', `Could not delete: ${errMessage(e)}`)
+    emit('toast', `Could not delete: ${errText(e)}`)
   }
 }
 
@@ -366,7 +366,7 @@ async function save() {
     view.value = 'list'
     emit('toast', form.id ? 'Task updated' : 'Task created')
   } catch (e) {
-    emit('toast', `Could not save: ${errMessage(e)}`)
+    emit('toast', `Could not save: ${errText(e)}`)
   } finally {
     saving.value = false
   }
