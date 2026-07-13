@@ -798,6 +798,44 @@ pub(crate) async fn collect_values(
         .collect())
 }
 
+/// Drain a document cursor into a single pre-serialized JSON array, returned as a
+/// `RawValue` so Tauri's IPC layer emits its bytes verbatim (the frontend still
+/// receives a normal array). Unlike `collect_values`, this streams one document at a
+/// time: the whole `Vec<Value>` intermediate never exists and Tauri never walks a
+/// value tree to re-serialize it, so only a single document/value is alive at any
+/// moment. That cuts peak memory on large result sets to roughly the size of the JSON
+/// text itself. (Shape A, streamed.) Per-doc conversion still goes through bson's own
+/// `From` impl, matching `collect_values` — bson's `Serialize` targets the wire format.
+pub(crate) async fn collect_json(
+    cursor: &mut mongodb::Cursor<bson::Document>,
+) -> Result<Box<serde_json::value::RawValue>, AppError> {
+    let mut buf = String::from("[");
+    let mut first = true;
+    loop {
+        match next_document(cursor).await {
+            Ok(Some(doc)) => {
+                let value = serde_json::Value::from(bson::Bson::Document(doc));
+                let text = match serde_json::to_string(&value) {
+                    Ok(val) => val,
+                    Err(e) => return Err(AppError::Serde(e)),
+                };
+                if !first {
+                    buf.push(',');
+                }
+                first = false;
+                buf.push_str(&text);
+            }
+            Ok(None) => break,
+            Err(e) => return Err(e),
+        }
+    }
+    buf.push(']');
+    match serde_json::value::RawValue::from_string(buf) {
+        Ok(val) => Ok(val),
+        Err(e) => return Err(AppError::Serde(e)),
+    }
+}
+
 // Streaming RFC-4180 CSV reader: yields one record (row of string fields) per call,
 // reading from a `Read` incrementally so the whole file is never buffered. Handles
 // quoted fields, doubled quotes, and embedded newlines exactly like the old
