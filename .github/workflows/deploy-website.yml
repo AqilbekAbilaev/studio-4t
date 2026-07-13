@@ -1,0 +1,12 @@
+name: Rebuild website on release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  trigger-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare Pages deploy
+        run: curl -fsSL -X POST "${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}"
