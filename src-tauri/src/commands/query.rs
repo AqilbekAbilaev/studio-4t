@@ -5,8 +5,8 @@ use serde::Serialize;
 use tauri::State;
 
 use super::{
-    collect_values, next_document, parse_ejson_document, parse_json_documents, parse_pipeline,
-    MAX_QUERY_TIME, AppContext,
+    collect_json, next_document, parse_ejson_document, parse_json_documents,
+    parse_pipeline, MAX_QUERY_TIME, AppContext,
 };
 
 // Canonical Extended-JSON string for a value, used to persist history pre-images so any
@@ -170,7 +170,7 @@ pub async fn find_documents(
     skip: i64,
     limit: i64,
     comment: Option<String>,
-) -> Result<Vec<serde_json::Value>, AppError> {
+) -> Result<Box<serde_json::value::RawValue>, AppError> {
     let col = match ctx.collection(&id, &database, &collection).await {
         Ok(val) => val,
         Err(e) => return Err(e),
@@ -212,7 +212,7 @@ pub async fn find_documents(
         Ok(val) => val,
         Err(e) => return Err(AppError::Mongo(e)),
     };
-    collect_values(&mut cursor).await
+    collect_json(&mut cursor).await
 }
 
 /// Count the documents matching `filter` (the same filter shape `find_documents`
