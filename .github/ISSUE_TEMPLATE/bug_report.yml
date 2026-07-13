@@ -1,0 +1,111 @@
+name: Bug report
+description: Something in OzenDB isn't working the way it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this. A good report is the difference between a fix in
+        minutes and a fix in days. Please fill in the required fields — especially the reproduction
+        steps and what you expected vs. what actually happened.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences — what went wrong?
+      placeholder: "e.g. Running a find query on a large collection freezes the window for ~10s."
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: OzenDB version
+      description: Shown in the About dialog / app menu.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact sequence that triggers the bug. Number each step.
+      placeholder: |
+        1. Connect to '...'
+        2. Open a query tab on collection '...'
+        3. Run the filter '...'
+        4. See the error / freeze / wrong result
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What did you think would happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened. Include any error message text shown in the app.
+      placeholder: What happened instead?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection method
+      description: How OzenDB was reaching the database when the bug happened (skip if not connection-related).
+      options:
+        - Not connection-related
+        - Direct connection
+        - SSH tunnel
+        - Embedded shell (IntelliShell)
+    validations:
+      required: false
+
+  - type: input
+    id: deployment
+    attributes:
+      label: MongoDB deployment
+      description: Type and version of the server, if relevant.
+      placeholder: "e.g. Atlas M10, or self-hosted MongoDB 7.0 replica set"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, screenshots, or sample data
+      description: Anything that helps reproduce — error dumps, a screenshot, a redacted document that triggers it.
+      placeholder: Drag images here, or paste log text.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true
+        - label: I removed any credentials, connection strings, or private data from the details above.
+          required: true
