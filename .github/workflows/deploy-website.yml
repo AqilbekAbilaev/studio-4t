@@ -7,6 +7,8 @@ on:
 jobs:
   trigger-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: production
     steps:
       - name: Trigger Cloudflare Pages deploy
         run: curl -fsSL -X POST "${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}"
