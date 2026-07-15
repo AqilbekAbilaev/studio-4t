@@ -13,12 +13,14 @@ import { useQueryRunner } from './composables/useQueryRunner'
 import { useDbActions } from './composables/useDbActions'
 import { useMenu } from './composables/useMenu'
 import { useModals } from './composables/useModals'
+import { useOperations } from './composables/useOperations'
 import BaseIcon from './components/base/BaseIcon.vue'
 import ConnectionTree from './components/connection/ConnectionTree.vue'
 import QueryWorkspace from './components/query/QueryWorkspace.vue'
 import SplitContainer from './components/base/SplitContainer.vue'
 import ContextMenu from './components/base/ContextMenu.vue'
 import AppModals from './components/app/AppModals.vue'
+import OperationsPane from './components/app/OperationsPane.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -360,6 +362,39 @@ function startSidebarResize(e) {
     document.body.style.userSelect = ''
   }
   document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
+// ── Operations pane (bottom dock) ──
+// Backed by the backend registry; the rail "Operations" label toggles it.
+const { operations, runningCount, clearFinished } = useOperations()
+const operationsPaneOpen = ref(false)
+const operationsPaneHeight = ref(200)
+const operationsResizing = ref(false)
+
+function toggleOperationsPane() {
+  operationsPaneOpen.value = !operationsPaneOpen.value
+}
+
+function startOperationsResize(e) {
+  e.preventDefault()
+  const startY = e.clientY
+  const startH = operationsPaneHeight.value
+  operationsResizing.value = true
+  const onMove = (ev) => {
+    // Drag up grows the pane; clamp so neither the pane nor the workspace vanishes.
+    operationsPaneHeight.value = Math.max(120, Math.min(560, startH + (startY - ev.clientY)))
+  }
+  const onUp = () => {
+    operationsResizing.value = false
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+  document.body.style.cursor = 'row-resize'
   document.body.style.userSelect = 'none'
   document.addEventListener('mousemove', onMove)
   document.addEventListener('mouseup', onUp)
@@ -1852,7 +1887,17 @@ provide('appModals', {
       <!-- Left rail -->
       <div class="rail-left">
         <span class="rail-label">Open connections</span>
-        <span class="rail-label" style="margin-top:auto">Operations</span>
+        <button
+          class="rail-toggle"
+          :class="{ active: operationsPaneOpen }"
+          style="margin-top:auto"
+          type="button"
+          :title="operationsPaneOpen ? 'Hide operations' : 'Show operations'"
+          @click="toggleOperationsPane"
+        >
+          <span class="rail-label">Operations</span>
+          <span v-if="runningCount" class="rail-badge">{{ runningCount }}</span>
+        </button>
       </div>
 
       <!-- Sidebar -->
@@ -1960,6 +2005,25 @@ provide('appModals', {
         </template>
       </SplitContainer>
     </div>
+
+    <!-- Operations dock (bottom) -->
+    <template v-if="operationsPaneOpen">
+      <div
+        class="resizer-h"
+        :class="{ dragging: operationsResizing }"
+        title="Drag to resize"
+        @mousedown="startOperationsResize"
+      >
+        <span class="resizer-grip-h"></span>
+      </div>
+      <div class="ops-dock" :style="{ height: operationsPaneHeight + 'px' }">
+        <OperationsPane
+          :operations="operations"
+          @clear="clearFinished"
+          @close="operationsPaneOpen = false"
+        />
+      </div>
+    </template>
 
     <!-- Context menu -->
     <ContextMenu

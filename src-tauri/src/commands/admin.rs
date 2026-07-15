@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::operations::{OpMeta, OperationsRegistry};
 use mongodb::bson;
 use mongodb::options::IndexOptions;
 use mongodb::IndexModel;
@@ -7,8 +8,29 @@ use tauri::State;
 
 use super::portmap::{apply_field_map, FieldMap};
 use super::{
-    collect_values, parse_ejson_document, parse_pipeline, DatabaseInfo, AppContext,
+    collect_values, parse_ejson_document, parse_pipeline, tracked, DatabaseInfo, AppContext,
 };
+
+/// Build operation metadata for a long-running data-movement command (export/import/…).
+/// These are always worth logging, so — unlike queries — there's no gating. No cancel
+/// handle yet (server-side cancellation of these is a later phase), hence `cancel_comment: None`.
+fn data_op_meta(
+    ctx: &AppContext,
+    op_type: &str,
+    label: String,
+    id: &str,
+    database: &str,
+    collection: &str,
+) -> OpMeta {
+    OpMeta {
+        op_type: op_type.to_string(),
+        label: label,
+        connection_id: Some(id.to_string()),
+        conn_name: ctx.storage.find(id).map(|config| config.name),
+        database: Some(database.to_string()),
+        collection: Some(collection.to_string()),
+    }
+}
 
 /// The `_id_` index is created and required by MongoDB and can never be dropped,
 /// hidden, or otherwise modified. The index-management guards share this check so
@@ -627,53 +649,77 @@ pub async fn index_stats(
 #[tauri::command]
 pub async fn export_collection(
     ctx: State<'_, AppContext>,
+    ops: State<'_, OperationsRegistry>,
     id: String,
     database: String,
     collection: String,
     path: String,
     format: String,
 ) -> Result<usize, AppError> {
-    let client = match ctx.client(&id).await {
-        Ok(val) => val,
-        Err(e) => return Err(e),
+    let meta = data_op_meta(
+        &ctx,
+        "export",
+        format!("Export {}.{} ({})", database, collection, format),
+        &id,
+        &database,
+        &collection,
+    );
+    let run = async {
+        let client = match ctx.client(&id).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let col = client
+            .database(&database)
+            .collection::<bson::Document>(&collection);
+        // Plain export: no filter, no limit, no time cap (a large export legitimately
+        // takes a while), no per-document transform.
+        super::stream_export(
+            &col,
+            bson::doc! {},
+            None,
+            None,
+            &path,
+            &format,
+            |_doc: &mut bson::Document| -> Result<(), AppError> { Ok(()) },
+        )
+        .await
     };
-    let col = client
-        .database(&database)
-        .collection::<bson::Document>(&collection);
-    // Plain export: no filter, no limit, no time cap (a large export legitimately
-    // takes a while), no per-document transform.
-    super::stream_export(
-        &col,
-        bson::doc! {},
-        None,
-        None,
-        &path,
-        &format,
-        |_doc: &mut bson::Document| -> Result<(), AppError> { Ok(()) },
-    )
-    .await
+    tracked(&ops, Some(meta), run).await
 }
 
 #[tauri::command]
 pub async fn import_collection(
     ctx: State<'_, AppContext>,
+    ops: State<'_, OperationsRegistry>,
     id: String,
     database: String,
     collection: String,
     path: String,
     format: String,
 ) -> Result<usize, AppError> {
-    let client = match ctx.client_for_write(&id).await {
-        Ok(val) => val,
-        Err(e) => return Err(e),
+    let meta = data_op_meta(
+        &ctx,
+        "import",
+        format!("Import {}.{} ({})", database, collection, format),
+        &id,
+        &database,
+        &collection,
+    );
+    let run = async {
+        let client = match ctx.client_for_write(&id).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let col = client
+            .database(&database)
+            .collection::<bson::Document>(&collection);
+        // Stream the file in bounded batches instead of loading + parsing + inserting the
+        // whole thing at once, so a large import can't exhaust memory. `None` mapping =
+        // insert documents exactly as parsed (also the Tasks import path).
+        super::stream_import(&col, &path, &format, None).await
     };
-    let col = client
-        .database(&database)
-        .collection::<bson::Document>(&collection);
-    // Stream the file in bounded batches instead of loading + parsing + inserting the
-    // whole thing at once, so a large import can't exhaust memory. `None` mapping =
-    // insert documents exactly as parsed (also the Tasks import path).
-    super::stream_import(&col, &path, &format, None).await
+    tracked(&ops, Some(meta), run).await
 }
 
 /// Field-mapping import for the Import/Export wizard: same streaming import as

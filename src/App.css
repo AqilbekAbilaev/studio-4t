@@ -93,6 +93,57 @@
   color: var(--text-dim);
   letter-spacing: .3px;
 }
+/* The "Operations" rail entry is a toggle for the bottom dock. */
+.rail-toggle {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  border-radius: 5px;
+}
+.rail-toggle:hover { background: var(--bg-hover); }
+.rail-toggle:hover .rail-label { color: var(--text); }
+.rail-toggle.active .rail-label { color: var(--accent); }
+.rail-badge {
+  min-width: 15px;
+  font-size: 9.5px;
+  line-height: 15px;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 8px;
+  padding: 0 4px;
+  text-align: center;
+}
+
+/* ── Operations dock (bottom) ── */
+.ops-dock {
+  flex: none;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+.resizer-h {
+  height: 3px;
+  flex: none;
+  cursor: row-resize;
+  background: var(--border);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resizer-h:hover, .resizer-h.dragging { background: var(--accent); }
+.resizer-grip-h {
+  width: 28px;
+  height: 1px;
+  background: var(--text-faint);
+  border-radius: 1px;
+}
 
 /* ── Resizer ── */
 .resizer {

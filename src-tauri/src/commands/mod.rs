@@ -33,6 +33,7 @@ pub mod tasks;
 pub mod reschema;
 pub mod portmap;
 pub mod history;
+pub mod operations;
 
 pub use connection::*;
 pub use query::*;
@@ -59,10 +60,40 @@ pub use tasks::*;
 pub use reschema::*;
 pub use portmap::*;
 pub use history::*;
+pub use operations::*;
 
 // Server-side time cap on user queries so a runaway find/aggregate aborts on the
 // server instead of hanging the UI (Tauri commands can't be cancelled in-flight).
 pub(crate) const MAX_QUERY_TIME: Duration = Duration::from_secs(60);
+
+/// Record a long-running operation in the Operations registry (the one place all
+/// operations are tracked) while it runs, without changing what the command returns.
+/// Pass `Some(meta)` to track (a `running` record is inserted, then stamped
+/// `succeeded`/`failed` from the outcome) or `None` to run untracked — so a single
+/// call site can decide per-invocation whether an op is worth logging (e.g. only
+/// user-initiated query runs, not internal sampling reads). The awaited value is
+/// returned verbatim so callers wrap their existing body with no other change.
+pub(crate) async fn tracked<F, T>(
+    registry: &crate::operations::OperationsRegistry,
+    meta: Option<crate::operations::OpMeta>,
+    fut: F,
+) -> Result<T, AppError>
+where
+    F: std::future::Future<Output = Result<T, AppError>>,
+{
+    let id = match meta {
+        Some(op_meta) => Some(registry.start(op_meta)),
+        None => None,
+    };
+    let result = fut.await;
+    if let Some(op_id) = id {
+        match &result {
+            Ok(_) => registry.finish(&op_id, "succeeded", None),
+            Err(e) => registry.finish(&op_id, "failed", Some(e.to_string())),
+        }
+    }
+    result
+}
 
 /// Resolve the live MongoDB client for a saved connection: look up its config and
 /// hand off to the pool, which caches the client and reads credentials from the

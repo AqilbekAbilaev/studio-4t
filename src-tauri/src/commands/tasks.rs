@@ -128,6 +128,7 @@ async fn execute_spec(app: &AppHandle, task: &TaskDef) -> Result<String, AppErro
         } => {
             let count = match super::export_collection(
                 app.state::<AppContext>(),
+                app.state::<crate::operations::OperationsRegistry>(),
                 id,
                 database.clone(),
                 collection.clone(),
@@ -149,6 +150,7 @@ async fn execute_spec(app: &AppHandle, task: &TaskDef) -> Result<String, AppErro
         } => {
             let count = match super::import_collection(
                 app.state::<AppContext>(),
+                app.state::<crate::operations::OperationsRegistry>(),
                 id,
                 database.clone(),
                 collection.clone(),

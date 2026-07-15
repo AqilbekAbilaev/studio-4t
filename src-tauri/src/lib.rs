@@ -21,6 +21,7 @@ mod keychain;
 mod known_hosts;
 mod menu;
 mod node_tags;
+mod operations;
 mod persist;
 mod pool;
 mod saved_queries;
@@ -42,6 +43,7 @@ use history::HistoryStorage;
 use keybindings::KeybindingStorage;
 use known_hosts::KnownHostsStore;
 use node_tags::NodeTagStorage;
+use operations::OperationsRegistry;
 use pool::ConnectionPool;
 use std::sync::Arc;
 use saved_queries::SavedQueryStorage;
@@ -95,6 +97,12 @@ pub fn run() {
             // is spawned in a later step).
             app.manage(TaskStore::new(data_dir.join("tasks.json")));
             app.manage(TaskRunStore::new(data_dir.join("task_runs.json")));
+            // The single source of truth for the Operations pane; holds the app
+            // handle so it can announce changes via the `operations-changed` event.
+            app.manage(OperationsRegistry::new(
+                data_dir.join("operations.json"),
+                app.handle().clone(),
+            ));
 
             // Install the native OS menu (macOS system menu bar; native in-window
             // menu on Windows/Linux). Item clicks are emitted to the frontend,
@@ -258,6 +266,8 @@ pub fn run() {
             get_task_runs,
             reschema_preview,
             reschema_apply,
+            list_operations,
+            clear_operations,
             menu::set_menu_context,
         ])
         .run(tauri::generate_context!())
