@@ -258,8 +258,7 @@ const GENERATORS = {
   },
   java: {
     find: (coll, { filter, proj, sort, skip, limit }, R) => {
-      let s = `// MongoCollection<Document> collection = db.getCollection(${q(coll)});\n`
-      s += `collection.find(${renderValue(filter, R)})`
+      let s = `collection.find(${renderValue(filter, R)})`
       if (proj) s += `.projection(${renderValue(proj, R)})`
       if (sort) s += `.sort(${renderValue(sort, R)})`
       if (skip) s += `.skip(${skip})`
@@ -267,13 +266,11 @@ const GENERATORS = {
       return s
     },
     aggregate: (coll, stages, R) =>
-      `// MongoCollection<Document> collection = db.getCollection(${q(coll)});\n` +
       `collection.aggregate(Arrays.asList(${stages.join(', ')}))`,
   },
   csharp: {
     find: (coll, { filter, proj, sort, skip, limit }, R) => {
-      let s = `// var collection = db.GetCollection<BsonDocument>(${q(coll)});\n`
-      s += `collection.Find(${renderValue(filter, R)})`
+      let s = `collection.Find(${renderValue(filter, R)})`
       if (proj) s += `.Project(${renderValue(proj, R)})`
       if (sort) s += `.Sort(${renderValue(sort, R)})`
       if (skip) s += `.Skip(${skip})`
@@ -281,7 +278,6 @@ const GENERATORS = {
       return s
     },
     aggregate: (coll, stages, R) =>
-      `// var collection = db.GetCollection<BsonDocument>(${q(coll)});\n` +
       `collection.Aggregate<BsonDocument>(new BsonDocument[] { ${stages.join(', ')} })`,
   },
   php: {
@@ -311,18 +307,15 @@ const GENERATORS = {
   },
   go: {
     find: (coll, { filter, proj, sort, skip, limit }, R) => {
-      let s = `// collection := client.Database("mydb").Collection(${q(coll)})\n`
       const opts = []
       if (proj) opts.push(`SetProjection(${renderValue(proj, R)})`)
       if (sort) opts.push(`SetSort(${renderValue(sort, R)})`)
       if (skip) opts.push(`SetSkip(${skip})`)
       if (limit) opts.push(`SetLimit(${limit})`)
       const optExpr = opts.length ? `, options.Find().${opts.join('.')}` : ''
-      s += `collection.Find(ctx, ${renderValue(filter, R)}${optExpr})`
-      return s
+      return `collection.Find(ctx, ${renderValue(filter, R)}${optExpr})`
     },
     aggregate: (coll, stages, R) =>
-      `// collection := client.Database("mydb").Collection(${q(coll)})\n` +
       `collection.Aggregate(ctx, mongo.Pipeline{${stages.join(', ')}})`,
   },
 }
@@ -335,10 +328,195 @@ function goErrorNote(code) {
   return code
 }
 
+// ── per-language program scaffolds ──────────────────────────────────────────────
+// Wrap a bare query expression (built by GENERATORS against the handle the scaffold
+// declares) into a complete, runnable program: driver import → client with a
+// PLACEHOLDER connection URI → database + collection handle → run the query → iterate
+// the results → close the client. The URI is always a placeholder so no real
+// credentials ever land in copy-pasteable code (the db/collection names are not
+// secrets, so the real ones flow through).
+
+const PLACEHOLDER_URI = 'mongodb://localhost:27017'
+
+// Walk an EJSON tree collecting which special BSON types appear, so each scaffold can
+// add exactly the type imports its snippet needs — and no unused ones (which matters
+// for Go, where an unused import fails to compile).
+function collectTypes(node, acc) {
+  if (node === null || typeof node !== 'object') return
+  if (Array.isArray(node)) {
+    for (const item of node) collectTypes(item, acc)
+    return
+  }
+  const keys = Object.keys(node)
+  if (keys.length === 1 && SPECIAL.has(keys[0])) {
+    switch (keys[0]) {
+      case '$oid': acc.add('objectId'); break
+      case '$date': acc.add('date'); break
+      case '$numberDecimal': acc.add('decimal'); break
+      case '$regularExpression': acc.add('regex'); break
+      default: break
+    }
+    return
+  }
+  for (const key of keys) collectTypes(node[key], acc)
+}
+
+const SCAFFOLDS = {
+  node: ({ db, query, types }) => {
+    const extra = []
+    if (types.has('objectId')) extra.push('ObjectId')
+    if (types.has('decimal')) extra.push('Decimal128')
+    const req = `const { MongoClient${extra.length ? ', ' + extra.join(', ') : ''} } = require('mongodb');`
+    return [
+      req,
+      '',
+      '// Connection URI — replace with your own',
+      `const uri = ${q(PLACEHOLDER_URI)};`,
+      'const client = new MongoClient(uri);',
+      '',
+      'async function run() {',
+      '  try {',
+      `    const db = client.db(${q(db)});`,
+      `    const cursor = ${query};`,
+      '    console.log(await cursor.toArray());',
+      '  } finally {',
+      '    await client.close();',
+      '  }',
+      '}',
+      '',
+      'run().catch(console.error);',
+    ].join('\n')
+  },
+  python: ({ db, query, types }) => {
+    const imports = ['from pymongo import MongoClient']
+    if (types.has('objectId')) imports.push('from bson import ObjectId')
+    if (types.has('decimal')) imports.push('from bson.decimal128 import Decimal128')
+    if (types.has('regex')) imports.push('from bson.regex import Regex')
+    if (types.has('date')) imports.push('from datetime import datetime')
+    return [
+      ...imports,
+      '',
+      '# Connection URI — replace with your own',
+      `client = MongoClient(${q(PLACEHOLDER_URI)})`,
+      `db = client[${q(db)}]`,
+      '',
+      `cursor = ${query}`,
+      'for doc in cursor:',
+      '    print(doc)',
+      '',
+      'client.close()',
+    ].join('\n')
+  },
+  java: ({ db, coll, query, mode, types }) => {
+    const imports = ['import com.mongodb.client.*;', 'import org.bson.Document;']
+    if (mode === 'aggregate') imports.push('import java.util.Arrays;')
+    if (types.has('objectId')) imports.push('import org.bson.types.ObjectId;')
+    if (types.has('decimal')) imports.push('import org.bson.types.Decimal128;')
+    if (types.has('regex')) imports.push('import org.bson.BsonRegularExpression;')
+    return [
+      ...imports,
+      '',
+      '// Connection URI — replace with your own',
+      `try (MongoClient client = MongoClients.create(${q(PLACEHOLDER_URI)})) {`,
+      `    MongoDatabase db = client.getDatabase(${q(db)});`,
+      `    MongoCollection<Document> collection = db.getCollection(${q(coll)});`,
+      `    for (Document doc : ${query}) {`,
+      '        System.out.println(doc.toJson());',
+      '    }',
+      '}',
+    ].join('\n')
+  },
+  csharp: ({ db, coll, query }) => {
+    return [
+      'using System;',
+      'using MongoDB.Bson;',
+      'using MongoDB.Driver;',
+      '',
+      '// Connection URI — replace with your own',
+      `var client = new MongoClient(${q(PLACEHOLDER_URI)});`,
+      `var db = client.GetDatabase(${q(db)});`,
+      `var collection = db.GetCollection<BsonDocument>(${q(coll)});`,
+      `var results = ${query}.ToList();`,
+      'foreach (var doc in results)',
+      '{',
+      '    Console.WriteLine(doc);',
+      '}',
+    ].join('\n')
+  },
+  php: ({ db, coll, query }) => {
+    return [
+      '<?php',
+      "require 'vendor/autoload.php';",
+      '',
+      '// Connection URI — replace with your own',
+      `$client = new MongoDB\\Client(${q(PLACEHOLDER_URI)});`,
+      `$collection = $client->selectCollection(${q(db)}, ${q(coll)});`,
+      `$cursor = ${query};`,
+      'foreach ($cursor as $doc) {',
+      '    var_dump($doc);',
+      '}',
+    ].join('\n')
+  },
+  ruby: ({ db, query }) => {
+    return [
+      "require 'mongo'",
+      '',
+      '# Connection URI — replace with your own',
+      `client = Mongo::Client.new(${q(PLACEHOLDER_URI)}, database: ${q(db)})`,
+      '',
+      `${query}.each do |doc|`,
+      '  puts doc',
+      'end',
+    ].join('\n')
+  },
+  go: ({ db, coll, query, types }) => {
+    const imports = ['\t"context"', '\t"fmt"']
+    if (types.has('date')) imports.push('\t"time"')
+    imports.push('\t"go.mongodb.org/mongo-driver/bson"')
+    if (types.has('objectId') || types.has('decimal') || types.has('regex')) {
+      imports.push('\t"go.mongodb.org/mongo-driver/bson/primitive"')
+    }
+    imports.push('\t"go.mongodb.org/mongo-driver/mongo"')
+    imports.push('\t"go.mongodb.org/mongo-driver/mongo/options"')
+    return [
+      'package main',
+      '',
+      'import (',
+      ...imports,
+      ')',
+      '',
+      'func main() {',
+      '\tctx := context.TODO()',
+      '',
+      '\t// Connection URI — replace with your own',
+      `\tclient, err := mongo.Connect(ctx, options.Client().ApplyURI(${q(PLACEHOLDER_URI)}))`,
+      '\tif err != nil {',
+      '\t\tpanic(err)',
+      '\t}',
+      '\tdefer client.Disconnect(ctx)',
+      '',
+      `\tcollection := client.Database(${q(db)}).Collection(${q(coll)})`,
+      `\tcursor, err := ${query}`,
+      '\tif err != nil {',
+      '\t\tpanic(err)',
+      '\t}',
+      '\tdefer cursor.Close(ctx)',
+      '',
+      '\tvar results []bson.M',
+      '\tif err = cursor.All(ctx, &results); err != nil {',
+      '\t\tpanic(err)',
+      '\t}',
+      '\tfmt.Println(results)',
+      '}',
+    ].join('\n')
+  },
+}
+
 /**
  * Generate a query-code snippet.
- * @param {{ collection?: string, mode?: string, filter?: string, projection?: string,
- *           sort?: string, skip?: number, limit?: number, pipeline?: string }} spec
+ * @param {{ collection?: string, database?: string, mode?: string, filter?: string,
+ *           projection?: string, sort?: string, skip?: number, limit?: number,
+ *           pipeline?: string }} spec
  * @param {'shell'|'node'|'python'|'java'|'csharp'|'php'|'ruby'|'go'} language
  * @returns {string}
  */
@@ -349,36 +527,49 @@ export function generateCode(spec, language) {
   const R = RENDERERS[language]
   if (!R) return shellCode(spec)
   const gen = GENERATORS[language]
+  const scaffold = SCAFFOLDS[language]
   const fail = `${R.comment} Fix the query before generating code`
+  const db = spec.database || 'mydb'
+  const coll = spec.collection
+  const types = new Set()
+  let query
+  let mode
 
   if (spec.mode === 'aggregate') {
+    mode = 'aggregate'
     const parsed = parsePipeline(spec.pipeline || '')
     if (!parsed.ok) return fail
     const pipeline = JSON.parse(parsed.ejson)
+    collectTypes(pipeline, types)
     const stages = pipeline.map((stage) => renderValue(stage, R))
-    const code = gen.aggregate(spec.collection, stages, R)
-    return language === 'go' ? goErrorNote(code) : code
+    query = gen.aggregate(coll, stages, R)
+  } else {
+    mode = 'find'
+    const f = parseField(spec.filter || '')
+    const proj = parseField(spec.projection || '')
+    const sort = parseField(spec.sort || '')
+    if (!f.ok || !proj.ok || !sort.ok) return fail
+
+    const filterTree = JSON.parse(f.ejson)
+    let projTree = JSON.parse(proj.ejson)
+    let sortTree = JSON.parse(sort.ejson)
+    collectTypes(filterTree, types)
+    collectTypes(projTree, types)
+    collectTypes(sortTree, types)
+    if (isEmptyDoc(projTree)) projTree = null
+    if (isEmptyDoc(sortTree)) sortTree = null
+    const skip = Number(spec.skip) > 0 ? Number(spec.skip) : 0
+    const limit = Number(spec.limit) > 0 ? Number(spec.limit) : 0
+
+    query = gen.find(coll, {
+      filter: filterTree,
+      proj: projTree,
+      sort: sortTree,
+      skip: skip,
+      limit: limit,
+    }, R)
   }
 
-  const f = parseField(spec.filter || '')
-  const proj = parseField(spec.projection || '')
-  const sort = parseField(spec.sort || '')
-  if (!f.ok || !proj.ok || !sort.ok) return fail
-
-  const filterTree = JSON.parse(f.ejson)
-  let projTree = JSON.parse(proj.ejson)
-  let sortTree = JSON.parse(sort.ejson)
-  if (isEmptyDoc(projTree)) projTree = null
-  if (isEmptyDoc(sortTree)) sortTree = null
-  const skip = Number(spec.skip) > 0 ? Number(spec.skip) : 0
-  const limit = Number(spec.limit) > 0 ? Number(spec.limit) : 0
-
-  const code = gen.find(spec.collection, {
-    filter: filterTree,
-    proj: projTree,
-    sort: sortTree,
-    skip: skip,
-    limit: limit,
-  }, R)
-  return language === 'go' ? goErrorNote(code) : code
+  const program = scaffold({ db: db, coll: coll, query: query, mode: mode, types: types })
+  return language === 'go' ? goErrorNote(program) : program
 }
