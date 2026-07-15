@@ -1,15 +1,11 @@
-// Read-only CodeMirror 6 viewer for the results JSON view. CodeMirror virtualizes
-// rendering (only on-screen lines exist in the DOM) and folds objects/arrays
-// natively via the JS language's syntax tree — which is why the JSON view uses it
-// instead of a hand-rolled row list, which mounted every line at once and re-diffed
-// the whole list on each fold. The buffer is each document rendered by mongoStringify
-// at the top level (no enclosing array), one after another with a divider drawn
-// between them; the JS parser still folds every document, sub-object and array.
-import { EditorView, Decoration, lineNumbers } from '@codemirror/view'
-import { EditorState, StateField, RangeSetBuilder } from '@codemirror/state'
-import { javascript } from '@codemirror/lang-javascript'
-import { foldGutter, codeFolding, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
-import { tags as t } from '@lezer/highlight'
+// JSON-view-specific CodeMirror extensions: native code folding and a divider drawn
+// between top-level documents. Shared chrome (theme, JSON highlight via highlight="json",
+// language, line numbers, readonly, v-model) lives in components/base/CodeEditor.vue +
+// utils/codemirror/theme.js. CodeMirror virtualizes rendering and folds objects/arrays via
+// the JS syntax tree, which is why the JSON view uses it rather than a hand-rolled row list.
+import { EditorView, Decoration } from '@codemirror/view'
+import { StateField, RangeSetBuilder } from '@codemirror/state'
+import { foldGutter, codeFolding } from '@codemirror/language'
 
 // Divider between documents. Each result document is a top-level object, so its first
 // line is exactly "{" (nested and array-element braces are indented). Draw a divider
@@ -39,56 +35,26 @@ const docDividerField = StateField.define({
   provide: (field) => EditorView.decorations.from(field),
 })
 
-// Token colors mapped to the app's JSON palette — the same tokens the old regex
-// highlighter used (keys, strings, numbers, null faint, ObjectId()/ISODate() as
-// function calls in the link color).
-const jsonHighlightStyle = HighlightStyle.define([
-  { tag: [t.propertyName, t.attributeName],                     color: 'var(--cell-key)' },
-  { tag: [t.string, t.special(t.string)],                       color: 'var(--cell-str)' },
-  { tag: [t.number, t.bool],                                    color: 'var(--cell-num)' },
-  { tag: t.null,                                                color: 'var(--text-faint)' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--link)' },
-  { tag: [t.punctuation, t.separator, t.operator],              color: 'var(--text-dim)' },
-])
-
+// JSON-view chrome layered over the base theme: tighter type, a transparent (borderless)
+// gutter, fold-gutter styling and the inter-document divider rule.
 const jsonTheme = EditorView.theme({
-  '&':                                { height: '100%', color: 'var(--text)', backgroundColor: 'transparent' },
-  '.cm-scroller':                     { fontFamily: 'var(--mono)', fontSize: '12.5px', lineHeight: '1.5', overflow: 'auto' },
-  '.cm-content':                      { padding: '10px 0' },
-  // The app's global reset (theme.css) sets `user-select: none` on every element,
-  // which would otherwise make the read-only content unselectable. Re-enable it on
-  // the code content (and its highlight token spans) so text can be selected/copied
-  // — the gutter is left untouched so copies omit the line numbers.
-  '.cm-content, .cm-content *':       { userSelect: 'text', WebkitUserSelect: 'text' },
-  '.cm-gutters':                      { backgroundColor: 'transparent', color: 'var(--text-faint)', border: 'none' },
-  '.cm-lineNumbers .cm-gutterElement':{ padding: '0 6px 0 14px', minWidth: '34px' },
+  '.cm-scroller': { fontSize: '12.5px', lineHeight: '1.5' },
+  '.cm-content': { padding: '10px 0' },
+  '.cm-gutters': { backgroundColor: 'transparent', border: 'none' },
+  '.cm-lineNumbers .cm-gutterElement': { padding: '0 6px 0 14px', minWidth: '34px' },
   '.cm-foldGutter .cm-gutterElement': { padding: '0 4px', cursor: 'pointer', color: 'var(--text-faint)' },
-  '.cm-foldPlaceholder':              { backgroundColor: 'transparent', border: 'none', color: 'var(--text-faint)', padding: '0 4px' },
-  '.cm-selectionBackground, .cm-content ::selection': { backgroundColor: 'rgba(59,130,246,0.30)' },
-  // Divider drawn above each document after the first (see docDividerField).
-  '.cm-doc-divider':                  { borderTop: '1px solid var(--border-soft)' },
+  '.cm-foldPlaceholder': { backgroundColor: 'transparent', border: 'none', color: 'var(--text-faint)', padding: '0 4px' },
+  '.cm-doc-divider': { borderTop: '1px solid var(--border-soft)' },
 })
 
-/** Create a read-only JSON viewer mounted into `parent`, showing `doc`. */
-export function createJsonView(parent, doc) {
-  const state = EditorState.create({
-    doc: doc,
-    extensions: [
-      lineNumbers(),
-      codeFolding(),
-      foldGutter(),
-      javascript(),
-      syntaxHighlighting(jsonHighlightStyle),
-      docDividerField,
-      jsonTheme,
-      EditorState.readOnly.of(true),
-      EditorView.editable.of(false),
-    ],
-  })
-  return new EditorView({ state: state, parent: parent })
-}
-
-/** Replace the viewer's whole buffer (also clears any folds, which are positional). */
-export function setJsonView(view, doc) {
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } })
+/** Extensions for the read-only results JSON view (use with CodeEditor readonly highlight="json"). */
+export function jsonViewerExtensions() {
+  return [
+    // Non-interactive viewer: mouse-select/copy only, no caret or keyboard focus.
+    EditorView.editable.of(false),
+    codeFolding(),
+    foldGutter(),
+    docDividerField,
+    jsonTheme,
+  ]
 }

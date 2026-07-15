@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText } from '../../utils/errors'
@@ -7,7 +7,8 @@ import BaseIcon from '../base/BaseIcon.vue'
 import ResultTable from '../results/ResultTable.vue'
 import TreeView from '../base/TreeView.vue'
 import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
-import { buildExtensions, EditorView, EditorState } from '../../utils/shellEditor'
+import CodeEditor from '../base/CodeEditor.vue'
+import { shellExtensions } from '../../utils/shellEditor'
 
 // IntelliShell, Studio-3T style: a code editor on top, the command's output in
 // the reused result grid (Table / JSON / Tree) below, plus a Console tab for
@@ -33,33 +34,16 @@ const viewLabel = computed(() => {
 const resultCount = computed(() => props.activeTab.results?.length ?? 0)
 
 // ── CodeMirror editor ──────────────────────────────────
-const editorEl = ref(null)
-let view = null
-let syncingFromTab = false          // guard so programmatic doc swaps don't echo back
+const editorRef = ref(null)         // the CodeEditor component instance
 const dbCollections = ref([])       // collection names for `db.` autocomplete
-
-function createEditor() {
-  if (!editorEl.value) return
-  const extensions = buildExtensions({
-    onRun:     () => run(),
-    onRunLine: (line) => run(line),
-    onChange:  (text) => { if (!syncingFromTab) props.activeTab.code = text },
-    getCollections: () => dbCollections.value,
-  })
-  view = new EditorView({
-    state: EditorState.create({ doc: props.activeTab.code || '', extensions: extensions }),
-    parent: editorEl.value,
-  })
-}
-
-// Swap the editor's contents when the active shell tab changes, without echoing
-// the swap back into the (now different) tab's code.
-function setEditorDoc(text) {
-  if (!view) return
-  syncingFromTab = true
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text || '' } })
-  syncingFromTab = false
-}
+// Stable shell extensions: run keymaps + Mongo autocomplete (the completion source reads
+// dbCollections live through the getter, so this never needs rebuilding). The buffer syncs
+// to the tab through CodeEditor's v-model; switching tabs swaps it automatically.
+const shellExt = shellExtensions({
+  onRun:     () => run(),
+  onRunLine: (line) => run(line),
+  getCollections: () => dbCollections.value,
+})
 
 // Best-effort: preload this database's collection names for `db.` completion.
 async function loadCollections() {
@@ -71,8 +55,6 @@ async function loadCollections() {
 }
 
 onMounted(async () => {
-  await nextTick()
-  createEditor()
   loadCollections()
   // Load this connection's persisted command history so the History dropdown
   // (and recall) spans previous sessions.
@@ -82,14 +64,9 @@ onMounted(async () => {
   } catch (_) {}
 })
 
-onUnmounted(() => {
-  if (view) { view.destroy(); view = null }
-})
-
-// One ShellConsole instance is reused across shell tabs — reset the editor and
-// reload completions whenever the bound tab changes.
+// One ShellConsole instance is reused across shell tabs — the editor buffer follows the
+// bound tab via v-model; just reload this tab's completions.
 watch(() => props.activeTab.id, () => {
-  setEditorDoc(props.activeTab.code || '')
   dbCollections.value = []
   loadCollections()
 })
@@ -159,6 +136,7 @@ async function run(codeOverride) {
 
 // Run just the line under the cursor (toolbar button; mirrors ⌘⇧⏎).
 function runCurrentLine() {
+  const view = editorRef.value?.getView()
   if (!view) return
   const line = view.state.doc.lineAt(view.state.selection.main.head)
   run(line.text)
@@ -170,7 +148,6 @@ function openHistory() {
 }
 function applyHistory(cmd) {
   props.activeTab.code = cmd
-  setEditorDoc(cmd)
   historyMenu.value = false
 }
 async function clearHistory() {
@@ -202,7 +179,6 @@ async function openScript() {
     const text = await invoke('read_shell_script', { path: String(path) })
     props.activeTab.code = text
     props.activeTab.scriptPath = String(path)
-    setEditorDoc(text)
   } catch (e) {
     reportScriptError('Open failed: ' + errText(e))
   }
@@ -211,7 +187,8 @@ async function openScript() {
 async function saveScript() {
   const tab = props.activeTab
   // Prefer the editor's live text over tab.code in case a keystroke hasn't
-  // flushed through onChange yet.
+  // flushed through v-model yet.
+  const view = editorRef.value?.getView()
   const contents = view ? view.state.doc.toString() : (tab.code || '')
   let path
   try {
@@ -291,7 +268,7 @@ function formatScalar(value) {
 
     <!-- Editor: CodeMirror (JS highlighting + Mongo autocomplete) -->
     <div class="shell-editor">
-      <div class="shell-cm" ref="editorEl"></div>
+      <CodeEditor class="shell-cm" ref="editorRef" v-model="activeTab.code" :extensions="shellExt" />
     </div>
 
     <!-- Results -->

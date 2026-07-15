@@ -1,10 +1,14 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { keymap } from '@codemirror/view'
+import { defaultKeymap } from '@codemirror/commands'
 import BaseIcon from '../base/BaseIcon.vue'
+import CodeEditor from '../base/CodeEditor.vue'
 import { generateCode, LANGUAGES } from '../../utils/queryCodegen'
 
-// Query Code sub-tab: the active tab's query rendered as a copy-ready snippet in a
-// chosen target language (Shell, drivers, …). Generation lives in utils/queryCodegen.
+// Query Code sub-tab: the active tab's query rendered as a copy-ready snippet in a chosen
+// target language (Shell, drivers, …). Generation lives in utils/queryCodegen; display is
+// the shared read-only CodeEditor, tokenized by real CodeMirror grammars.
 const props = defineProps({
   activeTab: { type: Object, required: true },
 })
@@ -14,11 +18,19 @@ const emit = defineEmits(['toast'])
 // Target language for the generated snippet (session-scoped, defaults to Shell).
 const queryCodeLang = ref('shell')
 
+// The generator's language ids → CodeEditor grammar ids (Shell/Node are JS syntax).
+const GRAMMAR = { shell: 'js', node: 'js', python: 'python', java: 'java', csharp: 'csharp', php: 'php', ruby: 'ruby', go: 'go' }
+const editorLanguage = computed(() => GRAMMAR[queryCodeLang.value] || 'js')
+
+// Keyboard nav + select-all (Ctrl/Cmd+A) for the read-only viewer.
+const viewerExt = [keymap.of([...defaultKeymap])]
+
 const queryCode = computed(() => {
   const tab = props.activeTab
   if (!tab || tab.kind !== 'collection') return ''
   return generateCode({
     collection: tab.collectionName,
+    database: tab.dbName,
     mode: tab.mode,
     filter: tab.filter,
     projection: tab.projection,
@@ -51,7 +63,13 @@ function copyQueryCode() {
       </button>
     </div>
     <div class="qcode-view">
-      <pre class="qcode-pre"><span v-if="queryCodeLang === 'shell'" class="qcode-prompt">&gt;</span>{{ queryCodeLang === 'shell' ? ' ' + queryCode : queryCode }}</pre>
+      <CodeEditor
+        class="qcode-cm"
+        :model-value="queryCode"
+        :language="editorLanguage"
+        :extensions="viewerExt"
+        readonly
+      />
     </div>
   </div>
 </template>
@@ -90,16 +108,7 @@ function copyQueryCode() {
   cursor: pointer;
 }
 .qcode-copy:hover { background: var(--bg-hover); color: var(--text); }
-.qcode-view { flex: 1; overflow: auto; padding: 16px 20px; }
-.qcode-pre {
-  font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-all;
-  -webkit-user-select: text;
-  user-select: text;
-}
-.qcode-prompt { color: var(--text-faint); margin-right: 8px; }
+
+.qcode-view { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.qcode-view :deep(.code-editor) { flex: 1; min-width: 0; }
 </style>

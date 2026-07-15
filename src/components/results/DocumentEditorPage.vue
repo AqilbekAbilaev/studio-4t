@@ -3,7 +3,8 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { buildExtensions, EditorView, EditorState } from '../../utils/docEditor'
+import CodeEditor from '../base/CodeEditor.vue'
+import { docExtensions } from '../../utils/docEditor'
 import { mongoStringify } from '../../utils/mongoFormat'
 import { parseField } from '../../utils/queryParser'
 import { errText } from '../../utils/errors'
@@ -15,8 +16,10 @@ import { errText } from '../../utils/errors'
 //   - 'view': a read-only display window (unlimited independent instances) — no editing,
 //     no Save, no retarget.
 
-const editorHost = ref(null)   // container the CodeMirror view mounts into
-let view = null
+const editorRef = ref(null)   // the CodeEditor component instance
+// Site-specific editor extensions; recomputed when the readonly mode flips so the Save
+// keymap is added/removed. CodeEditor rebuilds its state when this identity changes.
+const docExt = computed(() => docExtensions({ onSave: onSave, readOnly: readonly.value }))
 
 // Current target ({ connId, db, coll, idFilter, label, mode }) and editor state.
 const target   = ref(null)
@@ -47,13 +50,10 @@ function targetFromUrl() {
   }
 }
 
+// The buffer is driven through CodeEditor's model-value; setting text swaps the doc
+// without marking it dirty (only user edits, via onEditorChange, flip the dirty flag).
 function setEditorText(value) {
   text.value = value
-  if (!view) return
-  view.setState(EditorState.create({
-    doc: value,
-    extensions: buildExtensions({ onChange: onEditorChange, onSave: onSave, readOnly: readonly.value }),
-  }))
 }
 
 function onEditorChange(value) {
@@ -149,14 +149,6 @@ async function onClose() {
 let unlisten = null
 
 onMounted(async () => {
-  view = new EditorView({
-    state: EditorState.create({
-      doc: '',
-      extensions: buildExtensions({ onChange: onEditorChange, onSave: onSave, readOnly: readonly.value }),
-    }),
-    parent: editorHost.value,
-  })
-
   // The single window is retargeted in place: reload when the backend emits a new target.
   unlisten = await listen('document-target', (e) => {
     if (!confirmDiscardIfDirty()) return
@@ -164,18 +156,24 @@ onMounted(async () => {
   })
 
   await loadTarget(targetFromUrl())
-  view.focus()
+  if (editorRef.value) editorRef.value.focus()
 })
 
 onBeforeUnmount(() => {
   if (unlisten) unlisten()
-  if (view) view.destroy()
 })
 </script>
 
 <template>
   <div class="doc-editor">
-    <div class="editor-wrap" ref="editorHost"></div>
+    <CodeEditor
+      ref="editorRef"
+      class="editor-wrap"
+      :model-value="text"
+      :readonly="readonly"
+      :extensions="docExt"
+      @update:model-value="onEditorChange"
+    />
 
     <div v-if="jsonErr" class="err">{{ jsonErr }}</div>
 

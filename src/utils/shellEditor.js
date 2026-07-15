@@ -1,15 +1,11 @@
-// CodeMirror 6 setup for the IntelliShell editor: JS syntax highlighting themed
-// with the app's tokens, plus a Mongo-aware autocomplete (collection names after
-// `db.`, collection/cursor methods after a member access, shell globals
-// otherwise). Kept out of ShellConsole.vue so the component stays focused on
-// wiring the editor to the active shell tab.
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, placeholder } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+// IntelliShell-specific CodeMirror extensions: a Mongo-aware autocomplete (collection
+// names after `db.`, collection/cursor methods after a member access, shell globals
+// otherwise) and the run keymaps. Shared chrome (theme, highlight, language, line numbers,
+// v-model) lives in components/base/CodeEditor.vue + utils/codemirror/theme.js.
+import { EditorView, keymap, highlightActiveLine, highlightActiveLineGutter, drawSelection, placeholder } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { javascript } from '@codemirror/lang-javascript'
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
-import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
-import { tags as t } from '@lezer/highlight'
+import { bracketMatching, indentOnInput } from '@codemirror/language'
 
 const GLOBALS = ['db', 'print', 'printjson', 'ObjectId', 'ISODate', 'UUID', 'NumberLong', 'NumberInt', 'NumberDecimal']
 const DB_METHODS = ['getCollection', 'getCollectionNames', 'runCommand', 'stats', 'createCollection', 'dropDatabase']
@@ -53,41 +49,15 @@ function mongoCompletionSource(getCollections) {
   }
 }
 
-// Syntax colors mapped to the app's existing cell/JSON token palette.
-const highlightStyle = HighlightStyle.define([
-  { tag: t.keyword, color: 'var(--cell-op)' },
-  { tag: [t.string, t.special(t.string)], color: 'var(--cell-str)' },
-  { tag: [t.number, t.bool, t.null], color: 'var(--cell-num)' },
-  { tag: [t.propertyName, t.attributeName], color: 'var(--cell-key)' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--link)' },
-  { tag: [t.comment], color: 'var(--text-faint)', fontStyle: 'italic' },
-  { tag: [t.operator, t.punctuation], color: 'var(--text-dim)' },
-  { tag: [t.variableName, t.definition(t.variableName)], color: 'var(--text)' },
-])
+// The shell uses a roomier line height than the other editors; layered over the base
+// theme (later theme rules win).
+const shellTheme = EditorView.theme({ '.cm-scroller': { lineHeight: '1.9' } })
 
-const editorTheme = EditorView.theme(
-  {
-    '&': { height: '100%', color: 'var(--text)', backgroundColor: 'transparent', fontSize: '13px' },
-    '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '1.9', overflow: 'auto' },
-    '.cm-content': { padding: '12px 0', caretColor: 'var(--text)' },
-    '.cm-gutters': { backgroundColor: 'var(--bg-panel-2)', color: 'var(--text-faint)', border: 'none', borderRight: '1px solid var(--border)' },
-    '.cm-lineNumbers .cm-gutterElement': { padding: '0 12px 0 16px' },
-    '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.03)' },
-    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--text-dim)' },
-    '&.cm-focused .cm-cursor': { borderLeftColor: 'var(--text)' },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: 'rgba(59,130,246,0.30)' },
-    '.cm-tooltip': { backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-soft)', borderRadius: '6px' },
-    '.cm-tooltip-autocomplete ul li[aria-selected]': { backgroundColor: 'var(--bg-hover)', color: 'var(--text)' },
-  },
-  { dark: true }
-)
-
-// Build the editor's extension set. `onRun` runs the whole buffer; `onRunLine`
-// receives the text of the line under the cursor; `onChange` syncs edits back to
-// the tab; `getCollections` feeds db-collection completions.
-export function buildExtensions({ onRun, onRunLine, onChange, getCollections }) {
+// `onRun` runs the whole buffer; `onRunLine` receives the text of the line under the
+// cursor; `getCollections` feeds db-collection completions. (Buffer sync to the tab is now
+// CodeEditor's v-model.)
+export function shellExtensions({ onRun, onRunLine, getCollections }) {
   return [
-    lineNumbers(),
     highlightActiveLine(),
     highlightActiveLineGutter(),
     drawSelection(),
@@ -95,11 +65,9 @@ export function buildExtensions({ onRun, onRunLine, onChange, getCollections }) 
     indentOnInput(),
     bracketMatching(),
     closeBrackets(),
-    javascript(),
     placeholder('db.getCollection("myCollection").find({}).limit(20)'),
-    syntaxHighlighting(highlightStyle),
     autocompletion({ override: [mongoCompletionSource(getCollections)] }),
-    editorTheme,
+    shellTheme,
     keymap.of([
       { key: 'Mod-Enter', preventDefault: true, run: () => { onRun(); return true } },
       {
@@ -117,10 +85,5 @@ export function buildExtensions({ onRun, onRunLine, onChange, getCollections }) 
       ...completionKeymap,
       indentWithTab,
     ]),
-    EditorView.updateListener.of((update) => {
-      if (update.docChanged) onChange(update.state.doc.toString())
-    }),
   ]
 }
-
-export { EditorView, EditorState }
