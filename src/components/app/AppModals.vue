@@ -1,7 +1,7 @@
 <script setup>
 import { inject } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
-import { indexKeyLabel, indexSpecJson, isIndexHidden } from '../../utils/indexSpec'
+import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import ServerStatusModal from '../admin/ServerStatusModal.vue'
 import DatabaseStatsModal from '../admin/DatabaseStatsModal.vue'
@@ -67,18 +67,10 @@ const {
   showPreferences,
 } = ctx.modals
 
+// The Index Manager list/form now lives in IndexManagerPane (the 'indexes' tab).
+// AppModals only keeps the two index dialogs that overlay it: View Details and the
+// type-to-confirm Drop.
 const {
-  indexesTarget,
-  indexesList,
-  indexesLoading,
-  indexesError,
-  selectedIndex,
-  pendingDropIndex,
-  newIndexKeys,
-  newIndexName,
-  newIndexUnique,
-  indexCreating,
-  indexFormMode,
   indexDetailsTarget,
   indexDetailsStats,
   indexDetailsLoading,
@@ -86,10 +78,6 @@ const {
   dropIndexConfirmText,
   dropIndexError,
   dropIndexBusy,
-  closeIndexesModal,
-  dropIndex,
-  confirmCreateIndex,
-  resetIndexForm,
   confirmDropIndex,
   formatIndexSince,
 } = ctx.indexes
@@ -702,87 +690,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
           <button class="btn" @click="addDatabaseTarget = null">Cancel</button>
           <button class="btn primary" :disabled="!newDatabaseName.trim() || !newDatabaseCollName.trim() || addDatabaseSaving" @click="confirmAddDatabase">
             {{ addDatabaseSaving ? 'Creating…' : 'Create' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Indexes modal -->
-    <div v-if="indexesTarget" class="del-overlay" @mousedown.self="closeIndexesModal()">
-      <div class="del-dialog idx-dialog">
-        <div class="del-title">
-          <div class="t">Indexes — {{ indexesTarget.collName }}</div>
-          <button class="close-btn" @click="closeIndexesModal()">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
-        <div class="del-body">
-          <div v-if="indexesLoading" class="idx-msg">Loading indexes…</div>
-          <table v-else-if="indexesList.length" class="idx-table">
-            <thead>
-              <tr><th>Name</th><th>Keys</th><th>Unique</th><th>Hidden</th><th></th></tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="idx in indexesList"
-                :key="idx.name"
-                class="idx-row"
-                :class="{ selected: selectedIndex && selectedIndex.name === idx.name }"
-                @click="selectedIndex = idx"
-              >
-                <td class="idx-name">{{ idx.name }}</td>
-                <td class="idx-keys">{{ indexKeyLabel(idx) }}</td>
-                <td>{{ idx.unique ? 'Yes' : '—' }}</td>
-                <td>{{ isIndexHidden(idx) ? 'Yes' : '—' }}</td>
-                <td class="idx-actions">
-                  <button
-                    v-if="idx.name !== '_id_'"
-                    class="btn"
-                    :class="{ danger: pendingDropIndex === idx.name }"
-                    @click.stop="dropIndex(idx.name)"
-                  >{{ pendingDropIndex === idx.name ? 'Confirm' : 'Drop' }}</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div v-else class="idx-msg">No indexes.</div>
-          <div class="idx-hint">Select an index row to enable the Index menu.</div>
-
-          <div class="idx-create">
-            <div class="idx-create-title">{{ indexFormMode === 'edit' ? 'Edit index' : 'Create index' }}</div>
-            <input
-              v-model="newIndexKeys"
-              class="prompt-input"
-              placeholder='Keys, e.g. {"field": 1}'
-              spellcheck="false"
-              autocorrect="off"
-              autocapitalize="off"
-            />
-            <input
-              v-model="newIndexName"
-              class="prompt-input"
-              style="margin-top:8px"
-              placeholder="Index name (optional)"
-              spellcheck="false"
-              autocorrect="off"
-              autocapitalize="off"
-            />
-            <label class="idx-unique">
-              <input type="checkbox" v-model="newIndexUnique" />
-              <span>Unique</span>
-            </label>
-            <button v-if="indexFormMode === 'edit'" class="btn idx-cancel-edit" @click="resetIndexForm()">
-              Cancel edit
-            </button>
-          </div>
-
-          <div v-if="indexesError" class="del-error">{{ indexesError }}</div>
-        </div>
-        <div class="del-footer">
-          <span class="spacer"></span>
-          <button class="btn" @click="closeIndexesModal()">Close</button>
-          <button class="btn primary" :disabled="!newIndexKeys.trim() || indexCreating" @click="confirmCreateIndex">
-            {{ indexCreating ? (indexFormMode === 'edit' ? 'Saving…' : 'Creating…') : (indexFormMode === 'edit' ? 'Save changes' : 'Create index') }}
           </button>
         </div>
       </div>

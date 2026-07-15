@@ -407,9 +407,9 @@ function showToast(msg) {
 }
 
 const indexesApi = useIndexes({ showToast: showToast })
-// App.vue only needs the bindings for the menu/tree entry points and menuContext
-// (selectedIndex). The full indexesApi is provided to AppModals (see provide below),
-// which owns the Indexes dialog and consumes the rest via inject.
+// App.vue only needs the bindings for the native Index menu / menuContext
+// (selectedIndex). The full indexesApi is provided app-wide (see provide below);
+// the Index Manager tab (IndexManagerPane) consumes the rest via inject.
 const {
   selectedIndex,
   startEditIndex,
@@ -417,7 +417,6 @@ const {
   copyIndex,
   openDropIndexConfirm,
   setIndexHidden,
-  openIndexes,
 } = indexesApi
 
 const sshApi = useSshHostKey()
@@ -1181,7 +1180,7 @@ async function handleContextAction(action) {
   }
 
   if (action === 'Indexes…') {
-    await openIndexes(saved.nodeData)
+    openIndexManagerTab(saved.nodeData)
     return
   }
 
@@ -1539,6 +1538,22 @@ function openShellTab({ connectionId, connectionName, dbName }) {
     results: [], resultView: 'table', resultTab: 'Console',
     runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
     logs: [], scalar: undefined, hasScalar: false,
+  })
+  activeTabId.value = id
+}
+
+// Opens (or re-focuses) an Index Manager tab for a collection. The tab is a thin
+// shell around the shared useIndexes state; IndexManagerPane loads it on mount.
+function openIndexManagerTab({ connId, connName, dbName, collName }) {
+  const existing = tabs.value.find(t =>
+    t.kind === 'indexes' && t.connId === connId && t.dbName === dbName && t.collName === collName)
+  if (existing) { activeTabId.value = existing.id; return }
+  const id = 't' + Date.now()
+  tabs.value.push({
+    id: id, kind: 'indexes',
+    title: 'Index Manager: ' + collName,
+    connId: connId, connName: connName, dbName: dbName, collName: collName,
+    paneId: focusedPaneId.value,
   })
   activeTabId.value = id
 }

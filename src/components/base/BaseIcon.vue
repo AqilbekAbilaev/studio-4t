@@ -61,6 +61,9 @@ const PATHS = {
   typeBool:   '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M8 12l3 3 5-6"/>',
   typeNull:   '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M9 12h6M12 9v6"/>',
   typeObj:    '<path d="M4 6l4 6-4 6M20 6l-4 6 4 6M11 4l2 16"/>',
+  eye:        '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff:     '<path d="M4 4l16 16"/><path d="M9.5 5.4A9.9 9.9 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3 3.8M6 7.2A17 17 0 0 0 2 12s3.5 7 10 7a9.9 9.9 0 0 0 3-.45"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+  info:       '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/>',
   // Visual Explain stage glyphs (see ExplainGraph.vue).
   exResult:   '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 10h16M8 14h8M8 16.5h5"/>',
   exScan:     '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M9 4v16M14 4v16"/>',

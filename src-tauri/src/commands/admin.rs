@@ -1,8 +1,6 @@
 use crate::error::AppError;
 use crate::operations::{OpMeta, OperationsRegistry};
 use mongodb::bson;
-use mongodb::options::IndexOptions;
-use mongodb::IndexModel;
 use serde::Serialize;
 use tauri::State;
 
@@ -520,6 +518,13 @@ pub async fn list_indexes(
     Ok(indexes)
 }
 
+/// Creates an index from a raw key spec plus an options document. `options` is any
+/// index-options JSON the UI assembled — `name`, `unique`, `sparse`,
+/// `expireAfterSeconds`, `partialFilterExpression`, `collation`, text `weights`,
+/// geo tuning, `background`, `hidden`, … — so the JSON escape hatch and every form
+/// tab share one path and new options need no backend change. The `key` field is set
+/// from `keys` and always wins over any `key` in `options`. An empty `options`
+/// document (and no `name`) lets MongoDB auto-generate the name.
 #[tauri::command]
 pub async fn create_index(
     ctx: State<'_, AppContext>,
@@ -527,34 +532,26 @@ pub async fn create_index(
     database: String,
     collection: String,
     keys: String,
-    unique: bool,
-    name: String,
+    options: String,
 ) -> Result<(), AppError> {
     let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    let col = client
-        .database(&database)
-        .collection::<bson::Document>(&collection);
     let keys_doc = match parse_ejson_document(&keys) {
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    // An empty name lets MongoDB auto-generate one from the key spec.
-    let index_options = if name.trim().is_empty() {
-        IndexOptions::builder().unique(Some(unique)).build()
-    } else {
-        IndexOptions::builder()
-            .unique(Some(unique))
-            .name(Some(name))
-            .build()
+    let mut index_doc = match parse_ejson_document(&options) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
     };
-    let model = IndexModel::builder()
-        .keys(keys_doc)
-        .options(Some(index_options))
-        .build();
-    match col.create_index(model).await {
+    index_doc.insert("key", keys_doc);
+    let command = bson::doc! {
+        "createIndexes": &collection,
+        "indexes": [index_doc],
+    };
+    match client.database(&database).run_command(command).await {
         Ok(_) => Ok(()),
         Err(e) => Err(AppError::Mongo(e)),
     }

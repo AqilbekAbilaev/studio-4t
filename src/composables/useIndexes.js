@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../utils/errors'
-import { isProtectedIndex, indexKeyLabel, indexSpecJson } from '../utils/indexSpec'
+import { isProtectedIndex, indexSpecJson } from '../utils/indexSpec'
 // NOTE: indexSpecJson is needed because copyIndex() calls it. App.vue ALSO keeps
 // its own indexSpecJson import for the template — both importing the pure helper is fine.
 
@@ -12,11 +12,17 @@ export function useIndexes({ showToast }) {
   const indexesList     = ref([])
   const indexesLoading  = ref(false)
   const indexesError    = ref(null)
-  const newIndexKeys    = ref('')
-  const newIndexName    = ref('')
-  const newIndexUnique  = ref(false)
   const indexCreating   = ref(false)
+  const indexFormOpen   = ref(false)  // the Add/Edit index dialog is showing
+  const indexFormSeed   = ref(null)   // index spec used to prefill the dialog (edit / paste)
   const pendingDropIndex = ref(null)  // index name armed for a confirming second click
+
+  // Per-index size (bytes) and usage (operation count) shown in the Index Manager,
+  // keyed by index name. Both are best-effort: size comes from collStats.indexSizes,
+  // usage from $indexStats — either can be unavailable, leaving an index unlisted here.
+  const indexSizes     = ref({})
+  const indexUsage     = ref({})
+  const indexTotalSize = ref(null)   // collStats.totalIndexSize, for the status bar
 
   // Index-menu selection & dialogs. `selectedIndex` is the index row highlighted in
   // the Indexes dialog; it drives the Index menu's enablement (see menuContext) and
@@ -54,15 +60,64 @@ export function useIndexes({ showToast }) {
     } finally {
       indexesLoading.value = false
     }
+    await loadIndexMetrics(target)
+  }
+
+  // Size + usage for the loaded indexes. Kept separate from loadIndexes so a server
+  // that doesn't support collStats/$indexStats still shows the index list — the Size
+  // and Usage columns just read "n/a" for those entries.
+  async function loadIndexMetrics(target) {
+    try {
+      const stats = await invoke('collection_stats', {
+        id: target.connId,
+        database: target.dbName,
+        collection: target.collName,
+      })
+      const sizes = {}
+      for (const entry of (stats.indexes || [])) sizes[entry.name] = entry.size
+      indexSizes.value = sizes
+      indexTotalSize.value = stats.total_index_size ?? null
+    } catch (e) {
+      indexSizes.value = {}
+      indexTotalSize.value = null
+    }
+    try {
+      const stats = await invoke('index_stats', {
+        id: target.connId,
+        database: target.dbName,
+        collection: target.collName,
+      })
+      const usage = {}
+      for (const entry of stats) {
+        const ops = entry && entry.accesses && entry.accesses.ops
+        if (ops != null) usage[entry.name] = typeof ops === 'object' ? (ops.$numberLong ?? null) : ops
+      }
+      indexUsage.value = usage
+    } catch (e) {
+      indexUsage.value = {}
+    }
   }
 
   // Reset the create/edit form back to a blank create.
   function resetIndexForm() {
-    newIndexKeys.value = ''
-    newIndexName.value = ''
-    newIndexUnique.value = false
     indexFormMode.value = 'create'
     indexEditOriginalName.value = ''
+    indexFormSeed.value = null
+  }
+
+  // Open the Add-index dialog on a blank create form. An optional `seed` (a partial
+  // index spec, e.g. from Paste) prefills the dialog's fields.
+  function openCreateIndex(seed = null) {
+    resetIndexForm()
+    indexFormSeed.value = seed
+    indexFormOpen.value = true
+  }
+
+  // Close the Add/Edit dialog and discard any half-typed form values.
+  function closeIndexForm() {
+    indexFormOpen.value = false
+    indexesError.value = null
+    resetIndexForm()
   }
 
   // Closes the Indexes dialog and clears its selection/form so the Index menu
@@ -71,19 +126,21 @@ export function useIndexes({ showToast }) {
     indexesTarget.value = null
     selectedIndex.value = null
     pendingDropIndex.value = null
+    indexFormOpen.value = false
+    indexesError.value = null
     resetIndexForm()
   }
 
-  async function confirmCreateIndex() {
+  // Create (or, in edit mode, drop-and-recreate) an index from the dialog's assembled
+  // `keys` and `options` JSON strings. MongoDB has no in-place index edit, so an edit
+  // drops the original first, then recreates it from the (possibly changed) values.
+  async function submitIndex({ keys, options }) {
     const target = indexesTarget.value
-    const keys = newIndexKeys.value.trim()
-    if (!target || !keys) return
+    if (!target || !keys || !keys.trim()) return
     const editing = indexFormMode.value === 'edit' && !!indexEditOriginalName.value
     indexCreating.value = true
     indexesError.value = null
     try {
-      // MongoDB has no in-place index edit, so an edit drops the original first and
-      // recreates it from the (possibly changed) form values.
       if (editing) {
         await invoke('drop_index', {
           id: target.connId,
@@ -97,10 +154,9 @@ export function useIndexes({ showToast }) {
         database: target.dbName,
         collection: target.collName,
         keys: keys,
-        unique: newIndexUnique.value,
-        name: newIndexName.value.trim(),
+        options: options || '{}',
       })
-      resetIndexForm()
+      closeIndexForm()
       await loadIndexes()
       showToast(editing ? 'Index updated' : 'Index created')
     } catch (e) {
@@ -147,8 +203,8 @@ export function useIndexes({ showToast }) {
     return selectedIndex.value
   }
 
-  // Edit Index…: pre-fill the create form with the selected index as a starting
-  // point and switch it to edit mode (save = drop-and-recreate).
+  // Edit Index…: open the dialog seeded with the selected index and switch it to
+  // edit mode (save = drop-and-recreate).
   function startEditIndex() {
     const idx = requireSelectedIndex()
     if (!idx) return
@@ -156,11 +212,10 @@ export function useIndexes({ showToast }) {
       showToast('The _id index cannot be edited')
       return
     }
-    newIndexKeys.value = indexKeyLabel(idx) ? JSON.stringify(idx.key) : ''
-    newIndexName.value = idx.name || ''
-    newIndexUnique.value = !!idx.unique
     indexFormMode.value = 'edit'
     indexEditOriginalName.value = idx.name
+    indexFormSeed.value = idx
+    indexFormOpen.value = true
   }
 
   // View Details: show the full spec (read-only) plus usage stats when available.
@@ -290,10 +345,12 @@ export function useIndexes({ showToast }) {
     indexesList: indexesList,
     indexesLoading: indexesLoading,
     indexesError: indexesError,
-    newIndexKeys: newIndexKeys,
-    newIndexName: newIndexName,
-    newIndexUnique: newIndexUnique,
     indexCreating: indexCreating,
+    indexFormOpen: indexFormOpen,
+    indexFormSeed: indexFormSeed,
+    indexSizes: indexSizes,
+    indexUsage: indexUsage,
+    indexTotalSize: indexTotalSize,
     pendingDropIndex: pendingDropIndex,
     selectedIndex: selectedIndex,
     indexFormMode: indexFormMode,
@@ -306,9 +363,10 @@ export function useIndexes({ showToast }) {
     dropIndexError: dropIndexError,
     dropIndexBusy: dropIndexBusy,
     loadIndexes: loadIndexes,
-    resetIndexForm: resetIndexForm,
+    openCreateIndex: openCreateIndex,
+    closeIndexForm: closeIndexForm,
     closeIndexesModal: closeIndexesModal,
-    confirmCreateIndex: confirmCreateIndex,
+    submitIndex: submitIndex,
     dropIndex: dropIndex,
     startEditIndex: startEditIndex,
     openIndexDetails: openIndexDetails,

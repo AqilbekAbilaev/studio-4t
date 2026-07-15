@@ -26,3 +26,30 @@ export function indexSpecJson(index) {
 export function isIndexHidden(index) {
   return !!(index && index.hidden)
 }
+
+// The index's "Type" as shown in the Index Manager (mirrors Studio-3T's column):
+// Text / Geospatial / Hashed derived from the special values in the key spec, else
+// "Regular". A compound plain index is still "Regular".
+export function indexType(index) {
+  const key = index && index.key
+  if (!key || typeof key !== 'object') return 'Regular'
+  const values = Object.values(key)
+  if (values.includes('text')) return 'Text'
+  if (values.includes('2dsphere') || values.includes('2d') || values.includes('geoHaystack')) return 'Geospatial'
+  if (values.includes('hashed')) return 'Hashed'
+  return 'Regular'
+}
+
+// Human-readable property badges for the "Properties" column: Unique, Sparse,
+// Partial, TTL, Hidden. The `_id_` index is implicitly unique even though its spec
+// carries no `unique` flag, so it's treated as Unique to match how MongoDB reports it.
+export function indexProperties(index) {
+  if (!index) return []
+  const props = []
+  if (index.unique || isProtectedIndex(index.name)) props.push('Unique')
+  if (index.sparse) props.push('Sparse')
+  if (index.partialFilterExpression) props.push('Partial')
+  if (index.expireAfterSeconds != null) props.push('TTL')
+  if (index.hidden) props.push('Hidden')
+  return props
+}

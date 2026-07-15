@@ -10,6 +10,7 @@ import PipelineEditor from './PipelineEditor.vue'
 import ResultsPanel from '../results/ResultsPanel.vue'
 // Lazy-loaded so CodeMirror (a large dep) is only fetched when a shell tab opens.
 const ShellConsole = defineAsyncComponent(() => import('../app/ShellConsole.vue'))
+import IndexManagerPane from './IndexManagerPane.vue'
 import QueryBrowserModal from './QueryBrowserModal.vue'
 import { parseField, parsePipeline } from '../../utils/queryParser'
 
@@ -269,6 +270,9 @@ async function applyFromBrowser(entry) {
 
     <!-- IntelliShell -->
     <ShellConsole v-else-if="activeTab.kind === 'shell'" :active-tab="activeTab" />
+
+    <!-- Index Manager -->
+    <IndexManagerPane v-else-if="activeTab.kind === 'indexes'" :active-tab="activeTab" />
 
     <!-- Collection workspace -->
     <template v-else-if="activeTab.kind === 'collection'">

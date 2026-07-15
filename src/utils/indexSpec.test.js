@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isProtectedIndex, indexKeyLabel, indexSpecJson, isIndexHidden } from './indexSpec'
+import { isProtectedIndex, indexKeyLabel, indexSpecJson, isIndexHidden, indexType, indexProperties } from './indexSpec'
 
 describe('isProtectedIndex', () => {
   it('protects only the _id_ index', () => {
@@ -46,5 +46,44 @@ describe('isIndexHidden', () => {
     expect(isIndexHidden({ name: 'a', hidden: false })).toBe(false)
     expect(isIndexHidden({ name: 'a' })).toBe(false)
     expect(isIndexHidden(null)).toBe(false)
+  })
+})
+
+describe('indexType', () => {
+  it('classifies a plain single or compound key as Regular', () => {
+    expect(indexType({ key: { _id: 1 } })).toBe('Regular')
+    expect(indexType({ key: { name: 1, age: -1 } })).toBe('Regular')
+  })
+
+  it('detects text, geospatial and hashed keys', () => {
+    expect(indexType({ key: { bio: 'text' } })).toBe('Text')
+    expect(indexType({ key: { loc: '2dsphere' } })).toBe('Geospatial')
+    expect(indexType({ key: { loc: '2d' } })).toBe('Geospatial')
+    expect(indexType({ key: { uid: 'hashed' } })).toBe('Hashed')
+  })
+
+  it('falls back to Regular for a missing or malformed key', () => {
+    expect(indexType(null)).toBe('Regular')
+    expect(indexType({})).toBe('Regular')
+    expect(indexType({ key: 'nope' })).toBe('Regular')
+  })
+})
+
+describe('indexProperties', () => {
+  it('lists each property that applies', () => {
+    expect(indexProperties({ name: 'a_1', unique: true })).toEqual(['Unique'])
+    expect(indexProperties({ name: 'a_1', sparse: true })).toEqual(['Sparse'])
+    expect(indexProperties({ name: 'a_1', partialFilterExpression: { x: 1 } })).toEqual(['Partial'])
+    expect(indexProperties({ name: 'a_1', expireAfterSeconds: 3600 })).toEqual(['TTL'])
+    expect(indexProperties({ name: 'a_1', hidden: true })).toEqual(['Hidden'])
+  })
+
+  it('treats the _id_ index as implicitly unique', () => {
+    expect(indexProperties({ name: '_id_', key: { _id: 1 } })).toEqual(['Unique'])
+  })
+
+  it('returns an empty list when no property applies', () => {
+    expect(indexProperties({ name: 'a_1' })).toEqual([])
+    expect(indexProperties(null)).toEqual([])
   })
 })
