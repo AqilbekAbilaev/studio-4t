@@ -27,9 +27,15 @@ describe('errText', () => {
     const e = { code: 'network', message: 'Server selection timeout … Topology: { ... }' }
     expect(errText(e)).toBe("Can't reach the server")
   })
-  it('uses the friendly title for generic mongo errors', () => {
-    const e = { code: 'mongo', message: 'E11000 duplicate key error …' }
+  it('uses the friendly title for generic (topology/command) mongo errors', () => {
+    const e = { code: 'mongo', message: 'some verbose driver dump …' }
     expect(errText(e)).toBe('The database reported an error')
+  })
+  it('surfaces the server message directly for write errors (e.g. duplicate key)', () => {
+    // The backend humanizes write/insert failures and tags them `write` (no friendly
+    // title), so the actionable message reaches the user instead of "database error".
+    const e = { code: 'write', message: 'E11000 duplicate key error … dup key: { _id: 5 }' }
+    expect(errText(e)).toBe('E11000 duplicate key error … dup key: { _id: 5 }')
   })
   it('falls back to the raw message for self-authored codes with no title', () => {
     const e = { code: 'validation', message: 'Filter must be valid JSON' }

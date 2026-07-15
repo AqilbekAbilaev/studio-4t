@@ -45,15 +45,7 @@ impl AppError {
     /// Mongo errors are classified into actionable sub-categories.
     pub fn code(&self) -> &'static str {
         match self {
-            AppError::Mongo(e) => match e.kind.as_ref() {
-                mongodb::error::ErrorKind::Authentication { .. } => "auth",
-                mongodb::error::ErrorKind::InvalidTlsConfig { .. } => "tls",
-                mongodb::error::ErrorKind::ServerSelection { .. }
-                | mongodb::error::ErrorKind::DnsResolve { .. }
-                | mongodb::error::ErrorKind::ConnectionPoolCleared { .. }
-                | mongodb::error::ErrorKind::Io(_) => "network",
-                _ => "mongo",
-            },
+            AppError::Mongo(e) => mongo_code(e),
             AppError::Io(_) => "io",
             AppError::Serde(_) => "serde",
             AppError::Unreachable { .. } => "unreachable",
@@ -88,14 +80,144 @@ impl serde::Serialize for AppError {
     // unexpected / server-side, so we log it for diagnosis.
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let code = self.code();
+        // Log with the full driver Display (verbose, good for diagnosis); the user-facing
+        // `message` is humanized below.
         match code {
             "validation" | "bson" => {}
             _ => eprintln!("[ozendb] error [{}]: {}", code, self),
         }
+        // For MongoDB errors the driver's Display can be a `{:?}` debug dump (notably
+        // write/insert errors), so route them through the humanizer; every other variant
+        // already Displays as a readable sentence.
+        let message = match self {
+            AppError::Mongo(e) => mongo_message(e),
+            _ => self.to_string(),
+        };
         let wire = WireError {
             code: code,
-            message: self.to_string(),
+            message: message,
         };
         wire.serialize(s)
+    }
+}
+
+/// Sub-categorize a MongoDB error into a stable code the frontend branches on. Auth/TLS/
+/// network drive connection hints; write/insert errors are the user's own data or
+/// operation (duplicate key, failed validation, …) and carry a clear server message, so
+/// they get a distinct `write` code that surfaces that message directly instead of the
+/// generic "database error" title. Everything else stays `mongo`.
+fn mongo_code(e: &mongodb::error::Error) -> &'static str {
+    use mongodb::error::ErrorKind;
+    match e.kind.as_ref() {
+        ErrorKind::Authentication { .. } => "auth",
+        ErrorKind::InvalidTlsConfig { .. } => "tls",
+        ErrorKind::ServerSelection { .. }
+        | ErrorKind::DnsResolve { .. }
+        | ErrorKind::ConnectionPoolCleared { .. }
+        | ErrorKind::Io(_) => "network",
+        ErrorKind::Write(_) | ErrorKind::InsertMany(_) => "write",
+        _ => "mongo",
+    }
+}
+
+/// Turn a MongoDB driver error into a concise, human-readable message. For write/insert
+/// failures the driver's own Display is a `{:?}` debug dump that buries the useful
+/// server text (e.g. `E11000 duplicate key error …`) inside struct noise; this pulls out
+/// the server-provided message(s) instead. Every other error kind already Displays as a
+/// sentence, so it passes through unchanged.
+fn mongo_message(e: &mongodb::error::Error) -> String {
+    use mongodb::error::{ErrorKind, WriteFailure};
+    match e.kind.as_ref() {
+        ErrorKind::InsertMany(insert) => {
+            let mut parts: Vec<String> = Vec::new();
+            if let Some(write_errors) = insert.write_errors.as_ref() {
+                for write_error in write_errors {
+                    parts.push(write_message(write_error.code, &write_error.message));
+                }
+            }
+            if let Some(wc_error) = insert.write_concern_error.as_ref() {
+                parts.push(write_message(wc_error.code, &wc_error.message));
+            }
+            match join_write_messages(parts) {
+                Some(message) => message,
+                None => e.to_string(),
+            }
+        }
+        ErrorKind::Write(WriteFailure::WriteError(write_error)) => {
+            write_message(write_error.code, &write_error.message)
+        }
+        ErrorKind::Write(WriteFailure::WriteConcernError(wc_error)) => {
+            write_message(wc_error.code, &wc_error.message)
+        }
+        _ => e.to_string(),
+    }
+}
+
+/// One write error as text: the server's own message, or a code-only fallback if the
+/// server sent none.
+fn write_message(code: i32, message: &str) -> String {
+    if message.is_empty() {
+        format!("Write error (code {code})")
+    } else {
+        message.to_string()
+    }
+}
+
+/// Join distinct write-error messages, capping the count so a large unordered insert
+/// failure doesn't produce a wall of near-identical lines. `None` when there were no
+/// messages (the caller then falls back to the driver's Display).
+fn join_write_messages(parts: Vec<String>) -> Option<String> {
+    let mut unique: Vec<String> = Vec::new();
+    for part in parts {
+        if !unique.iter().any(|existing| existing == &part) {
+            unique.push(part);
+        }
+    }
+    if unique.is_empty() {
+        return None;
+    }
+    const MAX_SHOWN: usize = 3;
+    if unique.len() <= MAX_SHOWN {
+        Some(unique.join("; "))
+    } else {
+        let shown = unique[..MAX_SHOWN].join("; ");
+        Some(format!("{} (and {} more)", shown, unique.len() - MAX_SHOWN))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{join_write_messages, write_message};
+
+    #[test]
+    fn write_message_prefers_the_server_text() {
+        assert_eq!(
+            write_message(11000, "E11000 duplicate key error"),
+            "E11000 duplicate key error"
+        );
+    }
+
+    #[test]
+    fn write_message_falls_back_to_code_when_blank() {
+        assert_eq!(write_message(121, ""), "Write error (code 121)");
+    }
+
+    #[test]
+    fn join_dedups_and_returns_none_when_empty() {
+        assert_eq!(join_write_messages(Vec::new()), None);
+        let dupes = vec![
+            String::from("E11000 dup key"),
+            String::from("E11000 dup key"),
+        ];
+        assert_eq!(join_write_messages(dupes), Some(String::from("E11000 dup key")));
+    }
+
+    #[test]
+    fn join_caps_a_large_number_of_distinct_messages() {
+        let many: Vec<String> = (0..6).map(|n| format!("err {n}")).collect();
+        assert_eq!(
+            join_write_messages(many),
+            Some(String::from("err 0; err 1; err 2 (and 3 more)"))
+        );
     }
 }
