@@ -127,45 +127,6 @@
   border-top: 1px solid var(--border);
   overflow: hidden;
 }
-.resizer-h {
-  height: 3px;
-  flex: none;
-  cursor: row-resize;
-  background: var(--border);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.resizer-h:hover, .resizer-h.dragging { background: var(--accent); }
-.resizer-grip-h {
-  width: 28px;
-  height: 1px;
-  background: var(--text-faint);
-  border-radius: 1px;
-}
-
-/* ── Resizer ── */
-.resizer {
-  width: 3px;
-  flex: none;
-  cursor: col-resize;
-  background: var(--border);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.resizer-grip {
-  width: 2px;
-  height: 32px;
-  background: transparent;
-  border-radius: 1px;
-  cursor: col-resize;
-  transition: background 0.12s;
-}
-.resizer:hover .resizer-grip,
-.resizer.dragging .resizer-grip { background: var(--accent); }
 
 /* ── Split panes ── */
 /* Each pane fills its half of the SplitContainer; the focused one gets a thin

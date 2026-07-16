@@ -16,7 +16,6 @@ import { useOperations } from './composables/useOperations'
 import { useNodeTags } from './composables/useNodeTags'
 import { useDbTransfer } from './composables/useDbTransfer'
 import { useSessionPersistence } from './composables/useSessionPersistence'
-import { makeResizer } from './composables/useDragResize'
 import BaseIcon from './components/base/BaseIcon.vue'
 import ConnectionTree from './components/connection/ConnectionTree.vue'
 import QueryWorkspace from './components/query/QueryWorkspace.vue'
@@ -24,6 +23,7 @@ import SplitContainer from './components/base/SplitContainer.vue'
 import ContextMenu from './components/base/ContextMenu.vue'
 import AppModals from './components/app/AppModals.vue'
 import PaneWorkspace from './components/app/PaneWorkspace.vue'
+import Resizer from './components/base/Resizer.vue'
 import OperationsPane from './components/app/OperationsPane.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -254,27 +254,16 @@ const contextActiveNodeKey = computed(() => {
   return nd.connId + '/' + nd.dbName + '/' + nd.collName
 })
 const sidebarWidth = ref(320)
-const sidebarResizing = ref(false)
-
-const startSidebarResize = makeResizer({
-  value: sidebarWidth, resizing: sidebarResizing, min: 200, max: 560, axis: 'x',
-})
 
 // ── Operations pane (bottom dock) ──
 // Backed by the backend registry; the rail "Operations" label toggles it.
 const { operations, runningCount, clearFinished } = useOperations()
 const operationsPaneOpen = ref(false)
 const operationsPaneHeight = ref(200)
-const operationsResizing = ref(false)
 
 function toggleOperationsPane() {
   operationsPaneOpen.value = !operationsPaneOpen.value
 }
-
-// Drag up grows the pane (invert), clamped so neither the pane nor the workspace vanishes.
-const startOperationsResize = makeResizer({
-  value: operationsPaneHeight, resizing: operationsResizing, min: 120, max: 560, axis: 'y', invert: true,
-})
 
 function showToast(msg) {
   clearTimeout(toastTimer)
@@ -1695,9 +1684,7 @@ provide('appModals', {
         @expanded="expandConnectionId = null"
         @context-menu="contextMenu = $event"
       />
-      <div class="resizer" :class="{ dragging: sidebarResizing }" title="Drag to resize" @mousedown="startSidebarResize">
-        <span class="resizer-grip"></span>
-      </div>
+      <Resizer v-model="sidebarWidth" axis="x" :min="200" :max="560" />
 
       <!-- Workspace (single pane) -->
       <QueryWorkspace
@@ -1791,14 +1778,7 @@ provide('appModals', {
 
     <!-- Operations dock (bottom) -->
     <template v-if="operationsPaneOpen">
-      <div
-        class="resizer-h"
-        :class="{ dragging: operationsResizing }"
-        title="Drag to resize"
-        @mousedown="startOperationsResize"
-      >
-        <span class="resizer-grip-h"></span>
-      </div>
+      <Resizer v-model="operationsPaneHeight" axis="y" :min="120" :max="560" invert />
       <div class="ops-dock" :style="{ height: operationsPaneHeight + 'px' }">
         <OperationsPane
           :operations="operations"
