@@ -134,7 +134,7 @@ removed.
 
 ### Design reference
 
-`ui-design/` contains the authoritative design prototype (React/JSX, browser-runnable). Before implementing any new screen or component, read the relevant JSX file and `ui-design/design_handoff_studio4t/README.md` for exact spacing, colors, and interaction spec.
+`ui-design/` contains the authoritative design prototype (React/JSX, browser-runnable). Before implementing any new screen or component, read the relevant JSX file and `ui-design/design_handoff_ozendb/README.md` for exact spacing, colors, and interaction spec.
 
 Key rules from the handoff:
 - **Dialog headers must not have macOS traffic lights.** Only the real OS window gets them. Dialogs use a centered title + a single close ✕ button on the right.

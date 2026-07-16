@@ -57,7 +57,7 @@ npm test                      # Frontend unit tests (Vitest)
 
 ## Reporting bugs
 
-Open a [GitHub issue](https://github.com/AqilbekAbilaev/studio-4t/issues) with:
+Open a [GitHub issue](https://github.com/AqilbekAbilaev/ozendb/issues) with:
 
 - Your OS and version (Windows / macOS / Linux distro)
 - Steps to reproduce

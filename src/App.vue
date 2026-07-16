@@ -6,6 +6,7 @@ import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
 import { errText } from './utils/errors'
 import { mergeBindings, matchBinding } from './utils/keybindings'
+import { TOOLS } from './constants/tools'
 import { useIndexes } from './composables/useIndexes'
 import { useSshHostKey } from './composables/useSshHostKey'
 import { useQueryRunner } from './composables/useQueryRunner'
@@ -16,14 +17,12 @@ import { useOperations } from './composables/useOperations'
 import { useNodeTags } from './composables/useNodeTags'
 import { useDbTransfer } from './composables/useDbTransfer'
 import { useSessionPersistence } from './composables/useSessionPersistence'
-import BaseIcon from './components/base/BaseIcon.vue'
 import ConnectionTree from './components/connection/ConnectionTree.vue'
 import QueryWorkspace from './components/query/QueryWorkspace.vue'
-import SplitContainer from './components/base/SplitContainer.vue'
 import ContextMenu from './components/base/ContextMenu.vue'
 import AppModals from './components/app/AppModals.vue'
-import PaneWorkspace from './components/app/PaneWorkspace.vue'
 import Resizer from './components/base/Resizer.vue'
+import Toolbar from './components/app/Toolbar.vue'
 import OperationsPane from './components/app/OperationsPane.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -104,74 +103,11 @@ onUnmounted(() => {
 });
 
 // ── toolbar definition ─────────────────────────────────────
-const TOOLS = [
-  { name: 'connect',   label: 'Connect',      badge: '#4caf78', drop: true },
-  { name: 'collection',label: 'Collection' },
-  { name: 'shell',     label: 'IntelliShell' },
-  { name: 'sql',       label: 'SQL',          badge: '#6ea8fe' },
-  { name: 'aggregate', label: 'Aggregate',    badge: '#b07ddb' },
-  { name: 'search',    label: 'Search in…' },
-  { sep: true },
-  { name: 'compare',   label: 'Compare' },
-  { name: 'schema',    label: 'Schema',       badge: '#4caf78' },
-  { name: 'reschema',  label: 'Reschema' },
-  { name: 'tasks',     label: 'Tasks' },
-  { sep: true },
-  { name: 'export',    label: 'Export' },
-  { name: 'import',    label: 'Import' },
-  { name: 'mask',      label: 'Data Masking' },
-  { name: 'migration', label: 'SQL Migration', drop: true },
-]
-
 // ── app state ──────────────────────────────────────────────
 const tabs = ref([
-  { id: 't0', kind: 'quickstart', title: 'Quickstart', paneId: 'p0' }
+  { id: 't0', kind: 'quickstart', title: 'Quickstart' }
 ])
-
-// The workspace can be split into two panes. `tabs` above stays the single source
-// of truth, but each tab is tagged with the pane that owns it (`paneId`), so a pane
-// shows only its own tabs — splitting moves the active tab into the new pane rather
-// than duplicating the whole strip. Each pane tracks its active tab; new tabs and
-// menu actions target the focused pane. `activeTabId` is a get/set alias for the
-// focused pane's active tab, so every existing caller keeps working unchanged.
-const panes = ref([{ id: 'p0', activeTabId: 't0' }])
-const splitOrientation = ref(null)   // null | 'vertical' | 'horizontal'
-const focusedPaneId = ref('p0')
-const isSplit = computed(() => panes.value.length > 1)
-
-// The tabs owned by each pane (in their `tabs` order). A tab with no paneId (e.g.
-// an older persisted session) belongs to the first pane.
-const paneATabs = computed(() => tabs.value.filter(t => (t.paneId || 'p0') === 'p0'))
-const paneBTabs = computed(() => tabs.value.filter(t => (t.paneId || 'p0') === 'p1'))
-
-const activeTabId = computed({
-  get() {
-    const pane = panes.value.find(p => p.id === focusedPaneId.value) || panes.value[0]
-    return pane ? pane.activeTabId : null
-  },
-  set(id) {
-    const pane = panes.value.find(p => p.id === focusedPaneId.value) || panes.value[0]
-    if (pane) pane.activeTabId = id
-  },
-})
-
-// Keep each pane's active tab valid: when its tabs change (close, or a move between
-// panes), a pane pointing at a tab it no longer owns falls back to its last tab (or
-// nothing). Keyed on the pane→tab mapping so both closes and moves re-run it.
-watch(() => tabs.value.map(t => (t.paneId || 'p0') + ':' + t.id).join('|'), () => {
-  for (const pane of panes.value) {
-    const owned = tabs.value.filter(t => (t.paneId || 'p0') === pane.id)
-    if (pane.activeTabId == null || !owned.some(t => t.id === pane.activeTabId)) {
-      pane.activeTabId = owned.length ? owned[owned.length - 1].id : null
-    }
-  }
-  // A split pane that has lost all its tabs collapses the split — the workspace
-  // returns to a single pane showing whichever pane still has tabs.
-  if (isSplit.value) {
-    const empty = panes.value.find(p => !tabs.value.some(t => (t.paneId || 'p0') === p.id))
-    if (empty) collapseToPane(panes.value.find(p => p.id !== empty.id))
-  }
-})
+const activeTabId = ref('t0')
 const toast = ref(null)
 let toastTimer = null
 const connectionTreeRef = ref(null)
@@ -254,6 +190,7 @@ const contextActiveNodeKey = computed(() => {
   return nd.connId + '/' + nd.dbName + '/' + nd.collName
 })
 const sidebarWidth = ref(320)
+const sidebarOpen = ref(true)   // the "Open connections" rail entry toggles the tree
 
 // ── Operations pane (bottom dock) ──
 // Backed by the backend registry; the rail "Operations" label toggles it.
@@ -312,9 +249,6 @@ const { runQuery, runAggregate, cancelQuery, runRestoredTab } = useQueryRunner({
 
 const { restoreSession, startAutoSave } = useSessionPersistence({
   tabs: tabs,
-  panes: panes,
-  splitOrientation: splitOrientation,
-  focusedPaneId: focusedPaneId,
   activeTabId: activeTabId,
   runRestoredTab: runRestoredTab,
 })
@@ -553,7 +487,7 @@ function menuNode(action, requiredType) {
 
 // Help-menu link targets. Default to the project's real GitHub repo (from the git
 // remote); retarget as needed once dedicated pages exist.
-const HELP_REPO = 'https://github.com/AqilbekAbilaev/studio-4t'
+const HELP_REPO = 'https://github.com/AqilbekAbilaev/ozendb'
 const HELP_URLS = {
   'help:license':         HELP_REPO,
   'help:gallery':         `${HELP_REPO}#readme`,
@@ -732,10 +666,6 @@ function handleMenuAction(id) {
     case 'view:close_tab_np':
       if (activeTabId.value != null) closeTab(activeTabId.value)
       return
-
-    // Split the workspace into two panes (or toggle/flip an existing split).
-    case 'view:split_v': splitWorkspace('vertical'); return
-    case 'view:split_h': splitWorkspace('horizontal'); return
 
     // Results view mode + Refresh Document act on the active collection tab's
     // ResultsPanel; signal it directly (no row selection required).
@@ -1217,7 +1147,6 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
     connectionName: connectionName,
     dbName: dbName,
     collectionName: collectionName,
-    paneId: focusedPaneId.value,
     filter: filter || '', projection: '', sort: '', skip: 0, limit: defaultQueryLimit.value,
     mode: startMode, pipeline: '',
     results: [], hasRun: false, isRunning: false, runError: null,
@@ -1285,7 +1214,6 @@ function openShellTab({ connectionId, connectionName, dbName }) {
     connectionId: connectionId,
     connectionName: connectionName,
     dbName: dbName,
-    paneId: focusedPaneId.value,
     sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
     // editor + command history (dropdown)
     code: '', history: [], isRunning: false,
@@ -1308,7 +1236,6 @@ function openIndexManagerTab({ connId, connName, dbName, collName }) {
     id: id, kind: 'indexes',
     title: 'Index Manager: ' + collName,
     connId: connId, connName: connName, dbName: dbName, collName: collName,
-    paneId: focusedPaneId.value,
   })
   activeTabId.value = id
 }
@@ -1317,75 +1244,6 @@ function activateTab(id) {
   activeTabId.value = id
   const tab = tabs.value.find(t => t.id === id)
   if (tab && tab._restored) runRestoredTab(tab)
-}
-
-// ── workspace split (two panes over the shared tab list) ────
-// Split Vertically / Horizontally from the View menu. Choosing the orientation the
-// workspace is already split in collapses it back to one pane; choosing the other
-// orientation flips it. A fresh split mirrors the focused pane's active tab so both
-// panes start on the same collection.
-function splitWorkspace(orientation) {
-  if (isSplit.value) {
-    if (splitOrientation.value === orientation) {
-      unsplitWorkspace()
-    } else {
-      splitOrientation.value = orientation
-    }
-    return
-  }
-  // Splitting moves the active tab into the new pane, so the source pane needs at
-  // least two tabs — otherwise the split would immediately leave one pane empty
-  // (and empty panes auto-collapse). Guide the user instead of no-op-flickering.
-  if (tabs.value.length < 2) {
-    showToast('Open another tab to split the workspace')
-    return
-  }
-  // Move the active tab out into the new pane, so the new pane starts with just that
-  // one tab and the original keeps the rest (falling back to its last remaining tab).
-  const current = panes.value[0]
-  const movingId = current.activeTabId
-  const moving = tabs.value.find(t => t.id === movingId)
-  if (moving) moving.paneId = 'p1'
-  const remaining = tabs.value.filter(t => (t.paneId || 'p0') === 'p0')
-  current.activeTabId = remaining.length ? remaining[remaining.length - 1].id : null
-  panes.value.push({ id: 'p1', activeTabId: movingId })
-  splitOrientation.value = orientation
-  focusedPaneId.value = 'p1'
-}
-
-// Collapse the split back to a single pane, keeping `survivor`'s tabs and active tab.
-// Every tab returns to pane 0.
-function collapseToPane(survivor) {
-  const keep = survivor || panes.value[0]
-  for (const t of tabs.value) t.paneId = 'p0'
-  panes.value = [{ id: 'p0', activeTabId: keep ? keep.activeTabId : null }]
-  splitOrientation.value = null
-  focusedPaneId.value = 'p0'
-}
-
-// Manual unsplit (View menu / gutter ✕): keep whatever the focused pane was showing.
-function unsplitWorkspace() {
-  if (!isSplit.value) return
-  collapseToPane(panes.value.find(p => p.id === focusedPaneId.value) || panes.value[0])
-}
-
-// Per-pane event routing: interacting with a pane focuses it first, so the shared
-// menu actions (which read the focused pane through activeTabId) target that pane.
-function focusPane(paneId) { focusedPaneId.value = paneId }
-function activateTabInPane(paneId, id) {
-  focusedPaneId.value = paneId
-  const pane = panes.value.find(p => p.id === paneId)
-  if (pane) pane.activeTabId = id
-  const tab = tabs.value.find(t => t.id === id)
-  if (tab && tab._restored) runRestoredTab(tab)
-}
-function closeTabInPane(paneId, id) {
-  focusedPaneId.value = paneId
-  closeTab(id)
-}
-function tabContextInPane(paneId, evt) {
-  focusedPaneId.value = paneId
-  onTabContext(evt)
 }
 
 // GridFS menu actions operate inside the GridFS modal on its selected file/bucket.
@@ -1419,7 +1277,7 @@ function openQuickstart() {
     return
   }
   const id = 't' + Date.now()
-  tabs.value.push({ id: id, kind: 'quickstart', title: 'Quickstart', paneId: focusedPaneId.value })
+  tabs.value.push({ id: id, kind: 'quickstart', title: 'Quickstart' })
   activateTab(id)
 }
 
@@ -1483,16 +1341,12 @@ function closeTab(id) {
   if (closing.kind === 'shell' && closing.sessionId) {
     invoke('close_shell_session', { sessionId: closing.sessionId }).catch(() => {})
   }
-  const before = tabs.value.slice(0, idx)
   tabs.value.splice(idx, 1)
-  // Any pane showing the closed tab moves to an adjacent tab it still owns (the
-  // nearest preceding one in the same pane, else that pane's first remaining tab).
-  for (const pane of panes.value) {
-    if (pane.activeTabId !== id) continue
-    const precedingInPane = before.filter(t => (t.paneId || 'p0') === pane.id)
-    const owned = tabs.value.filter(t => (t.paneId || 'p0') === pane.id)
-    const next = precedingInPane.length ? precedingInPane[precedingInPane.length - 1] : owned[0]
-    pane.activeTabId = next ? next.id : null
+  // If we closed the active tab, move to an adjacent one (the nearest preceding
+  // tab, else the new first tab).
+  if (activeTabId.value === id) {
+    const next = tabs.value[idx - 1] || tabs.value[0]
+    activeTabId.value = next ? next.id : null
   }
 }
 
@@ -1548,7 +1402,6 @@ function duplicateTab(tabId) {
       id: id, kind: 'shell', title: src.title,
       connectionId: src.connectionId, connectionName: src.connectionName,
       dbName: src.dbName,
-      paneId: src.paneId || 'p0',
       sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
       code: src.code || '', history: [], isRunning: false,
       results: [], resultView: 'table', resultTab: 'Console',
@@ -1563,7 +1416,6 @@ function duplicateTab(tabId) {
     id: id, kind: 'collection', title: src.title,
     connectionId: src.connectionId, connectionName: src.connectionName,
     dbName: src.dbName, collectionName: src.collectionName,
-    paneId: src.paneId || 'p0',
     filter: src.filter, projection: src.projection, sort: src.sort,
     skip: src.skip, limit: src.limit, mode: src.mode, pipeline: src.pipeline,
     color: src.color ?? null,
@@ -1638,25 +1490,21 @@ provide('appModals', {
          see handleMenuAction for how its clicks are routed back into the app. -->
 
     <!-- Toolbar -->
-    <div class="toolbar" v-show="!toolbarHidden">
-      <template v-for="(t, i) in TOOLS" :key="i">
-        <div v-if="t.sep" class="tb-sep"></div>
-        <button v-else class="tbtn" :title="t.label" @click="handleTool(t.name)">
-          <span class="ic" :class="{ 'ic-badge': t.badge }">
-            <BaseIcon :name="t.name" :size="22" />
-            <i v-if="t.badge" class="dotmark" :style="{ background: t.badge }"></i>
-          </span>
-          <span class="lbl">{{ t.label }}</span>
-          <BaseIcon v-if="t.drop" name="caretDown" :size="11" class="drop" />
-        </button>
-      </template>
-    </div>
+    <Toolbar :hidden="toolbarHidden" @tool="handleTool" />
 
     <!-- Main row -->
     <div class="app-main">
       <!-- Left rail -->
       <div class="rail-left">
-        <span class="rail-label">Open connections</span>
+        <button
+          class="rail-toggle"
+          :class="{ active: sidebarOpen }"
+          type="button"
+          :title="sidebarOpen ? 'Hide connections' : 'Show connections'"
+          @click="sidebarOpen = !sidebarOpen"
+        >
+          <span class="rail-label">{{ sidebarOpen ? 'Hide connections' : 'Show connections' }}</span>
+        </button>
         <button
           class="rail-toggle"
           :class="{ active: operationsPaneOpen }"
@@ -1672,6 +1520,7 @@ provide('appModals', {
 
       <!-- Sidebar -->
       <ConnectionTree
+        v-show="sidebarOpen"
         ref="connectionTreeRef"
         :width="sidebarWidth"
         :active-collection-key="activeCollectionKey"
@@ -1684,13 +1533,12 @@ provide('appModals', {
         @expanded="expandConnectionId = null"
         @context-menu="contextMenu = $event"
       />
-      <Resizer v-model="sidebarWidth" axis="x" :min="200" :max="560" />
+      <Resizer v-show="sidebarOpen" v-model="sidebarWidth" axis="x" :min="200" :max="560" />
 
-      <!-- Workspace (single pane) -->
+      <!-- Workspace -->
       <QueryWorkspace
-        v-if="!isSplit"
-        :tabs="paneATabs"
-        :active-tab-id="panes[0].activeTabId"
+        :tabs="tabs"
+        :active-tab-id="activeTabId"
         :tag-overrides="tagOverrides"
         :vqb-open="vqbOpen"
         :clipboard-query="clipboardQuery"
@@ -1712,68 +1560,6 @@ provide('appModals', {
         @paste-query="onPasteQuery"
         @follow-reference="openCollectionTab"
       />
-
-      <!-- Workspace (split into two panes over the shared tab list) -->
-      <SplitContainer v-else :orientation="splitOrientation" @unsplit="unsplitWorkspace">
-        <template #a>
-          <PaneWorkspace
-            pane-id="p0"
-            :tabs="paneATabs"
-            :active-tab-id="panes[0].activeTabId"
-            :focused="focusedPaneId === 'p0'"
-            :tag-overrides="tagOverrides"
-            :vqb-open="vqbOpen"
-            :clipboard-query="clipboardQuery"
-            :doc-menu-request="docMenuRequest"
-            :history-request="historyRequest"
-            :browser-request="browserRequest"
-            :save-query-request="saveQueryRequest"
-            @focus="focusPane"
-            @activate-tab="activateTabInPane"
-            @close-tab="closeTabInPane"
-            @tab-context="tabContextInPane"
-            @run-query="runQuery"
-            @run-aggregate="runAggregate"
-            @cancel-query="cancelQuery"
-            @toggle-vqb="vqbOpen = !vqbOpen"
-            @open-vqb="vqbOpen = true"
-            @close-vqb="vqbOpen = false"
-            @toast="showToast"
-            @copy-query="onCopyQuery"
-            @paste-query="onPasteQuery"
-            @follow-reference="openCollectionTab"
-          />
-        </template>
-        <template #b>
-          <PaneWorkspace
-            pane-id="p1"
-            :tabs="paneBTabs"
-            :active-tab-id="panes[1].activeTabId"
-            :focused="focusedPaneId === 'p1'"
-            :tag-overrides="tagOverrides"
-            :vqb-open="vqbOpen"
-            :clipboard-query="clipboardQuery"
-            :doc-menu-request="docMenuRequest"
-            :history-request="historyRequest"
-            :browser-request="browserRequest"
-            :save-query-request="saveQueryRequest"
-            @focus="focusPane"
-            @activate-tab="activateTabInPane"
-            @close-tab="closeTabInPane"
-            @tab-context="tabContextInPane"
-            @run-query="runQuery"
-            @run-aggregate="runAggregate"
-            @cancel-query="cancelQuery"
-            @toggle-vqb="vqbOpen = !vqbOpen"
-            @open-vqb="vqbOpen = true"
-            @close-vqb="vqbOpen = false"
-            @toast="showToast"
-            @copy-query="onCopyQuery"
-            @paste-query="onPasteQuery"
-            @follow-reference="openCollectionTab"
-          />
-        </template>
-      </SplitContainer>
     </div>
 
     <!-- Operations dock (bottom) -->

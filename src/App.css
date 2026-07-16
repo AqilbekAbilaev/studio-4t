@@ -28,46 +28,6 @@
   pointer-events: none;
 }
 
-/* ── Toolbar ── */
-.toolbar {
-  flex: none;
-  background: var(--bg-toolbar);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: stretch;
-  padding: 6px 8px;
-  gap: 2px;
-}
-.tbtn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 9px;
-  border: none;
-  background: none;
-  border-radius: 6px;
-  color: var(--text);
-  min-width: 54px;
-  position: relative;
-}
-.tbtn:hover { background: var(--bg-hover); }
-.tbtn .ic { color: var(--text-dim); position: relative; }
-.tbtn:hover .ic { color: var(--text); }
-.tbtn .lbl { font-size: 10.5px; color: var(--text-dim); white-space: nowrap; }
-.tbtn .drop { position: absolute; right: 2px; top: 3px; color: var(--text-faint); }
-.tb-sep { width: 1px; flex: none; background: var(--border-soft); margin: 6px 4px; align-self: stretch; }
-.ic-badge { position: relative; }
-.dotmark {
-  position: absolute;
-  right: -1px;
-  bottom: 1px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1.5px solid var(--bg-toolbar);
-}
-
 /* ── Main split ── */
 .app-main {
   flex: 1;
@@ -128,9 +88,6 @@
   overflow: hidden;
 }
 
-/* ── Split panes ── */
-/* Each pane fills its half of the SplitContainer; the focused one gets a thin
-   accent outline so it's clear which pane new tabs / menu actions target. */
 /* ── Toast ── */
 .toast {
   position: fixed;

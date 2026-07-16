@@ -1,30 +1,25 @@
 import { watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
-// Tab-session persistence. Persists open collection/shell tabs (and which one is active,
-// plus any two-pane split) so they return after a restart. Only the persistable fields are
-// projected — result sets and other runtime state are rebuilt on demand, so paging through
-// data never saves. The tab/pane spine (`tabs`, `panes`, …) stays owned by App.vue and is
-// passed in; `runRestoredTab` re-runs a restored find tab's stored query in place.
-export function useSessionPersistence({ tabs, panes, splitOrientation, focusedPaneId, activeTabId, runRestoredTab }) {
+// Tab-session persistence. Persists open collection/shell tabs (and which one is active)
+// so they return after a restart. Only the persistable fields are projected — result sets
+// and other runtime state are rebuilt on demand, so paging through data never saves. The
+// tab spine (`tabs`, `activeTabId`) stays owned by App.vue and is passed in;
+// `runRestoredTab` re-runs a restored find tab's stored query in place.
+export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
   function projectSession() {
     return {
       activeTabId: activeTabId.value,
-      panes: panes.value.map(p => ({ id: p.id, activeTabId: p.activeTabId })),
-      splitOrientation: splitOrientation.value,
-      focusedPaneId: focusedPaneId.value,
       tabs: tabs.value
         .filter(t => t.kind === 'collection' || t.kind === 'shell')
         .map(t => t.kind === 'shell'
           ? {
               id: t.id, kind: 'shell', title: t.title, color: t.color,
-              paneId: t.paneId || 'p0',
               connectionId: t.connectionId, connectionName: t.connectionName,
               dbName: t.dbName, code: t.code, scriptPath: t.scriptPath || null,
             }
           : {
               id: t.id, kind: 'collection', title: t.title, color: t.color,
-              paneId: t.paneId || 'p0',
               connectionId: t.connectionId, connectionName: t.connectionName,
               dbName: t.dbName, collectionName: t.collectionName,
               filter: t.filter, sort: t.sort, projection: t.projection,
@@ -57,7 +52,6 @@ export function useSessionPersistence({ tabs, panes, splitOrientation, focusedPa
                 // Rebuild a shell tab with a fresh backend session (JS contexts are
                 // ephemeral); the editor text is restored, history loads on mount.
                 id: t.id, kind: 'shell', title: t.title, color: t.color,
-                paneId: t.paneId || 'p0',
                 connectionId: t.connectionId, connectionName: t.connectionName,
                 dbName: t.dbName,
                 sessionId: (crypto.randomUUID ? crypto.randomUUID() : t.id),
@@ -76,22 +70,9 @@ export function useSessionPersistence({ tabs, panes, splitOrientation, focusedPa
           if (restored.some(t => t.id === session.activeTabId)) {
             activeTabId.value = session.activeTabId
           }
-          // Restore a saved two-pane split when both panes still point at live tabs.
-          if (session.splitOrientation && Array.isArray(session.panes) && session.panes.length === 2
-              && session.panes.every(p => tabs.value.some(t => t.id === p.activeTabId))) {
-            panes.value = session.panes.map((p, i) => ({ id: 'p' + i, activeTabId: p.activeTabId }))
-            splitOrientation.value = session.splitOrientation === 'horizontal' ? 'horizontal' : 'vertical'
-            focusedPaneId.value = panes.value.some(p => p.id === session.focusedPaneId) ? session.focusedPaneId : 'p0'
-          } else {
-            // No split restored — collapse every tab into the single pane so a tab saved
-            // as p1 doesn't end up orphaned with no pane to show it.
-            for (const t of tabs.value) t.paneId = 'p0'
-          }
-          // Lazily run each pane's active restored tab (find mode re-runs its query).
-          for (const pane of panes.value) {
-            const t = tabs.value.find(x => x.id === pane.activeTabId)
-            if (t && t._restored) runRestoredTab(t)
-          }
+          // Lazily run the active restored tab (find mode re-runs its query).
+          const active = tabs.value.find(x => x.id === activeTabId.value)
+          if (active && active._restored) runRestoredTab(active)
         }
       }
     } catch (_) {}

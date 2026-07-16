@@ -5,7 +5,7 @@ description = "An open-source, free desktop GUI for managing MongoDB — a commu
 authors = ["Akhilbek Abilaev <abilaevaqil@gmail.com>"]
 edition = "2021"
 license = "GPL-3.0-only"
-repository = "https://github.com/AqilbekAbilaev/studio-4t"
+repository = "https://github.com/AqilbekAbilaev/ozendb"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -264,10 +264,6 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "view:close_tab", label: "Close Tab", accel: None, gate: None },
                 Spec::Action { id: "view:close_tab_np", label: "Close Tab (No Prompt)", accel: None, gate: None },
                 Spec::Separator,
-                // Split the workspace into two panes; always enabled (they toggle
-                // the current layout), so no gate.
-                Spec::Action { id: "view:split_v", label: "Split Vertically", accel: None, gate: None },
-                Spec::Action { id: "view:split_h", label: "Split Horizontally", accel: None, gate: None },
                 Spec::Action { id: "view:history", label: "History Manager…", accel: None, gate: Some(Gate::Collection) },
                 // Toggles the global toolbar; the label stays "Hide Global Toolbar"
                 // (native menu labels aren't re-titled), a toast reports the new state.

@@ -8,7 +8,7 @@
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AqilbekAbilaev/studio-4t.git"
+    "url": "https://github.com/AqilbekAbilaev/ozendb.git"
   },
   "scripts": {
     "dev": "vite",

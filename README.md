@@ -26,18 +26,34 @@ I wanted a tool that is (plus what Studio-3T provides):
 ### Prerequisites
 
 ---
-1) First of all, please follow instructions [tauri prerequisites](https://tauri.app/start/prerequisites/) and make sure that you have installed platform-specific system dependencies. They have awesome guides for major platforms (kudos!).
-2) Make sure that you have installed `rust` and `node`. [Instructions](https://tauri.app/start/prerequisites/#rust).
-3) On Linux, password storage uses the Secret Service API, so a provider such as `gnome-keyring` (or KWallet) must be installed and running — otherwise saved passwords won't persist between restarts. This is typically already present on GNOME/KDE desktops.
+If you just want to **run** OzenDB, you only need the note below — grab a pre-built binary from [Installation](#installation), no toolchain required.
+
+- On Linux, password storage uses the Secret Service API, so a provider such as `gnome-keyring` (or KWallet) must be installed and running — otherwise saved passwords won't persist between restarts. This is typically already present on GNOME/KDE desktops.
+
+To **build from source**, you additionally need:
+
+1) The platform-specific system dependencies from the [Tauri prerequisites](https://tauri.app/start/prerequisites/) guide. They have awesome guides for major platforms (kudos!).
+2) `rust` and `node` installed. [Instructions](https://tauri.app/start/prerequisites/#rust).
 
 
 ### Installation
 
 ---
-Currently there are not any pre-built binaries which you just download and run. I am going to release binaries when I finish implementing basic database manager functionalities. So for now you have to build your own ones in order to test it :).
+#### Download a pre-built binary (recommended)
 
+Grab the latest build for your platform from the [Releases page](https://github.com/AqilbekAbilaev/ozendb/releases/latest):
 
-In order to locally build: 
+- **macOS** — `OzenDB_*_universal.dmg` (Intel + Apple Silicon). Open it and drag OzenDB into Applications.
+- **Windows** — `OzenDB_*_x64-setup.exe` (installer) or `OzenDB_*_x64_en-US.msi`. Run it and follow the prompts.
+- **Linux** — `OzenDB_*_amd64.AppImage` (portable — `chmod +x` then run), `OzenDB_*_amd64.deb` (Debian/Ubuntu), or `OzenDB-*.x86_64.rpm` (Fedora/RHEL).
+
+> **Heads-up for macOS and Windows users:** these builds are **not yet code-signed or notarized**, so the OS will warn you that OzenDB is from an unidentified developer and may block it on first launch. This is expected — it's a policy about signing, not a problem with the app itself.
+> - **macOS (Gatekeeper):** right-click the app → **Open** → **Open** again, or run `xattr -dr com.apple.quarantine /Applications/OzenDB.app`.
+> - **Windows (SmartScreen):** click **More info** → **Run anyway** on the blue warning dialog.
+
+#### Build from source
+
+For development, or if there's no binary for your platform, see [Prerequisites](#prerequisites) then:
 
 1) `npm install`
 2) `npm run tauri dev` and the window should pop up.
