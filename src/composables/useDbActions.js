@@ -327,6 +327,54 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
     }
   }
 
+  // Dialog openers: seed a dialog's target + form fields from a clicked node, then
+  // let AppModals render it. The matching confirm* handler above owns submit.
+  function openAddCollection(node) {
+    addCollectionTarget.value = { connId: node.connId, dbName: node.dbName }
+    newCollectionName.value = ''
+    newCollectionType.value = 'standard'
+    newCollectionOpts.value = { size: '', max: '', timeField: '', metaField: '', granularity: '', expireAfterSeconds: '', clusteredIndexName: '' }
+    addCollectionError.value = null
+  }
+  function openAddDatabase(node) {
+    addDatabaseTarget.value = { connId: node.connId }
+    newDatabaseName.value = ''
+    newDatabaseCollName.value = ''
+    addDatabaseError.value = null
+  }
+  // Add View… (database node) prefills no source; Add View Here… (collection node)
+  // prefills the clicked collection. Both create a view in the same database.
+  function openAddView(node, source) {
+    addViewTarget.value = { connId: node.connId, dbName: node.dbName }
+    newViewName.value = ''
+    newViewSource.value = source
+    newViewPipeline.value = ''
+    addViewError.value = null
+  }
+  function openAddBucket(node) {
+    addBucketTarget.value = { connId: node.connId, dbName: node.dbName }
+    newBucketName.value = ''
+    addBucketError.value = null
+  }
+  function openDropDatabase(node) {
+    dropDatabaseTarget.value = { connId: node.connId, dbName: node.dbName }
+    dropDatabaseError.value = null
+  }
+  function openDropCollection(node) {
+    dropCollectionTarget.value = { connId: node.connId, dbName: node.dbName, collName: node.collName }
+    dropCollectionError.value = null
+  }
+  function openRenameCollection(node) {
+    renameCollectionTarget.value = { connId: node.connId, dbName: node.dbName, collName: node.collName }
+    renameCollectionName.value = node.collName
+    renameCollectionError.value = null
+  }
+  function openDuplicateCollection(node) {
+    duplicateCollectionTarget.value = { connId: node.connId, dbName: node.dbName, collName: node.collName }
+    duplicateCollectionName.value = node.collName + '_copy'
+    duplicateCollectionError.value = null
+  }
+
   return {
     addCollectionTarget: addCollectionTarget,
     newCollectionName: newCollectionName,
@@ -372,5 +420,13 @@ export function useDbActions({ tabs, activeTabId, showToast, connectionTreeRef, 
     confirmDuplicateCollection: confirmDuplicateCollection,
     confirmAddDatabase: confirmAddDatabase,
     pasteClipboard: pasteClipboard,
+    openAddCollection: openAddCollection,
+    openAddDatabase: openAddDatabase,
+    openAddView: openAddView,
+    openAddBucket: openAddBucket,
+    openDropDatabase: openDropDatabase,
+    openDropCollection: openDropCollection,
+    openRenameCollection: openRenameCollection,
+    openDuplicateCollection: openDuplicateCollection,
   }
 }

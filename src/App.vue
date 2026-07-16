@@ -6,16 +6,17 @@ import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
 import { errText } from './utils/errors'
 import { mergeBindings, matchBinding } from './utils/keybindings'
-import { TOOLS } from './constants/tools'
 import { useIndexes } from './composables/useIndexes'
 import { useSshHostKey } from './composables/useSshHostKey'
 import { useQueryRunner } from './composables/useQueryRunner'
+import { useTabs } from './composables/useTabs'
 import { useDbActions } from './composables/useDbActions'
 import { useMenu } from './composables/useMenu'
 import { useModals } from './composables/useModals'
 import { useOperations } from './composables/useOperations'
 import { useNodeTags } from './composables/useNodeTags'
 import { useDbTransfer } from './composables/useDbTransfer'
+import { useFeatures } from './composables/useFeatures'
 import { useSessionPersistence } from './composables/useSessionPersistence'
 import ConnectionTree from './components/connection/ConnectionTree.vue'
 import QueryWorkspace from './components/query/QueryWorkspace.vue'
@@ -130,33 +131,15 @@ const dbClipboard = ref(null)         // Copy/Paste: { kind: 'collection'|'datab
 // Open-state for every top-level modal (see useModals). Kept as an api object so it
 // can be provided to AppModals.vue; destructured here for the dispatchers that set it.
 const modalsApi = useModals()
+// Only the refs App.vue itself touches are destructured here; the rest are consumed
+// by useFeatures (via `modals: modalsApi`) and AppModals (via provide/inject).
 const {
   showConnectionManager,
-  serverStatusTarget,
-  dbStatsTarget,
-  currentOpsTarget,
-  profilerTarget,
-  validatorTarget,
-  usersTarget,
-  rolesTarget,
-  functionsTarget,
-  mapReduceTarget,
-  serverChartsTarget,
-  migrationTarget,
-  searchTarget,
   gridfsTarget,
   gridfsRequest,
-  compareTarget,
-  schemaTarget,
-  historyTarget,
-  showSqlModal,
   showTasksModal,
-  maskingTarget,
   importWizardTarget,
   exportWizardTarget,
-  reschemaTarget,
-  statsTarget,
-  serverInfoTarget,
   showShortcuts,
   showAbout,
   showPreferences,
@@ -247,61 +230,39 @@ const {
 
 const { runQuery, runAggregate, cancelQuery, runRestoredTab } = useQueryRunner({ tabs: tabs, showToast: showToast })
 
+// Tab operations (activate/close/cycle/duplicate/rename + tab context menu). The
+// tab state (tabs/activeTabId) stays in App.vue as the spine; the tab creators
+// (openCollectionTab/openShellTab/openIndexManagerTab/openQuickstart) stay too, as
+// they depend on the query runner and settings.
+const {
+  activateTab, cycleTab, closeTab, onTabContext, handleTabAction,
+  renameTabTarget, renameTabValue, confirmRenameTab,
+} = useTabs({ tabs: tabs, activeTabId: activeTabId, contextMenu: contextMenu, runRestoredTab: runRestoredTab })
+
 const { restoreSession, startAutoSave } = useSessionPersistence({
   tabs: tabs,
   activeTabId: activeTabId,
   runRestoredTab: runRestoredTab,
 })
 
+// dbActionsApi is consumed whole by useFeatures (dialog seeders + pasteClipboard)
+// and AppModals (dialog state + confirm handlers, via provide/inject).
 const dbActionsApi = useDbActions({ tabs: tabs, activeTabId: activeTabId, showToast: showToast, connectionTreeRef: connectionTreeRef, dbClipboard: dbClipboard })
-const {
-  addCollectionTarget,
-  newCollectionName,
-  newCollectionType,
-  newCollectionOpts,
-  addCollectionError,
-  addCollectionSaving,
-  addViewTarget,
-  newViewName,
-  newViewSource,
-  newViewPipeline,
-  addViewError,
-  addViewSaving,
-  addBucketTarget,
-  newBucketName,
-  addBucketError,
-  addBucketSaving,
-  dropDatabaseTarget,
-  dropDatabaseError,
-  dropDatabaseDeleting,
-  dropCollectionTarget,
-  dropCollectionError,
-  dropCollectionDeleting,
-  renameCollectionTarget,
-  renameCollectionName,
-  renameCollectionError,
-  renameCollectionSaving,
-  duplicateCollectionTarget,
-  duplicateCollectionName,
-  duplicateCollectionError,
-  duplicateCollectionSaving,
-  addDatabaseTarget,
-  newDatabaseName,
-  newDatabaseCollName,
-  addDatabaseError,
-  addDatabaseSaving,
-  confirmAddCollection,
-  confirmAddView,
-  confirmAddBucket,
-  confirmDropDatabase,
-  confirmDropCollection,
-  confirmRenameCollection,
-  confirmDuplicateCollection,
-  confirmAddDatabase,
-  pasteClipboard,
-} = dbActionsApi
 
 const { menuTarget } = useMenu({ tabs: tabs, activeTabId: activeTabId, treeSelection: treeSelection, treeConnectionCount: treeConnectionCount, selectedIndex: selectedIndex })
+
+// Node-action dispatch (right-click menu, native menu bar via menuNode, toolbar).
+// handleMenuAction (the menu-bar spine) stays in App.vue and calls into these.
+const { handleContextAction, handleTool, menuNode } = useFeatures({
+  contextMenu: contextMenu, tabs: tabs, activeTabId: activeTabId,
+  connectionTreeRef: connectionTreeRef, dbClipboard: dbClipboard,
+  modals: modalsApi, dbActions: dbActionsApi,
+  showToast: showToast, applyColorTag: applyColorTag, menuTarget: menuTarget,
+  handleTabAction: handleTabAction, openCollectionTab: openCollectionTab,
+  openShellTab: openShellTab, openIndexManagerTab: openIndexManagerTab,
+  openExportWizard: openExportWizard, openImportWizard: openImportWizard,
+  exportDatabase: exportDatabase, importDatabase: importDatabase,
+})
 
 // ── active collection tracking (for tree highlight) ────────
 const activeCollectionKey = computed(() => {
@@ -311,178 +272,12 @@ const activeCollectionKey = computed(() => {
     : null
 })
 
-// ── toolbar handler ────────────────────────────────────────
-// `target` lets the native menu inject the sidebar selection; the toolbar buttons
-// omit it and so act on the active tab, exactly as before.
-function handleTool(name, target = null) {
-  if (name === 'connect') {
-    showConnectionManager.value = true
-    return
-  }
-  if (name === 'sql') {
-    showSqlModal.value = true
-    return
-  }
-  if (name === 'tasks') {
-    showTasksModal.value = true
-    return
-  }
-  if (name === 'collection') {
-    // Opens the collection currently highlighted in the sidebar, same as
-    // double-clicking it. Guides the user when nothing is highlighted.
-    if (!connectionTreeRef.value.openSelectedCollection()) {
-      showToast('Select a collection in the sidebar first')
-    }
-    return
-  }
-  // The remaining actions operate on a specific node. From the toolbar that's the
-  // active tab; from the native menu the caller passes the sidebar selection.
-  // Collection and shell tabs carry the connection/database fields; Quickstart
-  // (and any context-less tab) does not, so we guide the user instead.
-  const tab = target || tabs.value.find(t => t.id === activeTabId.value)
-  if (name === 'shell') {
-    if (tab && tab.connectionId && tab.dbName) {
-      openShellTab({
-        connectionId: tab.connectionId,
-        connectionName: tab.connectionName,
-        dbName: tab.dbName,
-      })
-    } else {
-      showToast('Select a database or collection first to open IntelliShell')
-    }
-    return
-  }
-  // Aggregate / Export / Import are collection-scoped features that already exist
-  // (via the sidebar right-click); the target must be a collection.
-  if (name === 'aggregate' || name === 'export' || name === 'import') {
-    if (!tab || tab.kind !== 'collection') {
-      showToast('Open a collection first')
-      return
-    }
-    if (name === 'aggregate') {
-      openCollectionTab({
-        connectionId: tab.connectionId,
-        connectionName: tab.connectionName,
-        dbName: tab.dbName,
-        collectionName: tab.collectionName,
-      }, 'aggregate')
-    } else {
-      const nodeData = {
-        connId: tab.connectionId,
-        connName: tab.connectionName,
-        dbName: tab.dbName,
-        collName: tab.collectionName,
-      }
-      if (name === 'export') openExportWizard(nodeData)
-      else openImportWizard(nodeData)
-    }
-    return
-  }
-  if (name === 'mask') {
-    if (!tab || tab.kind !== 'collection') {
-      showToast('Open a collection first')
-      return
-    }
-    maskingTarget.value = {
-      connId: tab.connectionId,
-      connName: tab.connectionName,
-      dbName: tab.dbName,
-      collName: tab.collectionName,
-    }
-    return
-  }
-  if (name === 'reschema') {
-    if (!tab || tab.kind !== 'collection') {
-      showToast('Open a collection first')
-      return
-    }
-    reschemaTarget.value = {
-      connId: tab.connectionId,
-      connName: tab.connectionName,
-      dbName: tab.dbName,
-      collName: tab.collectionName,
-    }
-    return
-  }
-  if (name === 'migration') {
-    if (!tab || tab.kind !== 'collection') {
-      showToast('Open a collection first')
-      return
-    }
-    migrationTarget.value = {
-      connId: tab.connectionId,
-      connName: tab.connectionName,
-      dbName: tab.dbName,
-      collName: tab.collectionName,
-    }
-    return
-  }
-  if (name === 'search') {
-    if (!tab || !tab.connectionId || !tab.dbName) {
-      showToast('Open a collection or database first')
-      return
-    }
-    searchTarget.value = {
-      connId: tab.connectionId,
-      connName: tab.connectionName,
-      dbName: tab.dbName,
-    }
-    return
-  }
-  if (name === 'compare') {
-    if (!tab || !tab.connectionId || !tab.dbName) {
-      showToast('Open a collection or database first')
-      return
-    }
-    compareTarget.value = {
-      connId: tab.connectionId,
-      connName: tab.connectionName,
-      dbName: tab.dbName,
-    }
-    return
-  }
-  const label = TOOLS.find(t => t.name === name)?.label || name
-  showToast(`${label} — coming to OzenDB`)
-}
-
 // After a Reschema apply: a new collection changes the tree, so refresh that
 // connection's node. An in-place rewrite leaves the tree structure untouched.
 async function onReschemaApplied(result) {
   if (result?.newCollection && result.connId) {
     await connectionTreeRef.value.refreshConn(result.connId)
   }
-}
-
-// Bridges a native-menu item into the existing right-click context handler by
-// synthesizing the "selected node" from the current target (sidebar selection, or
-// the active tab). `requiredType` guards the action: server-level items need a
-// connection, most Collection-menu items need a collection. Guides the user when
-// the context is missing.
-function menuNode(action, requiredType) {
-  const tab = menuTarget(requiredType)
-  if (!tab || !tab.connectionId) {
-    showToast('Open a connection, database, or collection first')
-    return
-  }
-  if (requiredType === 'collection' && (tab.kind !== 'collection' || !tab.collectionName)) {
-    showToast('Open a collection first')
-    return
-  }
-  if (requiredType === 'database' && !tab.dbName) {
-    showToast('Open a database or collection first')
-    return
-  }
-  contextMenu.value = {
-    type: requiredType,
-    label: tab.collectionName || tab.dbName || tab.connectionName,
-    nodeData: {
-      connId: tab.connectionId,
-      connName: tab.connectionName,
-      dbName: tab.dbName,
-      collName: tab.collectionName,
-    },
-  }
-  handleContextAction(action)
 }
 
 // Help-menu link targets. Default to the project's real GitHub repo (from the git
@@ -762,374 +557,6 @@ function onManagerConnect(id) {
   expandConnectionId.value = id
 }
 
-async function handleContextAction(action) {
-  const saved = contextMenu.value
-  contextMenu.value = null
-
-  // Tab context menu (right-click on a tab) routes to its own handler.
-  if (saved.type === 'tab') {
-    handleTabAction(action, saved.nodeData.tabId)
-    return
-  }
-
-  if (action === 'Open Collection') {
-    openCollectionTab({
-      connectionId: saved.nodeData.connId,
-      connectionName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-      collectionName: saved.nodeData.collName,
-    })
-    return
-  }
-
-  if (action === 'Open IntelliShell') {
-    openShellTab({
-      connectionId: saved.nodeData.connId,
-      connectionName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-    })
-    return
-  }
-
-  if (action.startsWith('Choose Color:')) {
-    const color = action.split(':')[1]
-    await applyColorTag({ type: saved.type, nodeData: saved.nodeData, color: color })
-    return
-  }
-
-  if (action === 'Copy Name') {
-    navigator.clipboard.writeText(saved.label)
-    showToast('Copied')
-    return
-  }
-
-  if (action === 'Disconnect') {
-    try {
-      await invoke('disconnect', { id: saved.nodeData.connId })
-    } catch (_) {}
-    connectionTreeRef.value.disconnectConn(saved.nodeData.connId)
-    tabs.value = tabs.value.filter(t => t.connectionId !== saved.nodeData.connId)
-    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
-      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
-    }
-    showToast('Disconnected from ' + saved.label)
-    return
-  }
-
-  if (action === 'Disconnect Others') {
-    const others = connectionTreeRef.value.getConnections()
-      .filter(c => c.id !== saved.nodeData.connId)
-    for (const conn of others) {
-      try { await invoke('disconnect', { id: conn.id }) } catch (_) {}
-      connectionTreeRef.value.disconnectConn(conn.id)
-    }
-    tabs.value = tabs.value.filter(t => t.kind !== 'collection' || t.connectionId === saved.nodeData.connId)
-    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
-      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
-    }
-    showToast('Disconnected all other connections')
-    return
-  }
-
-  if (action === 'Disconnect All') {
-    const all = connectionTreeRef.value.getConnections()
-    for (const conn of all) {
-      try { await invoke('disconnect', { id: conn.id }) } catch (_) {}
-      connectionTreeRef.value.disconnectConn(conn.id)
-    }
-    tabs.value = tabs.value.filter(t => t.kind !== 'collection')
-    if (activeTabId.value && !tabs.value.find(t => t.id === activeTabId.value)) {
-      activeTabId.value = tabs.value.length ? tabs.value[tabs.value.length - 1].id : null
-    }
-    showToast('All connections closed')
-    return
-  }
-
-  if (action === 'Refresh Selected Item' || action === 'Refresh') {
-    await connectionTreeRef.value.refreshConn(saved.nodeData.connId)
-    showToast('Refreshed')
-    return
-  }
-
-  if (action === 'Add Collection…') {
-    addCollectionTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
-    newCollectionName.value = ''
-    newCollectionType.value = 'standard'
-    newCollectionOpts.value = { size: '', max: '', timeField: '', metaField: '', granularity: '', expireAfterSeconds: '', clusteredIndexName: '' }
-    addCollectionError.value = null
-    return
-  }
-
-  if (action === 'Drop Database…') {
-    dropDatabaseTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
-    dropDatabaseError.value = null
-    return
-  }
-
-  if (action === 'Drop Collection…') {
-    dropCollectionTarget.value = {
-      connId: saved.nodeData.connId,
-      dbName: saved.nodeData.dbName,
-      collName: saved.nodeData.collName,
-    }
-    dropCollectionError.value = null
-    return
-  }
-
-  if (action === 'Rename Collection…') {
-    renameCollectionTarget.value = {
-      connId: saved.nodeData.connId,
-      dbName: saved.nodeData.dbName,
-      collName: saved.nodeData.collName,
-    }
-    renameCollectionName.value = saved.nodeData.collName
-    renameCollectionError.value = null
-    return
-  }
-
-  if (action === 'Add Database…') {
-    addDatabaseTarget.value = { connId: saved.nodeData.connId }
-    newDatabaseName.value = ''
-    newDatabaseCollName.value = ''
-    addDatabaseError.value = null
-    return
-  }
-
-  // Add View… (database node) and Add View Here… (collection node — prefills the
-  // source with the clicked collection). Both create a view in the same database.
-  if (action === 'Add View…' || action === 'Add View Here…') {
-    addViewTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
-    newViewName.value = ''
-    newViewSource.value = action === 'Add View Here…' ? (saved.nodeData.collName || '') : ''
-    newViewPipeline.value = ''
-    addViewError.value = null
-    return
-  }
-
-  if (action === 'Add GridFS Bucket…' && saved.type === 'database') {
-    addBucketTarget.value = { connId: saved.nodeData.connId, dbName: saved.nodeData.dbName }
-    newBucketName.value = ''
-    addBucketError.value = null
-    return
-  }
-
-  if (action === 'Manage Users' && saved.type === 'database') {
-    usersTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName, dbName: saved.nodeData.dbName }
-    return
-  }
-
-  if (action === 'Manage Roles' && saved.type === 'database') {
-    rolesTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName, dbName: saved.nodeData.dbName }
-    return
-  }
-
-  if (action === 'Stored Functions' && saved.type === 'database') {
-    functionsTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName, dbName: saved.nodeData.dbName }
-    return
-  }
-
-  if (action === 'Open Map-Reduce' && saved.type === 'collection') {
-    mapReduceTarget.value = {
-      connId: saved.nodeData.connId, connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName, collName: saved.nodeData.collName,
-    }
-    return
-  }
-
-  if (action === 'Copy Collection' && saved.type === 'collection') {
-    dbClipboard.value = {
-      kind: 'collection', connId: saved.nodeData.connId, connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName, collName: saved.nodeData.collName,
-    }
-    showToast(`Copied collection "${saved.nodeData.collName}"`)
-    return
-  }
-
-  if (action === 'Copy Database' && saved.type === 'database') {
-    dbClipboard.value = {
-      kind: 'database', connId: saved.nodeData.connId, connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-    }
-    showToast(`Copied database "${saved.nodeData.dbName}"`)
-    return
-  }
-
-  if (action === 'Paste Into Database' && saved.type === 'database') {
-    await pasteClipboard(saved.nodeData)
-    return
-  }
-
-  if (action === 'Open Aggregation Editor') {
-    openCollectionTab({
-      connectionId: saved.nodeData.connId,
-      connectionName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-      collectionName: saved.nodeData.collName,
-    }, 'aggregate')
-    return
-  }
-
-  if (action === 'Indexes…') {
-    openIndexManagerTab(saved.nodeData)
-    return
-  }
-
-  if (action === 'Refresh All') {
-    for (const conn of connectionTreeRef.value.getConnections()) {
-      await connectionTreeRef.value.refreshConn(conn.id)
-    }
-    showToast('All connections refreshed')
-    return
-  }
-
-  // Import/Export are wired for collections only; the database/connection-level
-  // variants stay stubs for now (they'd need multi-collection handling).
-  if (action === 'Export…' && saved.type === 'collection') {
-    openExportWizard(saved.nodeData)
-    return
-  }
-
-  if (action === 'Import…' && saved.type === 'collection') {
-    openImportWizard(saved.nodeData)
-    return
-  }
-
-  if (action === 'Server Status' && saved.type === 'connection') {
-    serverStatusTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-    }
-    return
-  }
-
-  if (action === 'Server Status Charts' && saved.type === 'connection') {
-    serverChartsTarget.value = { connId: saved.nodeData.connId, connName: saved.nodeData.connName }
-    return
-  }
-
-  if (action === 'Current Operations' && saved.type === 'connection') {
-    currentOpsTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-    }
-    return
-  }
-
-  if (action === 'Database Statistics' && saved.type === 'database') {
-    dbStatsTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-    }
-    return
-  }
-
-  if (action === 'Query Profiler' && saved.type === 'database') {
-    profilerTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-    }
-    return
-  }
-
-  if (action === 'Add / Edit Validator…' && saved.type === 'collection') {
-    validatorTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-      collName: saved.nodeData.collName,
-    }
-    return
-  }
-
-  if (action === 'Export Collections…' && saved.type === 'database') {
-    await exportDatabase(saved.nodeData)
-    return
-  }
-
-  if (action === 'Import Collections…' && saved.type === 'database') {
-    await importDatabase(saved.nodeData)
-    return
-  }
-
-  if (action === 'View Schema' && saved.type === 'collection') {
-    schemaTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-      collName: saved.nodeData.collName,
-    }
-    return
-  }
-
-  if (action === 'Collection History' && saved.type === 'collection') {
-    historyTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-      collName: saved.nodeData.collName,
-    }
-    return
-  }
-
-  const serverInfoKinds = {
-    'Build Info': 'build',
-    'Host Info': 'host',
-    'Replica Set Status': 'replica',
-  }
-  if (serverInfoKinds[action] && saved.type === 'connection') {
-    serverInfoTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      kind: serverInfoKinds[action],
-      title: action,
-    }
-    return
-  }
-
-  if (action === 'Collection Stats' && saved.type === 'collection') {
-    statsTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-      collName: saved.nodeData.collName,
-    }
-    return
-  }
-
-  if (action === 'Duplicate Collection…' && saved.type === 'collection') {
-    duplicateCollectionTarget.value = {
-      connId: saved.nodeData.connId,
-      dbName: saved.nodeData.dbName,
-      collName: saved.nodeData.collName,
-    }
-    duplicateCollectionName.value = saved.nodeData.collName + '_copy'
-    duplicateCollectionError.value = null
-    return
-  }
-
-  if (action === 'GridFS…' && saved.type === 'database') {
-    gridfsTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-    }
-    return
-  }
-
-  if (action === 'Search in…' && saved.type === 'database') {
-    searchTarget.value = {
-      connId: saved.nodeData.connId,
-      connName: saved.nodeData.connName,
-      dbName: saved.nodeData.dbName,
-    }
-    return
-  }
-
-  showToast(action + ' — coming to OzenDB')
-}
-
 // The Validator modal owns its own fetch/save; we just confirm the result.
 function onValidatorSaved(collName) {
   showToast(`Validator saved for "${collName}"`)
@@ -1240,12 +667,6 @@ function openIndexManagerTab({ connId, connName, dbName, collName }) {
   activeTabId.value = id
 }
 
-function activateTab(id) {
-  activeTabId.value = id
-  const tab = tabs.value.find(t => t.id === id)
-  if (tab && tab._restored) runRestoredTab(tab)
-}
-
 // GridFS menu actions operate inside the GridFS modal on its selected file/bucket.
 // Ensure the modal is open for the resolved database (preserving any existing
 // selection when it's already showing that db), then signal the requested action.
@@ -1279,19 +700,6 @@ function openQuickstart() {
   const id = 't' + Date.now()
   tabs.value.push({ id: id, kind: 'quickstart', title: 'Quickstart' })
   activateTab(id)
-}
-
-// Move the active-tab selection by `delta` (+1 next, -1 previous), wrapping around.
-// No-ops when fewer than two tabs are open.
-function cycleTab(delta) {
-  if (tabs.value.length < 2) return
-  const idx = tabs.value.findIndex(t => t.id === activeTabId.value)
-  if (idx < 0) {
-    activateTab(tabs.value[0].id)
-    return
-  }
-  const next = (idx + delta + tabs.value.length) % tabs.value.length
-  activateTab(tabs.value[next].id)
 }
 
 function onCopyQuery() {
@@ -1332,115 +740,6 @@ async function onPasteQuery() {
     skip:       Number(q.skip),
     limit:      Number(q.limit),
   })
-}
-
-function closeTab(id) {
-  const idx = tabs.value.findIndex(t => t.id === id)
-  if (idx < 0) return
-  const closing = tabs.value[idx]
-  if (closing.kind === 'shell' && closing.sessionId) {
-    invoke('close_shell_session', { sessionId: closing.sessionId }).catch(() => {})
-  }
-  tabs.value.splice(idx, 1)
-  // If we closed the active tab, move to an adjacent one (the nearest preceding
-  // tab, else the new first tab).
-  if (activeTabId.value === id) {
-    const next = tabs.value[idx - 1] || tabs.value[0]
-    activeTabId.value = next ? next.id : null
-  }
-}
-
-// ── tab context menu ───────────────────────────────────────
-function onTabContext({ id, x, y }) {
-  contextMenu.value = { type: 'tab', x: x, y: y, nodeData: { tabId: id } }
-}
-
-function handleTabAction(action, tabId) {
-  if (action.startsWith('Choose Color:')) {
-    const color = action.split(':')[1]
-    const tab = tabs.value.find(t => t.id === tabId)
-    if (tab) tab.color = color === 'none' ? null : color
-    return
-  }
-  switch (action) {
-    case 'Close Tab':               closeTab(tabId); break
-    case 'Close Other Tabs':        closeTabsExcept(tabId); break
-    case 'Close Tabs to the Left':  closeTabsToSide(tabId, 'left'); break
-    case 'Close Tabs to the Right': closeTabsToSide(tabId, 'right'); break
-    case 'Close All Tabs':          closeAllTabs(); break
-    case 'Duplicate Tab':           duplicateTab(tabId); break
-    case 'Move Tab to the Front':   moveTabToFront(tabId); break
-    case 'Rename Tab…':             openRenameTab(tabId); break
-  }
-}
-
-// closeTab reindexes each call, so iterate over a snapshot of the target ids.
-function closeTabsExcept(tabId) {
-  tabs.value.filter(t => t.id !== tabId).map(t => t.id).forEach(closeTab)
-}
-function closeTabsToSide(tabId, side) {
-  const idx = tabs.value.findIndex(t => t.id === tabId)
-  if (idx < 0) return
-  const victims = side === 'left' ? tabs.value.slice(0, idx) : tabs.value.slice(idx + 1)
-  victims.map(t => t.id).forEach(closeTab)
-}
-function closeAllTabs() {
-  tabs.value.map(t => t.id).forEach(closeTab)
-}
-function moveTabToFront(tabId) {
-  const idx = tabs.value.findIndex(t => t.id === tabId)
-  if (idx <= 0) return
-  const [tab] = tabs.value.splice(idx, 1)
-  tabs.value.unshift(tab)
-}
-function duplicateTab(tabId) {
-  const src = tabs.value.find(t => t.id === tabId)
-  if (!src) return
-  const id = 't' + Date.now()
-  if (src.kind === 'shell') {
-    tabs.value.push({
-      id: id, kind: 'shell', title: src.title,
-      connectionId: src.connectionId, connectionName: src.connectionName,
-      dbName: src.dbName,
-      sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
-      code: src.code || '', history: [], isRunning: false,
-      results: [], resultView: 'table', resultTab: 'Console',
-      runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
-      logs: [], scalar: undefined, hasScalar: false,
-      color: src.color ?? null,
-    })
-    activeTabId.value = id
-    return
-  }
-  const dup = {
-    id: id, kind: 'collection', title: src.title,
-    connectionId: src.connectionId, connectionName: src.connectionName,
-    dbName: src.dbName, collectionName: src.collectionName,
-    filter: src.filter, projection: src.projection, sort: src.sort,
-    skip: src.skip, limit: src.limit, mode: src.mode, pipeline: src.pipeline,
-    color: src.color ?? null,
-    results: [], hasRun: false, isRunning: false, runError: null,
-    selectedRow: -1, elapsedMs: null,
-  }
-  tabs.value.push(dup)
-  activeTabId.value = id
-  runRestoredTab(dup)   // re-run from the cloned query state (find mode only)
-}
-
-// ── rename tab dialog ──────────────────────────────────────
-const renameTabTarget = ref(null)   // id of the tab being renamed
-const renameTabValue = ref('')
-function openRenameTab(tabId) {
-  const tab = tabs.value.find(t => t.id === tabId)
-  if (!tab) return
-  renameTabTarget.value = tabId
-  renameTabValue.value = tab.title || ''
-}
-function confirmRenameTab() {
-  const tab = tabs.value.find(t => t.id === renameTabTarget.value)
-  const name = renameTabValue.value.trim()
-  if (tab && name) tab.title = name
-  renameTabTarget.value = null
 }
 
 // Preferences saved: adopt the new default query limit and apply the chosen theme.
