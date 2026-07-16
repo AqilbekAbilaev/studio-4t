@@ -16,12 +16,14 @@ import { useOperations } from './composables/useOperations'
 import { useNodeTags } from './composables/useNodeTags'
 import { useDbTransfer } from './composables/useDbTransfer'
 import { useSessionPersistence } from './composables/useSessionPersistence'
+import { makeResizer } from './composables/useDragResize'
 import BaseIcon from './components/base/BaseIcon.vue'
 import ConnectionTree from './components/connection/ConnectionTree.vue'
 import QueryWorkspace from './components/query/QueryWorkspace.vue'
 import SplitContainer from './components/base/SplitContainer.vue'
 import ContextMenu from './components/base/ContextMenu.vue'
 import AppModals from './components/app/AppModals.vue'
+import PaneWorkspace from './components/app/PaneWorkspace.vue'
 import OperationsPane from './components/app/OperationsPane.vue'
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -254,26 +256,9 @@ const contextActiveNodeKey = computed(() => {
 const sidebarWidth = ref(320)
 const sidebarResizing = ref(false)
 
-function startSidebarResize(e) {
-  e.preventDefault()
-  const startX = e.clientX
-  const startW = sidebarWidth.value
-  sidebarResizing.value = true
-  const onMove = (ev) => {
-    sidebarWidth.value = Math.max(200, Math.min(560, startW + (ev.clientX - startX)))
-  }
-  const onUp = () => {
-    sidebarResizing.value = false
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onUp)
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-  }
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onUp)
-}
+const startSidebarResize = makeResizer({
+  value: sidebarWidth, resizing: sidebarResizing, min: 200, max: 560, axis: 'x',
+})
 
 // ── Operations pane (bottom dock) ──
 // Backed by the backend registry; the rail "Operations" label toggles it.
@@ -286,27 +271,10 @@ function toggleOperationsPane() {
   operationsPaneOpen.value = !operationsPaneOpen.value
 }
 
-function startOperationsResize(e) {
-  e.preventDefault()
-  const startY = e.clientY
-  const startH = operationsPaneHeight.value
-  operationsResizing.value = true
-  const onMove = (ev) => {
-    // Drag up grows the pane; clamp so neither the pane nor the workspace vanishes.
-    operationsPaneHeight.value = Math.max(120, Math.min(560, startH + (startY - ev.clientY)))
-  }
-  const onUp = () => {
-    operationsResizing.value = false
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onUp)
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-  }
-  document.body.style.cursor = 'row-resize'
-  document.body.style.userSelect = 'none'
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onUp)
-}
+// Drag up grows the pane (invert), clamped so neither the pane nor the workspace vanishes.
+const startOperationsResize = makeResizer({
+  value: operationsPaneHeight, resizing: operationsResizing, min: 120, max: 560, axis: 'y', invert: true,
+})
 
 function showToast(msg) {
   clearTimeout(toastTimer)
@@ -1761,60 +1729,62 @@ provide('appModals', {
       <!-- Workspace (split into two panes over the shared tab list) -->
       <SplitContainer v-else :orientation="splitOrientation" @unsplit="unsplitWorkspace">
         <template #a>
-          <div class="pane-host" :class="{ focused: focusedPaneId === 'p0' }" @mousedown.capture="focusPane('p0')">
-            <QueryWorkspace
-              :tabs="paneATabs"
-              :active-tab-id="panes[0].activeTabId"
-              :tag-overrides="tagOverrides"
-              :vqb-open="focusedPaneId === 'p0' && vqbOpen"
-              :clipboard-query="clipboardQuery"
-              :doc-menu-request="focusedPaneId === 'p0' ? docMenuRequest : null"
-              :history-request="focusedPaneId === 'p0' ? historyRequest : null"
-              :browser-request="focusedPaneId === 'p0' ? browserRequest : null"
-              :save-query-request="focusedPaneId === 'p0' ? saveQueryRequest : null"
-              @activate-tab="activateTabInPane('p0', $event)"
-              @close-tab="closeTabInPane('p0', $event)"
-              @tab-context="tabContextInPane('p0', $event)"
-              @run-query="runQuery"
-              @run-aggregate="runAggregate"
-              @cancel-query="cancelQuery"
-              @toggle-vqb="vqbOpen = !vqbOpen"
-              @open-vqb="vqbOpen = true"
-              @close-vqb="vqbOpen = false"
-              @toast="showToast"
-              @copy-query="onCopyQuery"
-              @paste-query="onPasteQuery"
-              @follow-reference="openCollectionTab"
-            />
-          </div>
+          <PaneWorkspace
+            pane-id="p0"
+            :tabs="paneATabs"
+            :active-tab-id="panes[0].activeTabId"
+            :focused="focusedPaneId === 'p0'"
+            :tag-overrides="tagOverrides"
+            :vqb-open="vqbOpen"
+            :clipboard-query="clipboardQuery"
+            :doc-menu-request="docMenuRequest"
+            :history-request="historyRequest"
+            :browser-request="browserRequest"
+            :save-query-request="saveQueryRequest"
+            @focus="focusPane"
+            @activate-tab="activateTabInPane"
+            @close-tab="closeTabInPane"
+            @tab-context="tabContextInPane"
+            @run-query="runQuery"
+            @run-aggregate="runAggregate"
+            @cancel-query="cancelQuery"
+            @toggle-vqb="vqbOpen = !vqbOpen"
+            @open-vqb="vqbOpen = true"
+            @close-vqb="vqbOpen = false"
+            @toast="showToast"
+            @copy-query="onCopyQuery"
+            @paste-query="onPasteQuery"
+            @follow-reference="openCollectionTab"
+          />
         </template>
         <template #b>
-          <div class="pane-host" :class="{ focused: focusedPaneId === 'p1' }" @mousedown.capture="focusPane('p1')">
-            <QueryWorkspace
-              :tabs="paneBTabs"
-              :active-tab-id="panes[1].activeTabId"
-              :tag-overrides="tagOverrides"
-              :vqb-open="focusedPaneId === 'p1' && vqbOpen"
-              :clipboard-query="clipboardQuery"
-              :doc-menu-request="focusedPaneId === 'p1' ? docMenuRequest : null"
-              :history-request="focusedPaneId === 'p1' ? historyRequest : null"
-              :browser-request="focusedPaneId === 'p1' ? browserRequest : null"
-              :save-query-request="focusedPaneId === 'p1' ? saveQueryRequest : null"
-              @activate-tab="activateTabInPane('p1', $event)"
-              @close-tab="closeTabInPane('p1', $event)"
-              @tab-context="tabContextInPane('p1', $event)"
-              @run-query="runQuery"
-              @run-aggregate="runAggregate"
-              @cancel-query="cancelQuery"
-              @toggle-vqb="vqbOpen = !vqbOpen"
-              @open-vqb="vqbOpen = true"
-              @close-vqb="vqbOpen = false"
-              @toast="showToast"
-              @copy-query="onCopyQuery"
-              @paste-query="onPasteQuery"
-              @follow-reference="openCollectionTab"
-            />
-          </div>
+          <PaneWorkspace
+            pane-id="p1"
+            :tabs="paneBTabs"
+            :active-tab-id="panes[1].activeTabId"
+            :focused="focusedPaneId === 'p1'"
+            :tag-overrides="tagOverrides"
+            :vqb-open="vqbOpen"
+            :clipboard-query="clipboardQuery"
+            :doc-menu-request="docMenuRequest"
+            :history-request="historyRequest"
+            :browser-request="browserRequest"
+            :save-query-request="saveQueryRequest"
+            @focus="focusPane"
+            @activate-tab="activateTabInPane"
+            @close-tab="closeTabInPane"
+            @tab-context="tabContextInPane"
+            @run-query="runQuery"
+            @run-aggregate="runAggregate"
+            @cancel-query="cancelQuery"
+            @toggle-vqb="vqbOpen = !vqbOpen"
+            @open-vqb="vqbOpen = true"
+            @close-vqb="vqbOpen = false"
+            @toast="showToast"
+            @copy-query="onCopyQuery"
+            @paste-query="onPasteQuery"
+            @follow-reference="openCollectionTab"
+          />
         </template>
       </SplitContainer>
     </div>

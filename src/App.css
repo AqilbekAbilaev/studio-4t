@@ -170,16 +170,6 @@
 /* ── Split panes ── */
 /* Each pane fills its half of the SplitContainer; the focused one gets a thin
    accent outline so it's clear which pane new tabs / menu actions target. */
-.pane-host { display: flex; flex: 1; min-width: 0; min-height: 0; position: relative; }
-.pane-host.focused::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 1px var(--accent);
-  z-index: 5;
-}
-
 /* ── Toast ── */
 .toast {
   position: fixed;
