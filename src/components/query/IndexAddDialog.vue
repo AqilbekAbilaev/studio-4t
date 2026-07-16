@@ -375,57 +375,62 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 </template>
 
 <style scoped>
-.idx-add-dialog { width: 560px; max-width: 92vw; }
-.idx-add-body { display: flex; flex-direction: column; }
-.idx-flabel { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 4px; }
+.idx-add-dialog { width: 660px; max-width: 92vw; }
+/* Two-class selector so this padding wins over App.css's base .del-body. */
+.idx-add-dialog .idx-add-body {
+  display: flex; flex-direction: column;
+  padding: 24px 26px 18px;
+  max-height: 76vh; overflow-y: auto;
+}
+.idx-flabel { display: block; font-size: 12px; color: var(--text-dim); margin: 16px 0 6px; }
 .idx-flabel:first-child { margin-top: 0; }
 
-.sub-tabs { display: flex; align-items: center; gap: 2px; margin: 14px 0 10px; border-bottom: 1px solid var(--border); }
+.sub-tabs { display: flex; align-items: center; gap: 4px; margin: 20px 0 16px; border-bottom: 1px solid var(--border); }
 .sub-tab {
   border: none; background: transparent; color: var(--text-dim);
-  padding: 6px 12px; font-size: 12.5px; cursor: pointer;
+  padding: 9px 15px; font-size: 12.5px; cursor: pointer;
   border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
 .sub-tab:hover:not(:disabled) { color: var(--text); }
 .sub-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .sub-tab:disabled { color: var(--text-faint); cursor: default; }
-.json-badge { margin-left: auto; font-size: 11.5px; color: var(--text-faint); padding-bottom: 6px; }
+.json-badge { margin-left: auto; font-size: 11.5px; color: var(--text-faint); padding-bottom: 8px; }
 
-.tab-pane { min-height: 180px; }
+.tab-pane { min-height: 264px; }
 
 .fields-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .fields-table th {
   text-align: left; font-weight: 600; color: var(--text-dim);
-  padding: 4px 6px; border-bottom: 1px solid var(--border);
+  padding: 4px 8px 10px; border-bottom: 1px solid var(--border);
 }
-.fields-table td { padding: 3px 6px; }
-.fc-type { width: 150px; }
-.fc-x { width: 34px; text-align: center; }
-.prompt-input.sm { padding: 4px 7px; font-size: 12.5px; width: 100%; }
-.prompt-input.ttl { width: 110px; margin-left: 8px; }
-.icon-btn { border: none; background: transparent; color: var(--text-faint); cursor: pointer; padding: 3px; border-radius: var(--radius); display: inline-flex; }
+.fields-table td { padding: 6px 8px; vertical-align: middle; }
+.fc-type { width: 176px; }
+.fc-x { width: 40px; text-align: center; }
+.prompt-input.sm { padding: 5px 9px; font-size: 12.5px; width: 100%; }
+.prompt-input.ttl { width: 120px; margin-left: 10px; }
+.icon-btn { border: none; background: transparent; color: var(--text-faint); cursor: pointer; padding: 5px; border-radius: var(--radius); display: inline-flex; }
 .icon-btn:hover { color: var(--danger-text); background: var(--bg-hover); }
 
-.fields-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
-.btn.sm { padding: 4px 9px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.fields-foot { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
+.btn.sm { padding: 5px 11px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
 .kind-label { font-size: 12px; color: var(--text-faint); }
 
-.options-pane { display: flex; flex-direction: column; gap: 4px; }
-.opt-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); padding: 4px 0; }
-.pane-note { font-size: 12px; color: var(--text-faint); margin: 0 0 4px; }
+.options-pane { display: flex; flex-direction: column; gap: 6px; }
+.opt-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text); padding: 7px 0; }
+.pane-note { font-size: 12px; color: var(--text-faint); margin: 0 0 12px; }
 .pane-note code { font-family: var(--mono); font-size: 11.5px; }
-.geo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 12px; }
+.geo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 16px; margin-top: 6px; }
 .geo-grid select.prompt-input { width: 100%; }
 
-.json-pane { min-height: 180px; }
+.json-pane { min-height: 264px; }
 .json-area {
-  width: 100%; min-height: 200px; resize: vertical;
+  width: 100%; min-height: 280px; resize: vertical;
   font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
-  padding: 8px 10px; border-radius: var(--radius);
+  padding: 10px 12px; border-radius: var(--radius);
   background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
 }
 
-.idx-add-footer { display: flex; align-items: center; gap: 12px; }
+.idx-add-footer { display: flex; align-items: center; gap: 14px; }
 .bg-check { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text); }
 .json-btn { margin-left: 4px; }
 </style>
