@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, provide } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { installInputUndo } from './utils/inputUndo'
 import { parseField } from './utils/queryParser'
@@ -15,6 +14,7 @@ import { useMenu } from './composables/useMenu'
 import { useModals } from './composables/useModals'
 import { useOperations } from './composables/useOperations'
 import { useNodeTags } from './composables/useNodeTags'
+import { useDbTransfer } from './composables/useDbTransfer'
 import BaseIcon from './components/base/BaseIcon.vue'
 import ConnectionTree from './components/connection/ConnectionTree.vue'
 import QueryWorkspace from './components/query/QueryWorkspace.vue'
@@ -403,6 +403,19 @@ function showToast(msg) {
 }
 
 const { tagOverrides, loadNodeTags, applyColorTag } = useNodeTags({ showToast: showToast })
+
+const {
+  openExportWizard,
+  openImportWizard,
+  onWizardImported,
+  exportDatabase,
+  importDatabase,
+} = useDbTransfer({
+  showToast: showToast,
+  connectionTreeRef: connectionTreeRef,
+  exportWizardTarget: exportWizardTarget,
+  importWizardTarget: importWizardTarget,
+})
 
 const indexesApi = useIndexes({ showToast: showToast })
 // App.vue only needs the bindings for the native Index menu / menuContext
@@ -1312,111 +1325,6 @@ async function handleContextAction(action) {
 // The Validator modal owns its own fetch/save; we just confirm the result.
 function onValidatorSaved(collName) {
   showToast(`Validator saved for "${collName}"`)
-}
-
-// Open the stepped Import / Export wizard for a single collection. `nodeData` is
-// the sidebar/tab shape ({ connId, connName, dbName, collName }); the wizard maps
-// columns→fields with per-field type coercion and shows a live preview before it
-// runs. The bulk database-level export/import below stay on the plain commands.
-function openExportWizard(nodeData) {
-  exportWizardTarget.value = {
-    connId: nodeData.connId,
-    connName: nodeData.connName,
-    dbName: nodeData.dbName,
-    collName: nodeData.collName,
-  }
-}
-
-function openImportWizard(nodeData) {
-  importWizardTarget.value = {
-    connId: nodeData.connId,
-    connName: nodeData.connName,
-    dbName: nodeData.dbName,
-    collName: nodeData.collName,
-  }
-}
-
-// After a wizard import, refresh the connection so a newly-populated collection
-// shows up in the sidebar.
-async function onWizardImported(connId) {
-  await connectionTreeRef.value.refreshConn(connId)
-}
-
-// Database → Export Collections…: export every collection in the database to a
-// chosen folder, one JSON file per collection. Reuses the per-collection command.
-async function exportDatabase(nodeData) {
-  let dir
-  try {
-    dir = await openDialog({ directory: true, title: `Export all collections in ${nodeData.dbName}` })
-  } catch (e) {
-    showToast('Export failed: ' + errText(e))
-    return
-  }
-  if (!dir) return  // user cancelled
-  let collections = []
-  try {
-    const dbs = await invoke('list_databases', { id: nodeData.connId })
-    collections = (dbs.find(d => d.name === nodeData.dbName)?.collections) || []
-  } catch (e) {
-    showToast('Export failed: ' + errText(e))
-    return
-  }
-  if (!collections.length) { showToast('No collections to export'); return }
-  let done = 0
-  let failed = 0
-  for (const coll of collections) {
-    try {
-      await invoke('export_collection', {
-        id: nodeData.connId,
-        database: nodeData.dbName,
-        collection: coll,
-        path: `${dir}/${coll}.json`,
-        format: 'json',
-      })
-      done++
-    } catch (_) {
-      failed++
-    }
-  }
-  showToast(`Exported ${done} collection${done !== 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}`)
-}
-
-// Database → Import Collections…: import one or more JSON/CSV files into the
-// database, each into a collection named after the file. Reuses the per-file command.
-async function importDatabase(nodeData) {
-  let paths
-  try {
-    paths = await openDialog({
-      multiple: true,
-      filters: [{ name: 'JSON or CSV', extensions: ['json', 'csv'] }],
-    })
-  } catch (e) {
-    showToast('Import failed: ' + errText(e))
-    return
-  }
-  if (!paths || !paths.length) return  // user cancelled
-  let done = 0
-  let failed = 0
-  for (const path of paths) {
-    const p = String(path)
-    const base = p.split(/[\\/]/).pop() || p
-    const collection = base.replace(/\.(json|csv)$/i, '')
-    const format = p.toLowerCase().endsWith('.csv') ? 'csv' : 'json'
-    try {
-      await invoke('import_collection', {
-        id: nodeData.connId,
-        database: nodeData.dbName,
-        collection: collection,
-        path: p,
-        format: format,
-      })
-      done++
-    } catch (_) {
-      failed++
-    }
-  }
-  await connectionTreeRef.value.refreshConn(nodeData.connId)
-  showToast(`Imported ${done} file${done !== 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}`)
 }
 
 // ── tab management ─────────────────────────────────────────
