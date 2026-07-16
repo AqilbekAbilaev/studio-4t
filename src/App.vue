@@ -14,6 +14,7 @@ import { useDbActions } from './composables/useDbActions'
 import { useMenu } from './composables/useMenu'
 import { useModals } from './composables/useModals'
 import { useOperations } from './composables/useOperations'
+import { useNodeTags } from './composables/useNodeTags'
 import BaseIcon from './components/base/BaseIcon.vue'
 import ConnectionTree from './components/connection/ConnectionTree.vue'
 import QueryWorkspace from './components/query/QueryWorkspace.vue'
@@ -123,11 +124,7 @@ onMounted(async () => {
   } catch (_) {}
 
   // Restore persisted database/collection colour tags so they survive a restart.
-  // Connection tags come back on each connection (conn.tag) via list_connections.
-  try {
-    const nodeTags = await invoke('get_node_tags')
-    if (nodeTags) tagOverrides.value = { ...nodeTags, ...tagOverrides.value }
-  } catch (_) {}
+  await loadNodeTags()
 
   // Restore the previous session's tabs before wiring up the save watcher, so the
   // empty default never overwrites tabs.json first.
@@ -334,7 +331,6 @@ const expandConnectionId = ref(null)
 const vqbOpen        = ref(false)
 const clipboardQuery = ref(null)
 const contextMenu = ref(null)
-const tagOverrides = ref({})
 
 const contextActiveNodeKey = computed(() => {
   if (!contextMenu.value) return null
@@ -405,6 +401,8 @@ function showToast(msg) {
   toast.value = msg
   toastTimer = setTimeout(() => { toast.value = null }, 2200)
 }
+
+const { tagOverrides, loadNodeTags, applyColorTag } = useNodeTags({ showToast: showToast })
 
 const indexesApi = useIndexes({ showToast: showToast })
 // App.vue only needs the bindings for the native Index menu / menuContext
@@ -974,36 +972,7 @@ async function handleContextAction(action) {
 
   if (action.startsWith('Choose Color:')) {
     const color = action.split(':')[1]
-    const nd = saved.nodeData
-    // Colouring a parent resets its descendants: drop their own tags (this prefix)
-    // so they inherit the parent's new colour. Empty for a collection (no children).
-    let clearPrefix = null
-    if (saved.type === 'connection') {
-      // Connection tags live on the connection config (conn.tag). The override
-      // gives instant feedback; the command persists it for the next restart.
-      tagOverrides.value = { ...tagOverrides.value, [nd.connId]: color }
-      try { await invoke('set_connection_tag', { id: nd.connId, color: color }) } catch (_) {}
-      clearPrefix = nd.connId + '/'
-    } else {
-      // Database/collection tags go in the dedicated node-tag store, keyed by the
-      // node's tree path so a colour tags only that node, not the whole connection.
-      const key = saved.type === 'database'
-        ? nd.connId + '/' + nd.dbName
-        : nd.connId + '/' + nd.dbName + '/' + nd.collName
-      tagOverrides.value = { ...tagOverrides.value, [key]: color }
-      try { await invoke('set_node_tag', { key: key, color: color }) } catch (_) {}
-      if (saved.type === 'database') clearPrefix = nd.connId + '/' + nd.dbName + '/'
-    }
-    if (clearPrefix) {
-      // Locally drop every descendant override so the tree/tabs re-inherit at once.
-      const pruned = {}
-      for (const k of Object.keys(tagOverrides.value)) {
-        if (!k.startsWith(clearPrefix)) pruned[k] = tagOverrides.value[k]
-      }
-      tagOverrides.value = pruned
-      try { await invoke('clear_node_tags_under', { prefix: clearPrefix }) } catch (_) {}
-    }
-    showToast('Color tag updated')
+    await applyColorTag({ type: saved.type, nodeData: saved.nodeData, color: color })
     return
   }
 
