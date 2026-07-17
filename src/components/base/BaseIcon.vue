@@ -62,6 +62,10 @@ const PATHS = {
   typeNull:   '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M9 12h6M12 9v6"/>',
   typeObj:    '<path d="M4 6l4 6-4 6M20 6l-4 6 4 6M11 4l2 16"/>',
   eye:        '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  // Bulk Update / Delete dialogs (operate on many documents by query): rows of text
+  // — a stack of documents — with a pencil (update) or an X (delete) at the corner.
+  updateDialog: '<path d="M4 6h11M4 11h7M4 16h5"/><path d="M18.5 9.5l-6.5 6.5-3 .8.8-3 6.5-6.5a1.55 1.55 0 0 1 2.2 2.2z"/>',
+  deleteDialog: '<path d="M4 6h13M4 11h8M4 16h6"/><path d="M14.5 13.5l5 5M19.5 13.5l-5 5"/>',
   eyeOff:     '<path d="M4 4l16 16"/><path d="M9.5 5.4A9.9 9.9 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3 3.8M6 7.2A17 17 0 0 0 2 12s3.5 7 10 7a9.9 9.9 0 0 0 3-.45"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
   info:       '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/>',
   // Visual Explain stage glyphs (see ExplainGraph.vue).

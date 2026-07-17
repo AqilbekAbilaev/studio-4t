@@ -32,6 +32,9 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
   const showDeleteConfirm = ref(false)
   const crudError        = ref(null)
   const crudSaving       = ref(false)
+  // Bumped after each successful insert so the Insert dialog's "Add & Continue" knows the
+  // save landed and can reset its editor for the next document (see DocumentModal).
+  const docSavedNonce    = ref(0)
 
   function openInsert() {
     docModalMode.value = 'insert'
@@ -46,6 +49,15 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
     const doc = selectedDoc()
     if (!doc) { showToast('Select a document in the results first'); return }
     openDocumentWindow(activeTab(), doc, 'edit')
+  }
+
+  // Open the selected document in a read-only display window. Reached from the results
+  // toolbar eye and Document → View Document (JSON)…. Unlike edit, each call opens its
+  // own window (see open_document_window's 'view' mode).
+  function openView() {
+    const doc = selectedDoc()
+    if (!doc) { showToast('Select a document in the results first'); return }
+    openDocumentWindow(activeTab(), doc, 'view')
   }
 
   function buildIdFilter(doc) {
@@ -69,7 +81,13 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
     invoke('open_document_window', { target: target })
   }
 
-  async function onDocSave(jsonStr) {
+  // Save from DocumentModal. `payload` is { text, keepOpen }; keepOpen is the Insert
+  // dialog's "Add & Continue" (insert, then stay open for the next document). A plain
+  // string is still accepted for the legacy edit path. On success we refresh the grid and
+  // either close the dialog or bump docSavedNonce so it can reset for another insert.
+  async function onDocSave(payload) {
+    const jsonStr  = typeof payload === 'string' ? payload : payload.text
+    const keepOpen = typeof payload === 'object' && payload !== null && !!payload.keepOpen
     crudSaving.value = true
     crudError.value = null
     const tab = activeTab()
@@ -91,8 +109,12 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
           document: jsonStr,
         })
       }
-      showDocModal.value = false
       requery(true)
+      if (keepOpen) {
+        docSavedNonce.value++
+      } else {
+        showDocModal.value = false
+      }
     } catch (e) {
       crudError.value = errText(e)
     } finally {
@@ -422,8 +444,11 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
     docModalMode: docModalMode,
     showDeleteConfirm: showDeleteConfirm,
     crudError: crudError,
+    crudSaving: crudSaving,
+    docSavedNonce: docSavedNonce,
     openInsert: openInsert,
     openEdit: openEdit,
+    openView: openView,
     onDocSave: onDocSave,
     copySelectedDocument: copySelectedDocument,
     onDeleteConfirm: onDeleteConfirm,

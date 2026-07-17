@@ -140,7 +140,8 @@ function setPageSize(size) {
 const {
   drillPath,
   showDocModal, docModalMode, showDeleteConfirm, crudError,
-  openInsert, openEdit, onDocSave, copySelectedDocument, onDeleteConfirm,
+  crudSaving, docSavedNonce,
+  openInsert, openEdit, openView, onDocSave, copySelectedDocument, onDeleteConfirm,
   fieldEdit, fieldEditError, removeFieldName, removeFieldError,
   showUpdateDialog, showDeleteDialog, showClearConfirm, clearConfirmText, clearBusy, clearError,
   onFieldEditSave, onRemoveFieldConfirm, onClearConfirm, onUpdateDialogDone, onDeleteDialogDone,
@@ -175,6 +176,21 @@ const rangeText = computed(() => {
 const isCountDisabled = computed(() =>
   props.isAggregate || !props.activeTab || props.activeTab.kind !== 'collection'
 )
+
+// Bulk Update / Delete dialogs target a whole collection by query, so they're only
+// meaningful on a collection tab (not aggregate output, not IntelliShell results).
+const isCollection = computed(() =>
+  !props.isAggregate && !!props.activeTab && props.activeTab.kind === 'collection'
+)
+
+// Read-only mode is a per-tab guard against accidental writes: it greys out the
+// mutating toolbar actions and disables inline cell editing in the grid below. It's
+// view state, so it lives on the tab and simply defaults off (falsy) for old tabs.
+function toggleReadOnly() {
+  const tab = props.activeTab
+  if (!tab) return
+  tab.readOnly = !tab.readOnly
+}
 
 </script>
 
@@ -229,20 +245,31 @@ const isCountDisabled = computed(() =>
       <span class="docs-range">
         Documents {{ rangeText }}
       </span>
-      <button class="icon-btn" disabled><BaseIcon name="lock" :size="16" /></button>
-      <button class="icon-btn"
-        :disabled="!activeTab.hasRun || activeTab.isRunning"
+      <button class="icon-btn" :class="{ active: activeTab.readOnly }"
+        :title="activeTab.readOnly ? 'Read-only mode is on — click to allow edits' : 'Read-only mode (block accidental edits)'"
+        @click="toggleReadOnly"><BaseIcon name="lock" :size="16" /></button>
+      <button class="icon-btn" title="Add document"
+        :disabled="!activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
         @click="openInsert"><BaseIcon name="plus" :size="16" /></button>
-      <button class="icon-btn"
+      <button class="icon-btn" title="View document (read-only)"
+        :disabled="activeTab.selectedRow < 0"
+        @click="openView"><BaseIcon name="eye" :size="16" /></button>
+      <button class="icon-btn" title="Edit document"
+        :disabled="activeTab.selectedRow < 0 || activeTab.readOnly"
+        @click="openEdit"><BaseIcon name="edit" :size="16" /></button>
+      <button class="icon-btn" title="Copy document"
         :disabled="activeTab.selectedRow < 0"
         @click="copySelectedDocument"><BaseIcon name="copy" :size="16" /></button>
-      <button class="icon-btn"
-        :disabled="activeTab.selectedRow < 0"
-        @click="openEdit"><BaseIcon name="edit" :size="16" /></button>
-      <button class="icon-btn"
-        :disabled="activeTab.selectedRow < 0"
+      <button class="icon-btn" title="Delete document"
+        :disabled="activeTab.selectedRow < 0 || activeTab.readOnly"
         @click="showDeleteConfirm = true; crudError = null"><BaseIcon name="trash" :size="16" />
       </button>
+      <button class="icon-btn" title="Update documents by query…"
+        :disabled="!isCollection || !activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
+        @click="showUpdateDialog = true"><BaseIcon name="updateDialog" :size="16" /></button>
+      <button class="icon-btn" title="Delete documents by query…"
+        :disabled="!isCollection || !activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
+        @click="showDeleteDialog = true"><BaseIcon name="deleteDialog" :size="16" /></button>
       <span class="rtoolbar-spacer"></span>
 
       <!-- View mode selector -->
@@ -289,6 +316,7 @@ const isCountDisabled = computed(() =>
     <ResultTable
       v-else-if="rtab === 'Result' && viewMode === 'table'"
       :active-tab="activeTab"
+      :readonly="!!activeTab.readOnly"
       :vqb-open="vqbOpen"
       v-model:drillPath="drillPath"
       @dragged-field="draggedField = $event"
@@ -362,7 +390,10 @@ const isCountDisabled = computed(() =>
     v-if="showDocModal"
     :mode="docModalMode"
     :initial-doc="docModalMode === 'edit' ? activeTab?.results[activeTab.selectedRow] : null"
-    @close="showDocModal = false"
+    :save-error="crudError"
+    :saving="crudSaving"
+    :saved-nonce="docSavedNonce"
+    @close="showDocModal = false; crudError = null"
     @save="onDocSave"
   />
 
@@ -480,6 +511,14 @@ const isCountDisabled = computed(() =>
 }
 .icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
 .icon-btn:disabled { opacity: .4; }
+/* Read-only lock, engaged: accent the glyph + border so the toolbar clearly reads
+   as guarded, without a saturated fill that would wash out the icon. */
+.icon-btn.active {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.icon-btn.active:hover { color: var(--accent); }
 .cancel-btn {
   display: inline-flex;
   align-items: center;
