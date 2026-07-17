@@ -624,7 +624,8 @@ pub struct DocumentTarget {
     pub id_filter: String,
     pub label: String,
     // "edit" — the single, focus-locked editor window; "view" — an unlimited, read-only
-    // display window.
+    // display window; "insert" — the single, focus-locked new-document window (no target
+    // document; id_filter is unused).
     #[serde(default = "default_mode")]
     pub mode: String,
 }
@@ -657,16 +658,22 @@ static VIEW_WINDOW_SEQ: AtomicU64 = AtomicU64::new(0);
 //   is focus-locked over the app — always-on-top + focused, so it can't be buried
 //   ("cannot be unfocused"; Tauri 2.3.1 has no native modal, so this is the approximation).
 // - mode "view": an unlimited, non-modal, hideable read-only window (unique label each).
+// - mode "insert": the SINGLE reusable new-document window (label "doc-insert"), same
+//   focus-locked, retargetable behaviour as the editor but with no seeded document.
 //
 // Either way the initial target is seeded on the URL query so the first load has its
 // document even before the page registers its `document-target` listener.
 pub fn open_document_window(app: &AppHandle, target: DocumentTarget) {
     let is_view = target.mode == "view";
+    let is_insert = target.mode == "insert";
 
-    // Only the editor is a single reusable window; view windows never retarget.
+    // The editor and insert windows are single reusable windows; view windows never
+    // retarget. Insert has no per-document target, but retargeting still lets a fresh
+    // "+" on another collection re-point the open window at that collection.
     if !is_view {
-        if let Some(w) = app.get_webview_window("doc-editor") {
-            match app.emit_to("doc-editor", "document-target", target.clone()) {
+        let reuse_label = if is_insert { "doc-insert" } else { "doc-editor" };
+        if let Some(w) = app.get_webview_window(reuse_label) {
+            match app.emit_to(reuse_label, "document-target", target.clone()) {
                 Ok(val) => val,
                 Err(_e) => (),
             };
@@ -689,10 +696,18 @@ pub fn open_document_window(app: &AppHandle, target: DocumentTarget) {
     let label = if is_view {
         let seq = VIEW_WINDOW_SEQ.fetch_add(1, Ordering::Relaxed);
         format!("doc-view-{}", seq)
+    } else if is_insert {
+        String::from("doc-insert")
     } else {
         String::from("doc-editor")
     };
-    let title = if is_view { "View Document" } else { "Edit Document" };
+    let title = if is_view {
+        "View Document"
+    } else if is_insert {
+        "Insert Document"
+    } else {
+        "Edit Document"
+    };
 
     // Give the OS window a dark background so it appears in-theme immediately instead of a
     // white flash while the webview loads its bundle and paints the document.

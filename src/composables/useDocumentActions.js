@@ -27,24 +27,32 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
   watch(() => activeTab()?.id, () => { drillPath.value = [] })
 
   // ── document CRUD ──────────────────────────────────────
-  const showDocModal     = ref(false)
-  const docModalMode     = ref('insert')
   const showDeleteConfirm = ref(false)
   const crudError        = ref(null)
-  const crudSaving       = ref(false)
-  // Bumped after each successful insert so the Insert dialog's "Add & Continue" knows the
-  // save landed and can reset its editor for the next document (see DocumentModal).
-  const docSavedNonce    = ref(0)
 
+  // Open the new-document pop-out window (Rust open_document_window, mode 'insert') — the
+  // same window kind as View/Edit, seeded with an empty skeleton. Replaced the in-app
+  // insert modal.
   function openInsert() {
-    docModalMode.value = 'insert'
-    crudError.value = null
-    showDocModal.value = true
+    const tab = activeTab()
+    if (!tab || tab.kind !== 'collection' || !tab.collectionName) {
+      showToast('Open a collection first')
+      return
+    }
+    const target = {
+      connId: tab.connectionId,
+      db: tab.dbName,
+      coll: tab.collectionName,
+      idFilter: '',
+      label: '',
+      mode: 'insert',
+    }
+    invoke('open_document_window', { target: target })
   }
 
   // Open the selected document in the pop-out edit window. Reached from the results
-  // toolbar pen, Cmd/Ctrl+J, and Document → Edit Document (JSON)… — the former in-app edit
-  // modal was consolidated into the window; DocumentModal is now used only for Insert.
+  // toolbar pen, Cmd/Ctrl+J, and Document → Edit Document (JSON)…. Edit, View, and Insert
+  // all now run in the pop-out document window; the former in-app modals were retired.
   function openEdit() {
     const doc = selectedDoc()
     if (!doc) { showToast('Select a document in the results first'); return }
@@ -79,47 +87,6 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
       mode: mode,
     }
     invoke('open_document_window', { target: target })
-  }
-
-  // Save from DocumentModal. `payload` is { text, keepOpen }; keepOpen is the Insert
-  // dialog's "Add & Continue" (insert, then stay open for the next document). A plain
-  // string is still accepted for the legacy edit path. On success we refresh the grid and
-  // either close the dialog or bump docSavedNonce so it can reset for another insert.
-  async function onDocSave(payload) {
-    const jsonStr  = typeof payload === 'string' ? payload : payload.text
-    const keepOpen = typeof payload === 'object' && payload !== null && !!payload.keepOpen
-    crudSaving.value = true
-    crudError.value = null
-    const tab = activeTab()
-    try {
-      if (docModalMode.value === 'insert') {
-        await invoke('insert_document', {
-          id: tab.connectionId,
-          database: tab.dbName,
-          collection: tab.collectionName,
-          document: jsonStr,
-        })
-      } else {
-        const original = tab.results[tab.selectedRow]
-        await invoke('replace_document', {
-          id: tab.connectionId,
-          database: tab.dbName,
-          collection: tab.collectionName,
-          idFilter: buildIdFilter(original),
-          document: jsonStr,
-        })
-      }
-      requery(true)
-      if (keepOpen) {
-        docSavedNonce.value++
-      } else {
-        showDocModal.value = false
-      }
-    } catch (e) {
-      crudError.value = errText(e)
-    } finally {
-      crudSaving.value = false
-    }
   }
 
   // ── copy document (toolbar button) ─────────────────────
@@ -440,16 +407,11 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
 
   return {
     drillPath: drillPath,
-    showDocModal: showDocModal,
-    docModalMode: docModalMode,
     showDeleteConfirm: showDeleteConfirm,
     crudError: crudError,
-    crudSaving: crudSaving,
-    docSavedNonce: docSavedNonce,
     openInsert: openInsert,
     openEdit: openEdit,
     openView: openView,
-    onDocSave: onDocSave,
     copySelectedDocument: copySelectedDocument,
     onDeleteConfirm: onDeleteConfirm,
     fieldEdit: fieldEdit,

@@ -4,7 +4,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
-import DocumentModal from './DocumentModal.vue'
 import FieldEditModal from './FieldEditModal.vue'
 import UpdateDocumentsModal from './UpdateDocumentsModal.vue'
 import DeleteDocumentsModal from './DeleteDocumentsModal.vue'
@@ -139,9 +138,8 @@ function setPageSize(size) {
 // this component stays focused on laying out the result views.
 const {
   drillPath,
-  showDocModal, docModalMode, showDeleteConfirm, crudError,
-  crudSaving, docSavedNonce,
-  openInsert, openEdit, openView, onDocSave, copySelectedDocument, onDeleteConfirm,
+  showDeleteConfirm, crudError,
+  openInsert, openEdit, openView, copySelectedDocument, onDeleteConfirm,
   fieldEdit, fieldEditError, removeFieldName, removeFieldError,
   showUpdateDialog, showDeleteDialog, showClearConfirm, clearConfirmText, clearBusy, clearError,
   onFieldEditSave, onRemoveFieldConfirm, onClearConfirm, onUpdateDialogDone, onDeleteDialogDone,
@@ -385,18 +383,6 @@ function toggleReadOnly() {
     />
   </div>
 
-  <!-- Document insert / edit modal -->
-  <DocumentModal
-    v-if="showDocModal"
-    :mode="docModalMode"
-    :initial-doc="docModalMode === 'edit' ? activeTab?.results[activeTab.selectedRow] : null"
-    :save-error="crudError"
-    :saving="crudSaving"
-    :saved-nonce="docSavedNonce"
-    @close="showDocModal = false; crudError = null"
-    @save="onDocSave"
-  />
-
   <!-- Delete confirmation -->
   <BaseModal v-if="showDeleteConfirm" title="Delete Document" @close="showDeleteConfirm = false">
     <div class="del-body">
@@ -469,8 +455,8 @@ function toggleReadOnly() {
     </div>
   </BaseModal>
 
-  <!-- CRUD error banner (for edit/insert errors shown outside the modal) -->
-  <div v-if="crudError && !showDocModal && !showDeleteConfirm" class="crud-err-banner">
+  <!-- CRUD error banner (for delete errors shown outside a dialog) -->
+  <div v-if="crudError && !showDeleteConfirm" class="crud-err-banner">
     {{ crudError }}
     <button @click="crudError = null"><BaseIcon name="close" :size="13" /></button>
   </div>

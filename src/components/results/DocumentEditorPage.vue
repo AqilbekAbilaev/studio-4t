@@ -10,11 +10,16 @@ import { parseField } from '../../utils/queryParser'
 import { errText } from '../../utils/errors'
 
 // The pop-out document window (Studio-3T-style Cmd/Ctrl+J). Opened by the Rust
-// open_document_window command, seeded from the window URL on first load. Two modes:
+// open_document_window command, seeded from the window URL on first load. Three modes:
 //   - 'edit' (default): the SINGLE reusable "doc-editor" window, retargeted in place via
-//     the 'document-target' event; editable + saveable.
+//     the 'document-target' event; editable + saveable (replace_document).
 //   - 'view': a read-only display window (unlimited independent instances) — no editing,
 //     no Save, no retarget.
+//   - 'insert': the SINGLE reusable "doc-insert" window; no target document — starts on an
+//     empty skeleton, saves via insert_document, and offers "Add & Continue".
+
+// Empty starter document for insert mode (cursor lands on the middle blank line).
+const INSERT_SKELETON = '{\n  \n}'
 
 const editorRef = ref(null)   // the CodeEditor component instance
 // Site-specific editor extensions; recomputed when the readonly mode flips so the Save
@@ -23,30 +28,35 @@ const docExt = computed(() => docExtensions({ onSave: onSave, readOnly: readonly
 
 // Current target ({ connId, db, coll, idFilter, label, mode }) and editor state.
 const target   = ref(null)
-const mode     = ref('edit')                          // 'edit' | 'view'
+const mode     = ref('edit')                          // 'edit' | 'view' | 'insert'
 const readonly = computed(() => mode.value === 'view')
+const isInsert = computed(() => mode.value === 'insert')
 const title    = ref('Edit Document')
 const text     = ref('')
 const dirty    = ref(false)
 const loading  = ref(false)
 const saving   = ref(false)
 const jsonErr  = ref(null)
+const okMsg    = ref(null)   // transient "valid"/"formatted" confirmation (insert mode)
 
 // Read the initial target from the window URL query (?connId=&db=&coll=&idFilter=&label=).
+// Insert mode has no target document, so idFilter is optional there.
 function targetFromUrl() {
   const p = new URLSearchParams(location.search)
   const connId = p.get('connId')
   const db = p.get('db')
   const coll = p.get('coll')
   const idFilter = p.get('idFilter')
-  if (!connId || !db || !coll || !idFilter) return null
+  const urlMode = p.get('mode') || 'edit'
+  if (!connId || !db || !coll) return null
+  if (urlMode !== 'insert' && !idFilter) return null
   return {
     connId: connId,
     db: db,
     coll: coll,
-    idFilter: idFilter,
+    idFilter: idFilter || '',
     label: p.get('label') || '',
-    mode: p.get('mode') || 'edit',
+    mode: urlMode,
   }
 }
 
@@ -59,6 +69,27 @@ function setEditorText(value) {
 function onEditorChange(value) {
   text.value = value
   dirty.value = true
+  okMsg.value = null   // any edit invalidates a prior "valid"/"formatted" confirmation
+}
+
+// Validate/Format buttons (insert mode). parseField accepts the mongosh dialect
+// (ObjectId("…"), ISODate("…"), …) — the same parser Save uses — so what validates is
+// exactly what saves. Format re-renders the canonical EJSON back through mongoStringify to
+// keep that sugar and pretty-print it.
+function onValidate() {
+  jsonErr.value = null
+  const parsed = parseField(text.value)
+  if (!parsed.ok) { jsonErr.value = parsed.error; okMsg.value = null; return }
+  okMsg.value = 'Valid JSON document'
+}
+
+function onFormat() {
+  jsonErr.value = null
+  const parsed = parseField(text.value)
+  if (!parsed.ok) { jsonErr.value = parsed.error; okMsg.value = null; return }
+  setEditorText(mongoStringify(JSON.parse(parsed.ejson)))
+  dirty.value = true
+  okMsg.value = 'Formatted'
 }
 
 // Fetch the target document and load it into the editor. Reuses find_documents with the
@@ -69,7 +100,19 @@ async function loadTarget(next) {
     return
   }
   target.value = next
-  mode.value = next.mode === 'view' ? 'view' : 'edit'
+  mode.value = next.mode === 'view' ? 'view' : (next.mode === 'insert' ? 'insert' : 'edit')
+
+  // Insert has no document to fetch: seed the empty skeleton and let the user type. The
+  // OS window owns the titlebar, so reflect the mode there rather than drawing our own.
+  if (isInsert.value) {
+    title.value = 'Insert Document'
+    getCurrentWindow().setTitle(title.value).catch(() => {})
+    setEditorText(INSERT_SKELETON)
+    dirty.value = false
+    jsonErr.value = null
+    return
+  }
+
   // The real OS window owns the titlebar, so reflect the document there rather than
   // drawing our own (a custom top bar would double up with the native one).
   const verb = readonly.value ? 'View Document' : 'Edit Document'
@@ -109,9 +152,13 @@ function confirmDiscardIfDirty() {
   return window.confirm('This document has unsaved changes. Discard them?')
 }
 
-async function onSave() {
+// Save the buffer. `keepOpen` is the insert dialog's "Add & Continue" — insert, then
+// reset for the next document instead of closing (ignored in edit mode, where save always
+// closes). The Mod-s keymap calls this with no argument, so keepOpen is falsy there.
+async function onSave(keepOpen) {
   if (readonly.value || !target.value || saving.value) return
   jsonErr.value = null
+  okMsg.value = null
   // Parse the mongosh-style text (ObjectId("…"), ISODate("…"), …) back to canonical
   // Extended JSON — the same dialect the query bar / JSON view use. parseField returns a
   // human-readable error on invalid input.
@@ -119,21 +166,38 @@ async function onSave() {
   if (!parsed.ok) { jsonErr.value = parsed.error; return }
   saving.value = true
   try {
-    await invoke('replace_document', {
-      id: target.value.connId,
-      database: target.value.db,
-      collection: target.value.coll,
-      idFilter: target.value.idFilter,
-      document: parsed.ejson,
-    })
+    if (isInsert.value) {
+      await invoke('insert_document', {
+        id: target.value.connId,
+        database: target.value.db,
+        collection: target.value.coll,
+        document: parsed.ejson,
+      })
+    } else {
+      await invoke('replace_document', {
+        id: target.value.connId,
+        database: target.value.db,
+        collection: target.value.coll,
+        idFilter: target.value.idFilter,
+        document: parsed.ejson,
+      })
+    }
     await emit('document-saved', {
       connId: target.value.connId,
       db: target.value.db,
       coll: target.value.coll,
     })
     dirty.value = false
-    // Saving is the terminal action for the editor window — close it. The grid behind it
-    // was already refreshed via the document-saved event above.
+    // "Add & Continue": reset to a fresh skeleton and stay open for the next insert.
+    if (isInsert.value && keepOpen === true) {
+      setEditorText(INSERT_SKELETON)
+      dirty.value = false
+      saving.value = false
+      if (editorRef.value) editorRef.value.focus()
+      return
+    }
+    // Otherwise saving is the terminal action — close the window. The grid behind it was
+    // already refreshed via the document-saved event above.
     await getCurrentWindow().close()
   } catch (e) {
     jsonErr.value = errText(e)
@@ -178,13 +242,19 @@ onBeforeUnmount(() => {
     <div v-if="jsonErr" class="err">{{ jsonErr }}</div>
 
     <div class="footer">
+      <button v-if="isInsert" class="btn" :disabled="saving || loading" @click="onValidate">Validate JSON</button>
+      <button v-if="isInsert" class="btn" :disabled="saving || loading" @click="onFormat">Format JSON</button>
       <span v-if="loading" class="hint">Loading…</span>
       <span v-else-if="readonly" class="hint">Read-only</span>
+      <span v-else-if="okMsg" class="hint ok">{{ okMsg }}</span>
       <span v-else-if="dirty" class="hint">Unsaved changes</span>
       <span class="spacer"></span>
-      <button class="btn" @click="onClose">Close</button>
-      <button v-if="!readonly" class="btn primary" :disabled="saving || loading" @click="onSave">
-        {{ saving ? 'Saving…' : 'Save' }}
+      <button v-if="isInsert" class="btn" :disabled="saving || loading" @click="onSave(true)">
+        Add &amp; Continue
+      </button>
+      <button class="btn" @click="onClose">{{ isInsert ? 'Cancel' : 'Close' }}</button>
+      <button v-if="!readonly" class="btn primary" :disabled="saving || loading" @click="onSave(false)">
+        {{ saving ? 'Saving…' : (isInsert ? 'Add Document' : 'Save') }}
       </button>
     </div>
   </div>
@@ -227,6 +297,7 @@ onBeforeUnmount(() => {
 }
 
 .hint { font-size: 12px; color: var(--text-faint); }
+.hint.ok { color: var(--success-text); }
 .spacer { flex: 1; }
 
 .btn {

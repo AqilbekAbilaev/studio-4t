@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "connect-window", "doc-editor", "doc-view-*"],
+  "windows": ["main", "connect-window", "doc-editor", "doc-view-*", "doc-insert"],
   "permissions": [
     "core:default",
     "opener:default",
