@@ -6,6 +6,7 @@ import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
+import BaseModal from '../base/BaseModal.vue'
 
 // Add / Edit Validator for a collection. Fetches the current validator on open so an
 // existing rule is never silently overwritten, then writes changes via collMod.
@@ -71,14 +72,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="overlay" @mousedown.self="$emit('close')">
-    <div class="dialog">
-      <div class="dlg-title">
-        <div class="t">Validator — {{ target.collName }}</div>
-        <button class="close-btn" @click="$emit('close')">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
+  <BaseModal :title="`Validator — ${target.collName}`" width="620px" max-width="92vw" @close="$emit('close')">
 
       <div class="vd-body">
         <StateMessage v-if="loading" mode="loading" label="Loading validator…" />
@@ -113,61 +107,10 @@ async function save() {
           {{ saving ? 'Saving…' : 'Save' }}
         </button>
       </div>
-    </div>
-  </div>
+    </BaseModal>
 </template>
 
 <style scoped>
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .5);
-  display: grid;
-  place-items: center;
-  z-index: 70;
-}
-.dialog {
-  width: 620px;
-  max-width: 92vw;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.dlg-title {
-  height: 36px;
-  flex: none;
-  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  position: relative;
-}
-.dlg-title .t {
-  position: absolute;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 500;
-  pointer-events: none;
-}
-.close-btn {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  z-index: 1;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
 
 .vd-body {
   padding: 16px;

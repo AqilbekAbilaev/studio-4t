@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseModal from '../base/BaseModal.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Opened from a collection node's "Collection Stats" action. Fetches collStats
@@ -69,17 +70,11 @@ const rawJson = computed(() => (stats.value ? JSON.stringify(stats.value.raw, nu
 </script>
 
 <template>
-  <div class="overlay" @mousedown.self="$emit('close')">
-    <div class="dialog">
-      <div class="dlg-title">
-        <div class="t">
-          Collection Stats — {{ target.dbName }}.{{ target.collName }}
-          <span v-if="stats && stats.capped" class="ss-tag">capped</span>
-        </div>
-        <button class="close-btn" @click="$emit('close')">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
+  <BaseModal width="620px" max-width="92vw" @close="$emit('close')">
+      <template #title>
+        Collection Stats — {{ target.dbName }}.{{ target.collName }}
+        <span v-if="stats && stats.capped" class="ss-tag">capped</span>
+      </template>
 
       <div class="ss-body">
         <StateMessage v-if="loading" mode="loading" label="Fetching collection stats…" />
@@ -117,48 +112,10 @@ const rawJson = computed(() => (stats.value ? JSON.stringify(stats.value.raw, nu
           <pre v-if="showRaw" class="ss-raw">{{ rawJson }}</pre>
         </template>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 </template>
 
 <style scoped>
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .5);
-  display: grid;
-  place-items: center;
-  z-index: 70;
-}
-.dialog {
-  width: 620px;
-  max-width: 92vw;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.dlg-title {
-  height: 36px;
-  flex: none;
-  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  position: relative;
-}
-.dlg-title .t {
-  position: absolute;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 500;
-  pointer-events: none;
-}
 .ss-tag {
   font-size: 10px;
   text-transform: uppercase;
@@ -170,19 +127,6 @@ const rawJson = computed(() => (stats.value ? JSON.stringify(stats.value.raw, nu
   margin-left: 6px;
   vertical-align: middle;
 }
-.close-btn {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  z-index: 1;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
 
 .ss-body {
   padding: 16px;

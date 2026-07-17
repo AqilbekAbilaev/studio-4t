@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseModal from '../base/BaseModal.vue'
 
 // Open Map-Reduce for a collection: enter map / reduce / (optional) finalize JS and
 // an output collection (blank = inline), run mapReduce, and show the raw result.
@@ -44,12 +45,7 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 </script>
 
 <template>
-  <div class="overlay" @mousedown.self="$emit('close')">
-    <div class="dialog">
-      <div class="dlg-title">
-        <div class="t">Map-Reduce — {{ target.collName }}</div>
-        <button class="close-btn" @click="$emit('close')"><BaseIcon name="close" :size="14" /></button>
-      </div>
+  <BaseModal :title="`Map-Reduce — ${target.collName}`" width="640px" max-width="92vw" @close="$emit('close')">
 
       <div class="mr-body">
         <label class="mr-label">Map</label>
@@ -75,24 +71,10 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
           {{ running ? 'Running…' : 'Run' }}
         </button>
       </div>
-    </div>
-  </div>
+    </BaseModal>
 </template>
 
 <style scoped>
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; z-index: 70; }
-.dialog {
-  width: 640px; max-width: 92vw; background: var(--bg-window); border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.dlg-title {
-  height: 36px; flex: none; background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 10px; position: relative;
-}
-.dlg-title .t { position: absolute; left: 0; right: 0; text-align: center; font-size: 13px; color: var(--text-dim); font-weight: 500; pointer-events: none; }
-.close-btn { margin-left: auto; background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 4px; display: flex; align-items: center; border-radius: 4px; z-index: 1; }
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
 
 .mr-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; max-height: 74vh; overflow-y: auto; }
 .mr-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }

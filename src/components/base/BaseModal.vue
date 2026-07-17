@@ -29,7 +29,7 @@ const dialogStyle = computed(() => ({
   <div class="bm-overlay" @mousedown.self="$emit('close')">
     <div class="bm-dialog" :style="dialogStyle">
       <div class="bm-title">
-        <div class="t">{{ title }}</div>
+        <div class="t"><slot name="title">{{ title }}</slot></div>
         <button class="close-btn" @click="$emit('close')">
           <BaseIcon name="close" :size="14" />
         </button>

@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
+import BaseModal from '../base/BaseModal.vue'
 
 // Collection History: the app's record of single-document changes (insert / update /
 // delete) made to this collection, newest-first, each restorable — Studio-3T's
@@ -91,14 +92,7 @@ async function clearAll() {
 </script>
 
 <template>
-  <div class="overlay" @mousedown.self="$emit('close')">
-    <div class="dialog">
-      <div class="dlg-title">
-        <div class="t">Collection History — {{ target.dbName }}.{{ target.collName }}</div>
-        <button class="close-btn" @click="$emit('close')">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
+  <BaseModal :title="`Collection History — ${target.dbName}.${target.collName}`" width="640px" max-width="calc(100vw - 40px)" height="calc(100vh - 80px)" max-height="calc(100vh - 80px)" @close="$emit('close')">
 
       <div class="ch-body">
         <div class="ch-controls">
@@ -134,33 +128,10 @@ async function clearAll() {
           </div>
         </div>
       </div>
-    </div>
-  </div>
+    </BaseModal>
 </template>
 
 <style scoped>
-.overlay {
-  position: fixed; inset: 0; z-index: 60;
-  background: rgba(0,0,0,.45);
-  display: flex; align-items: center; justify-content: center;
-}
-.dialog {
-  width: 640px; max-width: calc(100vw - 40px); max-height: calc(100vh - 80px);
-  background: var(--bg-window); border: 1px solid var(--border);
-  border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.dlg-title {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px 12px 16px; border-bottom: 1px solid var(--border);
-}
-.dlg-title .t { font-size: 13px; font-weight: 600; color: var(--text); }
-.close-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border: none; background: none;
-  color: var(--text-dim); cursor: pointer; border-radius: 5px;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
 
 .ch-body { padding: 14px 16px 16px; display: flex; flex-direction: column; min-height: 0; overflow: auto; }
 .ch-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
