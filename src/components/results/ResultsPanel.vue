@@ -127,7 +127,6 @@ function setPageSize(size) {
   const tab = props.activeTab
   if (!tab) return
   tab.limit = size
-  tab.skip = 0
   pageSizeMenu.value = false
   emit('requery', true)
 }
@@ -209,23 +208,23 @@ function toggleReadOnly() {
     <!-- Result toolbar -->
     <div class="rtoolbar" v-if="rtab === 'Result'">
       <button class="icon-btn" @click="emit('run')" :disabled="activeTab.isRunning || !runValid">
-        <BaseIcon name="refresh" :size="16" />
+        <BaseIcon name="refresh" :size="18" />
       </button>
       <button v-if="activeTab.isRunning" class="cancel-btn" @click="emit('cancel')" title="Cancel the running query">
         <BaseIcon name="close" :size="13" /> Cancel
       </button>
       <button class="icon-btn"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
-        @click="goFirst"><BaseIcon name="first" :size="16" /></button>
+        @click="goFirst"><BaseIcon name="first" :size="18" /></button>
       <button class="icon-btn"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
-        @click="goPrev"><BaseIcon name="prev" :size="16" /></button>
+        @click="goPrev"><BaseIcon name="prev" :size="18" /></button>
       <button class="icon-btn"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
-        @click="goNext"><BaseIcon name="next" :size="16" /></button>
+        @click="goNext"><BaseIcon name="next" :size="18" /></button>
       <button class="icon-btn"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
-        @click="goLast"><BaseIcon name="last" :size="16" /></button>
+        @click="goLast"><BaseIcon name="last" :size="18" /></button>
       <div class="page-size-wrap">
         <span class="page-size" @click="pageSizeMenu = !pageSizeMenu">
           {{ activeTab.limit || 50 }} <BaseIcon name="caretDown" :size="12" />
@@ -245,29 +244,29 @@ function toggleReadOnly() {
       </span>
       <button class="icon-btn" :class="{ active: activeTab.readOnly }"
         :title="activeTab.readOnly ? 'Read-only mode is on — click to allow edits' : 'Read-only mode (block accidental edits)'"
-        @click="toggleReadOnly"><BaseIcon name="lock" :size="16" /></button>
+        @click="toggleReadOnly"><BaseIcon name="lock" :size="18" /></button>
       <button class="icon-btn" title="Add document"
         :disabled="!activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
-        @click="openInsert"><BaseIcon name="plus" :size="16" /></button>
+        @click="openInsert"><BaseIcon name="plus" :size="18" /></button>
       <button class="icon-btn" title="View document (read-only)"
         :disabled="activeTab.selectedRow < 0"
-        @click="openView"><BaseIcon name="eye" :size="16" /></button>
+        @click="openView"><BaseIcon name="eye" :size="18" /></button>
       <button class="icon-btn" title="Edit document"
         :disabled="activeTab.selectedRow < 0 || activeTab.readOnly"
-        @click="openEdit"><BaseIcon name="edit" :size="16" /></button>
+        @click="openEdit"><BaseIcon name="edit" :size="18" /></button>
       <button class="icon-btn" title="Copy document"
         :disabled="activeTab.selectedRow < 0"
-        @click="copySelectedDocument"><BaseIcon name="copy" :size="16" /></button>
+        @click="copySelectedDocument"><BaseIcon name="copy" :size="18" /></button>
       <button class="icon-btn" title="Delete document"
         :disabled="activeTab.selectedRow < 0 || activeTab.readOnly"
-        @click="showDeleteConfirm = true; crudError = null"><BaseIcon name="trash" :size="16" />
+        @click="showDeleteConfirm = true; crudError = null"><BaseIcon name="trash" :size="18" />
       </button>
       <button class="icon-btn" title="Update documents by query…"
         :disabled="!isCollection || !activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
-        @click="showUpdateDialog = true"><BaseIcon name="updateDialog" :size="16" /></button>
+        @click="showUpdateDialog = true"><BaseIcon name="updateDialog" :size="18" /></button>
       <button class="icon-btn" title="Delete documents by query…"
         :disabled="!isCollection || !activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
-        @click="showDeleteDialog = true"><BaseIcon name="deleteDialog" :size="16" /></button>
+        @click="showDeleteDialog = true"><BaseIcon name="deleteDialog" :size="18" /></button>
       <span class="rtoolbar-spacer"></span>
 
       <!-- View mode selector -->

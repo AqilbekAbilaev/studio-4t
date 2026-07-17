@@ -211,14 +211,14 @@ watch(() => props.activeTab && props.activeTab.id, () => {
       <button :class="{ on: isAggregate }" @click="setMode('aggregate')">Aggregate</button>
     </div>
     <button class="qbtn run" @click="emit('run')" :disabled="activeTab.isRunning || !runValid">
-      <BaseIcon name="run" :size="16" class="ic" />
+      <BaseIcon name="run" :size="18" class="ic" />
       {{ activeTab.isRunning ? 'Running…' : 'Run' }}
     </button>
     <template v-if="!isAggregate">
-      <button class="qbtn" @click="emit('open-browser')"><BaseIcon name="load" :size="16" class="ic" /> Load query</button>
+      <button class="qbtn" @click="emit('open-browser')"><BaseIcon name="load" :size="18" class="ic" /> Load query</button>
       <div class="save-wrap">
         <button class="qbtn" :class="{ on: showSaveForm }" @click="showSaveForm = !showSaveForm">
-          <BaseIcon name="save" :size="16" class="ic" /> Save query
+          <BaseIcon name="save" :size="18" class="ic" /> Save query
         </button>
         <div v-if="showSaveForm" class="save-backdrop" @mousedown.self="showSaveForm = false"></div>
         <div v-if="showSaveForm" class="save-form">
@@ -236,7 +236,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
       </div>
       <div class="hist-wrap">
         <button class="qbtn" :class="{ on: historyMenu }" @click="openHistoryMenu">
-          <BaseIcon name="history" :size="16" class="ic" /> Query history
+          <BaseIcon name="history" :size="18" class="ic" /> Query history
         </button>
         <div v-if="historyMenu" class="hist-backdrop" @mousedown.self="historyMenu = false"></div>
         <div v-if="historyMenu" class="hist-menu">
@@ -264,7 +264,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
       </div>
       <div class="default-wrap">
         <button class="qbtn" :class="{ on: showDefaultMenu }" @click="showDefaultMenu = !showDefaultMenu">
-          <BaseIcon name="anchor" :size="16" class="ic" /> Set default query
+          <BaseIcon name="anchor" :size="18" class="ic" /> Set default query
           <BaseIcon name="caretDown" :size="11" class="drop" />
         </button>
         <div v-if="showDefaultMenu" class="default-backdrop" @mousedown.self="showDefaultMenu = false"></div>
@@ -278,10 +278,10 @@ watch(() => props.activeTab && props.activeTab.id, () => {
         </div>
       </div>
       <button class="qbtn" @click="emit('copy-query')">
-        <BaseIcon name="copy" :size="16" class="ic" /> Copy
+        <BaseIcon name="copy" :size="18" class="ic" /> Copy
       </button>
       <button class="qbtn" :disabled="!clipboardQuery" @click="emit('paste-query')">
-        <BaseIcon name="paste" :size="16" class="ic" /> Paste
+        <BaseIcon name="paste" :size="18" class="ic" /> Paste
       </button>
     </template>
     <span class="qbar-spacer"></span>
