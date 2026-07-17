@@ -106,7 +106,7 @@ onBeforeUnmount(() => {
           class="bs-item"
           :class="{ on: opt.value === modelValue, disabled: opt.disabled }"
           @click="choose(opt)"
-        >{{ opt.label }}</div>
+        ><slot name="option" :option="opt" :selected="opt.value === modelValue">{{ opt.label }}</slot></div>
       </div>
     </Teleport>
   </div>
@@ -144,6 +144,10 @@ onBeforeUnmount(() => {
   overflow-y: auto;
 }
 .bs-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 7px 10px;
   border-radius: 5px;
   font-size: 12.5px;

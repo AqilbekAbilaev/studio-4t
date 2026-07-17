@@ -5,6 +5,7 @@ import { emit as tauriEmit } from '@tauri-apps/api/event'
 import { errText } from '../../utils/errors'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../../data/connectionOptions.js'
 import { partitionUriOptions } from '../../utils/connectionUri.js'
 
@@ -79,6 +80,26 @@ const AUTH_MODES = [
   { value: 'AWS',           label: 'AWS Identity and Access Management (IAM)', available: false },
   { value: 'OIDC',          label: 'OIDC — workload identity',        available: true  },
 ]
+// Auth-mode options for BaseSelect: unavailable modes are disabled and badged "soon".
+const authModeOptions = AUTH_MODES.map((m) => ({
+  value: m.value, label: m.label, disabled: !m.available, soon: !m.available,
+}))
+const READ_PREF_OPTIONS = [
+  { value: '',                   label: 'Primary (default)' },
+  { value: 'primaryPreferred',   label: 'Primary preferred' },
+  { value: 'secondary',          label: 'Secondary' },
+  { value: 'secondaryPreferred', label: 'Secondary preferred' },
+  { value: 'nearest',            label: 'Nearest' },
+]
+const BOOL_OPTIONS = [
+  { value: '',      label: '(default)' },
+  { value: 'true',  label: 'true' },
+  { value: 'false', label: 'false' },
+]
+// Advanced enum option: '(default)' plus the catalog's allowed values.
+function enumOptions(opt) {
+  return [{ value: '', label: '(default)' }, ...opt.values.map((v) => ({ value: v, label: v }))]
+}
 
 // OIDC (MONGODB-OIDC) workload/machine identity: the driver acquires the token from the
 // cloud environment, so there's no username/password. `test` is the driver's built-in
@@ -116,11 +137,6 @@ function oidcMechanismProperties() {
   return properties
 }
 
-const authModeOpen = ref(false)
-
-const authModeLabel = computed(() =>
-  AUTH_MODES.find(m => m.value === authMode.value)?.label ?? authMode.value
-)
 
 // ssl tab
 const useTls              = ref(isEditMode ? !!props.editConn.tls : false)
@@ -680,13 +696,7 @@ async function save() {
           </div>
           <div v-if="connType !== 'standalone'" class="nc-field">
             <label>Read preference</label>
-            <select class="nc-input nc-native" v-model="readPreference">
-              <option value="">Primary (default)</option>
-              <option value="primaryPreferred">Primary preferred</option>
-              <option value="secondary">Secondary</option>
-              <option value="secondaryPreferred">Secondary preferred</option>
-              <option value="nearest">Nearest</option>
-            </select>
+            <BaseSelect class="nc-sel" v-model="readPreference" :options="READ_PREF_OPTIONS" />
           </div>
           <div class="nc-hint">
             OzenDB currently targets MongoDB.
@@ -698,28 +708,12 @@ async function save() {
         <div v-else-if="activeTab === 'auth'" class="nc-form">
           <div class="nc-field">
             <label>Authentication mode</label>
-            <div
-              class="nc-dropdown-wrap"
-              tabindex="0"
-              @blur.capture="authModeOpen = false"
-            >
-              <div class="nc-select" @mousedown.prevent="authModeOpen = !authModeOpen">
-                <span>{{ authModeLabel }}</span>
-                <BaseIcon name="caretDown" :size="13" />
-              </div>
-              <div v-if="authModeOpen" class="nc-dropdown-list">
-                <div
-                  v-for="m in AUTH_MODES"
-                  :key="m.value"
-                  class="nc-dropdown-item"
-                  :class="{ active: m.value === authMode, dimmed: !m.available }"
-                  @mousedown.prevent="m.available && (authMode = m.value, authModeOpen = false)"
-                >
-                  <span>{{ m.label }}</span>
-                  <span v-if="!m.available" class="nc-soon">soon</span>
-                </div>
-              </div>
-            </div>
+            <BaseSelect class="nc-sel" v-model="authMode" :options="authModeOptions">
+              <template #option="{ option }">
+                <span>{{ option.label }}</span>
+                <span v-if="option.soon" class="nc-soon">soon</span>
+              </template>
+            </BaseSelect>
           </div>
 
           <template v-if="authMode !== 'none' && authMode !== 'OIDC'">
@@ -748,9 +742,7 @@ async function save() {
           <template v-else-if="authMode === 'OIDC'">
             <div class="nc-field">
               <label>Environment</label>
-              <select class="nc-input" v-model="oidcEnvironment">
-                <option v-for="e in OIDC_ENVIRONMENTS" :key="e.value" :value="e.value">{{ e.label }}</option>
-              </select>
+              <BaseSelect class="nc-sel" v-model="oidcEnvironment" :options="OIDC_ENVIRONMENTS" />
             </div>
             <div v-if="oidcNeedsResource" class="nc-field">
               <label>Token resource</label>
@@ -872,26 +864,21 @@ async function save() {
                   <span class="nc-adv-key">{{ opt.key }}</span>
                 </label>
 
-                <select
+                <BaseSelect
                   v-if="opt.type === 'bool'"
-                  class="nc-input nc-native"
+                  class="nc-sel"
                   v-model="advancedOptions[opt.key]"
+                  :options="BOOL_OPTIONS"
                   :disabled="optionDisabled(opt)"
-                >
-                  <option value="">(default)</option>
-                  <option value="true">true</option>
-                  <option value="false">false</option>
-                </select>
+                />
 
-                <select
+                <BaseSelect
                   v-else-if="opt.type === 'enum'"
-                  class="nc-input nc-native"
+                  class="nc-sel"
                   v-model="advancedOptions[opt.key]"
+                  :options="enumOptions(opt)"
                   :disabled="optionDisabled(opt)"
-                >
-                  <option value="">(default)</option>
-                  <option v-for="val in opt.values" :key="val" :value="val">{{ val }}</option>
-                </select>
+                />
 
                 <input
                   v-else
@@ -1109,12 +1096,6 @@ async function save() {
   color: var(--accent); font-size: 12.5px; cursor: pointer;
 }
 .nc-host-add:hover { text-decoration: underline; }
-.nc-select {
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--bg-input); border: 1px solid var(--border-soft);
-  border-radius: 6px; padding: 8px 11px; color: var(--text); font-size: 13px;
-  cursor: pointer;
-}
 .nc-hint {
   font-size: 12px; color: var(--text-faint); line-height: 1.5;
   background: var(--bg-panel-2); border: 1px solid var(--border-soft);
@@ -1143,13 +1124,7 @@ async function save() {
   font-size: 11px; font-weight: 400; color: var(--text-faint); margin-left: 6px;
 }
 .nc-opt-hint { font-size: 11.5px; color: var(--text-faint); line-height: 1.45; }
-/* Native <select> styled to match .nc-input, with a chevron affordance */
-.nc-native {
-  appearance: none; cursor: pointer; padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a94' stroke-width='1.5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 11px center;
-}
+.nc-sel { width: 100%; }
 .nc-input:disabled { opacity: .5; cursor: not-allowed; }
 
 /* segmented control */
@@ -1210,38 +1185,6 @@ async function save() {
 .btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
 .btn:disabled { opacity: .4; cursor: default; }
 
-/* custom dropdown */
-.nc-dropdown-wrap {
-  position: relative;
-  outline: none;
-}
-.nc-dropdown-wrap:focus-within .nc-select {
-  border-color: var(--accent);
-}
-.nc-dropdown-list {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0; right: 0;
-  background: var(--bg-panel-2);
-  border: 1px solid var(--border-soft);
-  border-radius: 7px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.4);
-  z-index: 100;
-  overflow: hidden;
-}
-.nc-dropdown-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--text);
-  cursor: pointer;
-  user-select: none;
-}
-.nc-dropdown-item:hover:not(.dimmed) { background: var(--bg-hover); }
-.nc-dropdown-item.active { color: var(--accent); }
-.nc-dropdown-item.dimmed { color: var(--text-faint); cursor: default; }
 .nc-soon {
   font-size: 10.5px;
   color: var(--text-faint);
