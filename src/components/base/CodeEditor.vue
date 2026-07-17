@@ -1,7 +1,8 @@
 <script setup>
 import { ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
-import { EditorView, lineNumbers as lineNumbersExt } from '@codemirror/view'
+import { EditorView, lineNumbers as lineNumbersExt, keymap } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
+import { indentWithTab } from '@codemirror/commands'
 import { syntaxHighlighting } from '@codemirror/language'
 import { baseTheme, codeHighlightStyle, jsonHighlightStyle } from '../../utils/codemirror/theme'
 import { languageExtension } from '../../utils/codemirror/languages'
@@ -34,6 +35,7 @@ let applyingModelValue = false
 function buildState() {
   const base = []
   if (props.lineNumbers) base.push(lineNumbersExt())
+  base.push(keymap.of([indentWithTab]))
   base.push(languageExtension(props.language))
   base.push(syntaxHighlighting(props.highlight === 'json' ? jsonHighlightStyle : codeHighlightStyle))
   base.push(baseTheme)
