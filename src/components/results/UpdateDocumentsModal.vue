@@ -1,22 +1,33 @@
 <script setup>
-// Collection → Update Dialog. Runs an update against every document matching a
-// query filter, using an operator update document ({ $set: … }). Query text is shell
-// syntax, parsed to Extended JSON by the shared query parser (same as the query bar).
-import { ref, watch } from 'vue'
+// Collection → Update Dialog. Runs an update against documents matching a query
+// filter, using an operator update document ({ $set: … }). Query and Update live on
+// separate tabs (Query / Update); Upsert and Multi mirror the driver's update options
+// (Multi on = update_many, off = update_one). Query text is shell syntax, parsed to
+// Extended JSON by the shared query parser (same as the query bar).
+import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
+import { predefinedQuery, hasSelectedDocs } from '../../utils/predefinedQuery'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
+import CodeEditor from '../base/CodeEditor.vue'
 
 const props = defineProps({
   activeTab: { type: Object, required: true },
 })
 const emit = defineEmits(['close', 'done'])
 
+const pane   = ref('query')        // which tab is showing: 'query' | 'update'
+const preset = ref('')             // "Apply predefined query" selection (shown in the dropdown)
 const filter = ref('{}')
 const update = ref('{\n  "$set": {\n    \n  }\n}')
+const upsert = ref(false)          // insert a new document when nothing matches
+const multi  = ref(true)           // true = update every match (update_many)
 const error  = ref(null)
 const busy   = ref(false)
+// Inline JSON-validation feedback from the Validate JSON button. `{ ok, text }`.
+const validation = ref(null)
 // Scope guard, mirroring the Delete Dialog: the user must "Find matches" (a count)
 // for the current query before Update enables, so a mass update (default {} matches
 // all) can never run against a scope they haven't seen. Editing the query
@@ -25,12 +36,50 @@ const busy   = ref(false)
 const matched = ref(null)          // count for `countedFilter`, or null before/after edits
 const countedFilter = ref(null)    // the exact filter text `matched` was counted for
 
-watch(filter, () => { matched.value = null; countedFilter.value = null })
+watch(filter, () => { matched.value = null; countedFilter.value = null; validation.value = null })
+watch(update, () => { validation.value = null })
+
+const presetOptions = computed(() => [
+  { value: 'selected', label: 'Selected Document(s)', disabled: !hasSelectedDocs(props.activeTab) },
+  { value: 'current',  label: 'Search Query from Collection View' },
+  { value: 'all',      label: 'All Documents' },
+])
+
+// Show the picked option in the dropdown and apply its query into the Query field,
+// switching to the Query tab so the change is visible.
+function onPreset(kind) {
+  preset.value = kind
+  if (!kind) return
+  filter.value = predefinedQuery(kind, props.activeTab)
+  pane.value = 'query'
+}
+
+// Validate JSON parses whichever tab is showing and reports the result inline,
+// without touching the database. The Update tab additionally requires operator form.
+function onValidate() {
+  error.value = null
+  if (pane.value === 'query') {
+    const pf = parseField(filter.value)
+    validation.value = pf.ok
+      ? { ok: true, text: 'Query is valid JSON.' }
+      : { ok: false, text: 'Query: ' + pf.error }
+    return
+  }
+  const pu = parseField(update.value)
+  if (!pu.ok) { validation.value = { ok: false, text: 'Update: ' + pu.error }; return }
+  // parseField hands back canonical Extended JSON text; its top-level keys are the
+  // update's operators. Operator form = at least one key, all starting with `$`.
+  const keys = Object.keys(JSON.parse(pu.ejson))
+  const isOperator = keys.length > 0 && keys.every(k => k.startsWith('$'))
+  validation.value = isOperator
+    ? { ok: true, text: 'Update is valid JSON.' }
+    : { ok: false, text: 'Update must use operators, e.g. { "$set": { "field": value } }' }
+}
 
 async function onCount() {
   error.value = null
   const pf = parseField(filter.value)
-  if (!pf.ok) { error.value = 'Query: ' + pf.error; return }
+  if (!pf.ok) { error.value = 'Query: ' + pf.error; pane.value = 'query'; return }
   busy.value = true
   try {
     const total = await invoke('count_documents', {
@@ -53,9 +102,9 @@ async function onRun() {
   if (matched.value === null || countedFilter.value !== filter.value) return
   error.value = null
   const pf = parseField(filter.value)
-  if (!pf.ok) { error.value = 'Query: ' + pf.error; return }
+  if (!pf.ok) { error.value = 'Query: ' + pf.error; pane.value = 'query'; return }
   const pu = parseField(update.value)
-  if (!pu.ok) { error.value = 'Update: ' + pu.error; return }
+  if (!pu.ok) { error.value = 'Update: ' + pu.error; pane.value = 'update'; return }
   busy.value = true
   try {
     const modified = await invoke('update_many', {
@@ -64,6 +113,8 @@ async function onRun() {
       collection: props.activeTab.collectionName,
       filter:     pf.ejson,
       update:     pu.ejson,
+      upsert:     upsert.value,
+      multi:      multi.value,
     })
     emit('done', `Updated ${modified} document${modified !== 1 ? 's' : ''}`)
   } catch (e) {
@@ -82,29 +133,57 @@ async function onRun() {
         <button class="close-btn" @click="$emit('close')"><BaseIcon name="close" :size="14" /></button>
       </div>
 
+      <div class="uw-tabs">
+        <button class="uw-tab" :class="{ active: pane === 'query' }" @click="pane = 'query'">Query</button>
+        <button class="uw-tab" :class="{ active: pane === 'update' }" @click="pane = 'update'">Update</button>
+      </div>
+
       <div class="uw-body">
-        <div class="uw-hint">Updates every document in
-          <code>{{ activeTab.collectionName }}</code> that matches the query.</div>
+        <div class="uw-hint">
+          <template v-if="pane === 'query'">Update the document(s) in
+            <code>{{ activeTab.collectionName }}</code> matching the query below:</template>
+          <template v-else>Update operators to apply, e.g. <code>{ "$set": { "field": 1 } }</code></template>
+        </div>
 
-        <label class="uw-row">
-          <span class="uw-lbl">Query</span>
-          <textarea class="uw-input" v-model="filter" spellcheck="false" autocomplete="off"></textarea>
-        </label>
+        <CodeEditor v-if="pane === 'query'" class="uw-editor" v-model="filter" />
+        <CodeEditor v-else class="uw-editor" v-model="update" />
 
-        <label class="uw-row">
-          <span class="uw-lbl">Update (operators, e.g. <code>{ "$set": { "field": 1 } }</code>)</span>
-          <textarea class="uw-input uw-tall" v-model="update" spellcheck="false" autocomplete="off"></textarea>
-        </label>
+        <div class="pq-row">
+          <span class="pq-lbl">Apply predefined query:</span>
+          <BaseSelect class="pq-select" :model-value="preset" :options="presetOptions"
+            placeholder="Choose…" @update:model-value="onPreset" />
+        </div>
+
+        <div class="uw-opts">
+          <label class="uw-opt">
+            <input type="checkbox" v-model="upsert" />
+            <span>Upsert</span>
+            <BaseIcon name="info" :size="13" class="uw-info"
+              title="Insert a new document when no existing document matches the query." />
+          </label>
+          <label class="uw-opt">
+            <input type="checkbox" v-model="multi" />
+            <span>Multi</span>
+            <BaseIcon name="info" :size="13" class="uw-info"
+              title="Update every matching document. When off, only the first match is updated." />
+          </label>
+        </div>
 
         <div class="uw-count" v-if="matched !== null && countedFilter === filter">
           <BaseIcon name="count" :size="14" />
           {{ matched.toLocaleString() }} document{{ matched !== 1 ? 's' : '' }} match this query.
         </div>
 
+        <div v-if="validation" class="uw-msg" :class="{ ok: validation.ok, bad: !validation.ok }">
+          <BaseIcon :name="validation.ok ? 'check' : 'close'" :size="13" />
+          {{ validation.text }}
+        </div>
+
         <div v-if="error" class="uw-error">{{ error }}</div>
       </div>
 
       <div class="uw-footer">
+        <button class="btn" @click="onValidate">Validate JSON</button>
         <button class="btn" :disabled="busy" @click="onCount">Find matches</button>
         <span class="spacer"></span>
         <button class="btn" @click="$emit('close')">Cancel</button>
@@ -141,19 +220,32 @@ async function onRun() {
   cursor: pointer; padding: 4px; display: flex; align-items: center; border-radius: 4px; z-index: 1;
 }
 .close-btn:hover { background: var(--bg-hover); color: var(--text); }
+.uw-tabs { display: flex; align-items: stretch; padding: 0 14px; border-bottom: 1px solid var(--border); flex: none; }
+.uw-tab {
+  padding: 8px 16px; font-size: 12.5px; color: var(--text-dim);
+  background: none; border: none; border-bottom: 2px solid transparent;
+}
+.uw-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .uw-body { padding: 14px 18px 8px; display: flex; flex-direction: column; gap: 12px; }
 .uw-hint { font-size: 12.5px; color: var(--text-dim); }
-.uw-hint code, .uw-lbl code { font-family: var(--mono); color: var(--text); }
-.uw-row { display: flex; flex-direction: column; gap: 5px; }
-.uw-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-faint); }
-.uw-input {
-  background: var(--bg-input); border: 1px solid var(--border); border-radius: 5px;
-  color: var(--text); font-family: var(--mono); font-size: 12.5px; padding: 8px 10px;
-  outline: none; resize: vertical; min-height: 60px; line-height: 1.5;
+.uw-hint code { font-family: var(--mono); color: var(--text); }
+.uw-editor {
+  /* ~10 rows: 13px font × 1.7 line-height + CodeMirror's content padding. */
+  height: 230px; border: 1px solid var(--border); border-radius: 5px; overflow: hidden;
+  background: var(--bg-input);
 }
-.uw-input:focus { border-color: var(--accent); }
-.uw-tall { min-height: 120px; }
+.uw-editor:focus-within { border-color: var(--accent); }
+.pq-row { display: flex; align-items: center; gap: 10px; }
+.pq-lbl { font-size: 12.5px; color: var(--text-dim); flex: none; }
+.pq-select { flex: 1; min-width: 0; }
+.uw-opts { display: flex; align-items: center; gap: 22px; }
+.uw-opt { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); cursor: pointer; }
+.uw-opt input { cursor: pointer; accent-color: var(--accent); }
+.uw-info { color: var(--accent); cursor: help; }
 .uw-count { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); }
+.uw-msg { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.uw-msg.ok { color: var(--success-text); }
+.uw-msg.bad { color: var(--danger-text); }
 .uw-error { font-size: 12px; color: var(--danger-text); }
 .uw-footer {
   height: 48px; flex: none; border-top: 1px solid var(--border);
@@ -164,7 +256,7 @@ async function onRun() {
   height: 28px; padding: 0 14px; border-radius: 5px; border: none;
   font-size: 13px; cursor: pointer; background: var(--bg-toolbar); color: var(--text);
 }
-.btn:hover { background: var(--bg-hover); }
+.btn:hover:not(:disabled) { background: var(--bg-hover); }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.primary { background: var(--accent); color: #fff; }
 .btn.primary:hover:not(:disabled) { opacity: .88; }

@@ -391,9 +391,12 @@ fn is_operator_update(update: &bson::Document) -> bool {
     !update.is_empty() && update.keys().all(|key| key.starts_with('$'))
 }
 
-/// Update every document matching `filter` with the given `update` document (which
-/// must contain update operators such as `$set` / `$unset`). Backs the Collection →
-/// Update Dialog. Returns the number of documents modified.
+/// Update documents matching `filter` with the given `update` document (which must
+/// contain update operators such as `$set` / `$unset`). Backs the Collection → Update
+/// Dialog. When `multi` is true every match is updated (update_many); when false only
+/// the first match is (update_one). `upsert` inserts a new document when nothing
+/// matches. Returns the number of documents affected — modified plus one for an
+/// upsert-insert so the caller never reports 0 after creating a document.
 #[tauri::command]
 pub async fn update_many(
     ctx: State<'_, AppContext>,
@@ -402,6 +405,8 @@ pub async fn update_many(
     collection: String,
     filter: String,
     update: String,
+    upsert: bool,
+    multi: bool,
 ) -> Result<i64, AppError> {
     let col = match ctx.collection_for_write(&id, &database, &collection).await {
         Ok(val) => val,
@@ -415,18 +420,29 @@ pub async fn update_many(
         Ok(val) => val,
         Err(e) => return Err(e),
     };
-    // Guard against a replacement-style document reaching update_many, which the
+    // Guard against a replacement-style document reaching the update, which the
     // driver rejects: every top-level key of an update must be an operator ($set…).
     if !is_operator_update(&update_doc) {
         return Err(AppError::Bson(
             "Update must use operators, e.g. { \"$set\": { \"field\": value } }".to_string(),
         ));
     }
-    let result = match col.update_many(filter_doc, update_doc).await {
-        Ok(val) => val,
-        Err(e) => return Err(AppError::Mongo(e)),
+    let result = if multi {
+        match col.update_many(filter_doc, update_doc).upsert(upsert).await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        }
+    } else {
+        match col.update_one(filter_doc, update_doc).upsert(upsert).await {
+            Ok(val) => val,
+            Err(e) => return Err(AppError::Mongo(e)),
+        }
     };
-    Ok(result.modified_count as i64)
+    let upserted = match result.upserted_id {
+        Some(_) => 1,
+        None => 0,
+    };
+    Ok(result.modified_count as i64 + upserted)
 }
 
 /// Delete every document matching `filter`. Backs the Collection → Delete Dialog.
