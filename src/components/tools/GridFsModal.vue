@@ -5,6 +5,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { errText, errCode } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
@@ -166,6 +167,13 @@ const bucketOptions = computed(() => {
   set.add('fs')
   return [...set].sort()
 })
+const bucketSelectOptions = computed(() => bucketOptions.value.map((b) => ({ value: b, label: b })))
+
+// Switching bucket (was the native select's @change) reloads that bucket's files.
+function onBucket(bucket) {
+  selectedBucket.value = bucket
+  onBucketChange()
+}
 
 async function loadBuckets() {
   try {
@@ -310,9 +318,8 @@ function fmtDate(iso) {
         <div class="gf-controls">
           <label class="gf-f">
             Bucket
-            <select v-model="selectedBucket" class="gf-select" :disabled="busy" @change="onBucketChange">
-              <option v-for="b in bucketOptions" :key="b" :value="b">{{ b }}</option>
-            </select>
+            <BaseSelect :model-value="selectedBucket" class="gf-select" :options="bucketSelectOptions"
+              :disabled="busy" size="sm" @update:model-value="onBucket" />
           </label>
           <button class="gf-upload" :disabled="busy" @click="upload">
             <BaseIcon name="import" :size="13" /> Upload file
@@ -498,23 +505,7 @@ function fmtDate(iso) {
 }
 .gf-controls { display: flex; align-items: flex-end; gap: 14px; }
 .gf-f { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
-/* Native <select> needs appearance:none + a drawn chevron, or WebKitGTK renders
-   the OS widget (white) and ignores the themed background. Mirrors .iew-select. */
-.gf-select {
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-  background-color: var(--bg-input);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a94' stroke-width='1.5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 9px center;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 4px 26px 4px 8px;
-  font-size: 12.5px;
-  min-width: 160px;
-}
+.gf-select { min-width: 160px; }
 .gf-upload {
   margin-left: auto;
   display: flex;

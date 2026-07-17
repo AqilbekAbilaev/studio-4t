@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar "Reschema" tool for the active collection. Builds an ordered list of
@@ -24,6 +25,7 @@ const OP_KINDS = [
 
 // $convert targets exposed in the UI (map 1:1 to the backend `toType`).
 const TYPES = ['string', 'int', 'long', 'double', 'decimal', 'bool', 'date', 'objectId']
+const TYPE_OPTIONS = TYPES.map((t) => ({ value: t, label: t }))
 
 const PREVIEW_LIMIT = 20
 
@@ -209,9 +211,8 @@ async function runApply() {
 
           <div class="rs-ops">
             <div v-for="(row, i) in ops" :key="i" class="rs-op">
-              <select v-model="row.kind" class="rs-select" @change="preview = null">
-                <option v-for="k in OP_KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
-              </select>
+              <BaseSelect :model-value="row.kind" class="rs-select" :options="OP_KINDS" size="sm"
+                @update:model-value="v => { row.kind = v; preview = null }" />
 
               <template v-if="row.kind === 'rename' || row.kind === 'move'">
                 <input v-model="row.from" list="rs-fields" class="rs-input" placeholder="from path" />
@@ -221,9 +222,7 @@ async function runApply() {
               <template v-else-if="row.kind === 'changeType'">
                 <input v-model="row.field" list="rs-fields" class="rs-input" placeholder="field path" />
                 <span class="rs-arrow">→</span>
-                <select v-model="row.toType" class="rs-select">
-                  <option v-for="t in TYPES" :key="t" :value="t">{{ t }}</option>
-                </select>
+                <BaseSelect v-model="row.toType" class="rs-select" :options="TYPE_OPTIONS" size="sm" />
               </template>
               <template v-else>
                 <input v-model="row.field" list="rs-fields" class="rs-input wide" placeholder="field path" />
@@ -359,14 +358,7 @@ async function runApply() {
   gap: 8px;
   padding: 4px 0;
 }
-.rs-select {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 4px 6px;
-  font-size: 12px;
-}
+.rs-select { min-width: 120px; }
 .rs-input {
   flex: 1;
   min-width: 0;

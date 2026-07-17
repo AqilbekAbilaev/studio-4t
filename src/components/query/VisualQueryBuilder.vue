@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import {
   OPERATORS,
   detectType,
@@ -200,14 +201,8 @@ function removeSortField(id) {
               @keydown.enter.prevent="applyAndExecute"
               spellcheck="false"
             />
-            <div class="op-select grow">
-              <select class="pill" v-model="c.op" @change="applyAndRun">
-                <option v-for="op in OPERATORS" :key="op.value" :value="op.value">
-                  {{ op.label }}
-                </option>
-              </select>
-              <BaseIcon name="caretDown" :size="12" class="op-caret" />
-            </div>
+            <BaseSelect class="op-select grow" :model-value="c.op" :options="OPERATORS" size="sm"
+              @update:model-value="v => { c.op = v; applyAndRun() }" />
             <button class="icon-btn sm" @click="removeCondition(c.id)">
               <BaseIcon name="trash" :size="18" />
             </button>
@@ -464,24 +459,9 @@ function removeSortField(id) {
 }
 .cond-val   { font-family: var(--mono); }
 
-/* operator dropdown — strip native chrome, overlay a token-colored caret */
-.op-select { position: relative; display: flex; }
+/* operator dropdown (BaseSelect) — width only; grows to fill the condition line */
+.op-select { min-width: 0; }
 .op-select.grow { flex: 1; }
-.op-select select.pill {
-  width: 100%;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 24px;
-}
-.op-caret {
-  position: absolute;
-  right: 7px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-faint);
-  pointer-events: none;
-}
 
 /* icon buttons */
 .icon-btn.sm {

@@ -2,7 +2,14 @@
 import { computed, ref } from 'vue'
 import ExplainGraph from './ExplainGraph.vue'
 import JsonDoc from './JsonDoc.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import { buildExplainTree } from '../../utils/explainTree'
+
+const VERBOSITY_OPTIONS = [
+  { value: 'executionStats',    label: 'Execution stats' },
+  { value: 'queryPlanner',      label: 'Query planner' },
+  { value: 'allPlansExecution', label: 'All plans' },
+]
 
 // Explain sub-tab: the query's execution plan, shown either as a stage graph or the raw
 // plan document. Parsing lives in buildExplainTree; ExplainGraph only draws the tree.
@@ -50,15 +57,13 @@ const explainView = ref('graph')
         <span class="et-spacer"></span>
         <label class="et-verbosity">
           <span class="et-verbosity-label">Detail</span>
-          <select
+          <BaseSelect
             class="et-select"
-            :value="activeTab.explainVerbosity || 'executionStats'"
-            @change="emit('explain-verbosity', $event.target.value)"
-          >
-            <option value="executionStats">Execution stats</option>
-            <option value="queryPlanner">Query planner</option>
-            <option value="allPlansExecution">All plans</option>
-          </select>
+            :model-value="activeTab.explainVerbosity || 'executionStats'"
+            :options="VERBOSITY_OPTIONS"
+            size="sm"
+            @update:model-value="v => emit('explain-verbosity', v)"
+          />
         </label>
       </div>
       <ExplainGraph v-if="explainView === 'graph'" :tree="explainTree" />
@@ -92,15 +97,5 @@ const explainView = ref('graph')
 .et-spacer { flex: 1; }
 .et-verbosity { display: inline-flex; align-items: center; gap: 7px; }
 .et-verbosity-label { font-size: 11px; color: var(--text-dim); }
-.et-select {
-  appearance: none;
-  background: var(--bg-input);
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
-  color: var(--text);
-  font-size: 12px;
-  padding: 4px 9px;
-  cursor: pointer;
-}
-.et-select:focus { outline: none; border-color: var(--accent); }
+.et-select { min-width: 140px; }
 </style>
