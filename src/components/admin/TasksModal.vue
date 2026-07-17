@@ -6,6 +6,7 @@ import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialo
 import { errText } from '../../utils/errors'
 import { scheduleSummary } from '../../utils/taskSchedule'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // The Tasks panel: saved, parameterised invocations of an existing operation
@@ -45,6 +46,28 @@ let unlisten = null
 
 // The create/edit form. `id` empty means create.
 const form = reactive(blankForm())
+
+// ── BaseSelect option sets ──
+const FORMAT_BASE = [{ value: 'json', label: 'JSON' }, { value: 'csv', label: 'CSV' }]
+const XLSX_OPTION = { value: 'xlsx', label: 'Excel (.xlsx)' }
+const EXPORT_FORMATS = [...FORMAT_BASE, XLSX_OPTION]
+// Excel is only offered for exports (import can't target .xlsx).
+const formatOptions = computed(() => (form.type === 'export' ? EXPORT_FORMATS : FORMAT_BASE))
+const STRATEGY_OPTIONS = MASK_STRATEGIES.map((s) => ({ value: s, label: s }))
+const WEEKDAY_OPTIONS = WEEKDAYS.map((d, i) => ({ value: i, label: d }))
+const SCHED_OPTIONS = [
+  { value: 'manual',   label: 'Manual (run on demand only)' },
+  { value: 'interval', label: 'Every N minutes' },
+  { value: 'daily',    label: 'Daily at a time' },
+  { value: 'weekly',   label: 'Weekly on a day' },
+]
+const connOptions = computed(() => connections.value.map((c) => ({ value: c.id, label: c.name })))
+
+// Picking a connection (was the native select's @change) reloads its database list.
+function onConn(id) {
+  form.connId = id
+  loadDatabases()
+}
 
 function blankForm() {
   return {
@@ -460,10 +483,8 @@ async function save() {
         <input v-model="form.name" class="tk-input" placeholder="e.g. Nightly orders export" />
 
         <label class="tk-lbl">Connection</label>
-        <select v-model="form.connId" class="tk-input" @change="loadDatabases">
-          <option value="" disabled>Select a connection…</option>
-          <option v-for="c in connections" :key="c.id" :value="c.id">{{ c.name }}</option>
-        </select>
+        <BaseSelect :model-value="form.connId" class="tk-select" :options="connOptions"
+          placeholder="Select a connection…" @update:model-value="onConn" />
 
         <div class="tk-two">
           <div class="tk-col">
@@ -485,11 +506,7 @@ async function save() {
         <!-- Export / Import: format + path -->
         <template v-if="form.type === 'export' || form.type === 'import'">
           <label class="tk-lbl">Format</label>
-          <select v-model="form.format" class="tk-input">
-            <option value="json">JSON</option>
-            <option value="csv">CSV</option>
-            <option v-if="form.type === 'export'" value="xlsx">Excel (.xlsx)</option>
-          </select>
+          <BaseSelect v-model="form.format" class="tk-select" :options="formatOptions" />
           <label class="tk-lbl">{{ form.type === 'import' ? 'Source file' : 'Destination file' }}</label>
           <div class="tk-path">
             <input v-model="form.path" class="tk-input" :placeholder="form.type === 'import' ? '/path/to/input' : '/path/to/output'" />
@@ -507,9 +524,7 @@ async function save() {
           </div>
           <div v-for="(rule, i) in form.rules" :key="i" class="tk-rule">
             <input v-model="rule.field" class="tk-input" placeholder="field.path" />
-            <select v-model="rule.strategy" class="tk-input narrow">
-              <option v-for="s in MASK_STRATEGIES" :key="s" :value="s">{{ s }}</option>
-            </select>
+            <BaseSelect v-model="rule.strategy" class="tk-select narrow" :options="STRATEGY_OPTIONS" size="sm" />
             <template v-if="rule.strategy === 'partial'">
               <input v-model="rule.keepStart" class="tk-input tiny" placeholder="start" title="Keep first N chars" />
               <input v-model="rule.keepEnd" class="tk-input tiny" placeholder="end" title="Keep last N chars" />
@@ -519,11 +534,7 @@ async function save() {
           <div class="tk-two">
             <div class="tk-col">
               <label class="tk-lbl">Format</label>
-              <select v-model="form.format" class="tk-input">
-                <option value="json">JSON</option>
-                <option value="csv">CSV</option>
-                <option value="xlsx">Excel (.xlsx)</option>
-              </select>
+              <BaseSelect v-model="form.format" class="tk-select" :options="EXPORT_FORMATS" />
             </div>
             <div class="tk-col">
               <label class="tk-lbl">Limit (optional)</label>
@@ -564,12 +575,7 @@ async function save() {
 
         <!-- Schedule -->
         <label class="tk-lbl">Schedule</label>
-        <select v-model="form.schedKind" class="tk-input">
-          <option value="manual">Manual (run on demand only)</option>
-          <option value="interval">Every N minutes</option>
-          <option value="daily">Daily at a time</option>
-          <option value="weekly">Weekly on a day</option>
-        </select>
+        <BaseSelect v-model="form.schedKind" class="tk-select" :options="SCHED_OPTIONS" />
         <div v-if="form.schedKind === 'interval'" class="tk-sched-row">
           <span>Every</span>
           <input v-model="form.everyMinutes" class="tk-input tiny" />
@@ -581,9 +587,7 @@ async function save() {
         </div>
         <div v-else-if="form.schedKind === 'weekly'" class="tk-sched-row">
           <span>On</span>
-          <select v-model="form.weekday" class="tk-input narrow">
-            <option v-for="(d, i) in WEEKDAYS" :key="i" :value="i">{{ d }}</option>
-          </select>
+          <BaseSelect v-model="form.weekday" class="tk-select narrow" :options="WEEKDAY_OPTIONS" size="sm" />
           <span>at</span>
           <input v-model="form.atHHMM" type="time" class="tk-input narrow" />
         </div>
@@ -791,6 +795,8 @@ async function save() {
 .tk-input:focus { outline: none; border-color: var(--accent); }
 .tk-input.mono { font-family: var(--mono); line-height: 1.5; resize: vertical; }
 .tk-input.narrow { width: auto; min-width: 120px; }
+.tk-select { width: 100%; }
+.tk-select.narrow { width: auto; min-width: 120px; }
 .tk-input.tiny { width: 74px; }
 
 .tk-two { display: flex; gap: 10px; }
