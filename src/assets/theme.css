@@ -10,6 +10,7 @@
   --bg-row:      #1f2023;
   --bg-hover:    #2f3135;
   --bg-active:   #3a3d42;
+  --bg-selected: rgba(59, 130, 246, .24);
   --border:      #131416;
   --border-soft: #34363a;
   --grid-line:   #2a2c31;
@@ -60,6 +61,7 @@
   --bg-row:      #ffffff;
   --bg-hover:    #e6e8ec;
   --bg-active:   #d5d8de;
+  --bg-selected: rgba(59, 130, 246, .18);
   --border:      #c9ccd2;
   --border-soft: #dcdee3;
   --grid-line:   #e4e6ea;

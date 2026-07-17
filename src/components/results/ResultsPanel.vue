@@ -137,7 +137,7 @@ function setPageSize(size) {
 // this component stays focused on laying out the result views.
 const {
   drillPath,
-  showDeleteConfirm, crudError,
+  showDeleteConfirm, selectedCount, crudError,
   openInsert, openEdit, openView, copySelectedDocument, onDeleteConfirm,
   fieldEdit, fieldEditError, removeFieldName, removeFieldError,
   showUpdateDialog, showDeleteDialog, showClearConfirm, clearConfirmText, clearBusy, clearError,
@@ -383,15 +383,16 @@ function toggleReadOnly() {
   </div>
 
   <!-- Delete confirmation -->
-  <BaseModal v-if="showDeleteConfirm" title="Delete Document" @close="showDeleteConfirm = false">
+  <BaseModal v-if="showDeleteConfirm" :title="selectedCount > 1 ? 'Delete Documents' : 'Delete Document'" @close="showDeleteConfirm = false">
     <div class="del-body">
-      <p>Are you sure you want to delete this document? This cannot be undone.</p>
+      <p v-if="selectedCount > 1">Are you sure you want to delete these {{ selectedCount }} documents? This cannot be undone.</p>
+      <p v-else>Are you sure you want to delete this document? This cannot be undone.</p>
       <div v-if="crudError" class="del-error">{{ crudError }}</div>
     </div>
     <div class="del-footer">
       <span class="spacer"></span>
       <button class="btn" @click="showDeleteConfirm = false">Cancel</button>
-      <button class="btn danger" @click="onDeleteConfirm">Delete</button>
+      <button class="btn danger" @click="onDeleteConfirm">{{ selectedCount > 1 ? `Delete ${selectedCount}` : 'Delete' }}</button>
     </div>
   </BaseModal>
 

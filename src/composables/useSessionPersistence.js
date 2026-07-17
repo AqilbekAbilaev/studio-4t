@@ -57,13 +57,13 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
                 sessionId: (crypto.randomUUID ? crypto.randomUUID() : t.id),
                 code: t.code || '', scriptPath: t.scriptPath || null, history: [], isRunning: false,
                 results: [], resultView: 'table', resultTab: 'Console',
-                runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
+                runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1, selectedRows: [],
                 logs: [], scalar: undefined, hasScalar: false,
               }
             : {
                 ...t,
                 results: [], hasRun: false, isRunning: false, runError: null,
-                selectedRow: -1, elapsedMs: null, _restored: true,
+                selectedRow: -1, selectedRows: [], elapsedMs: null, _restored: true,
               })
         if (restored.length) {
           tabs.value.push(...restored)

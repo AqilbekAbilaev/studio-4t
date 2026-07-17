@@ -104,8 +104,11 @@ function onDragUp(e) {
   dragValue = ''
 }
 
-function onCellClick(rowIdx, col) {
+function onCellClick(e, rowIdx, col) {
   if (suppressNextClick) { suppressNextClick = false; return }
+  // Shift / Ctrl+Cmd on a cell click select rows (document-level), not a single cell.
+  if (e.shiftKey) { selectRangeTo(rowIdx); selectedCol.value = null; cellCtx.value = null; return }
+  if (e.metaKey || e.ctrlKey) { toggleRow(rowIdx); selectedCol.value = null; cellCtx.value = null; return }
   selectCell(rowIdx, col)
 }
 
@@ -266,6 +269,62 @@ function autoFitColumn(e, col) {
 
 // ── row / cell selection ──────────────────────────────
 const selectedCol = ref(null)  // the field/cell selected in the grid
+// Range anchor for Shift+click / Shift+Arrow multi-row selection. The active row is
+// tab.selectedRow; the full set is tab.selectedRows. Anchor is where the current range
+// started (a plain click / arrow move); it stays put while Shift extends the range.
+const anchorRow = ref(-1)
+
+// Is this grid row part of the current selection? Falls back to the single active row
+// for tabs that predate selectedRows (defensive; new tabs seed it to []).
+function isRowSelected(rowIdx) {
+  const tab = props.activeTab
+  if (!tab) return false
+  const rows = tab.selectedRows
+  return rows && rows.length ? rows.includes(rowIdx) : tab.selectedRow === rowIdx
+}
+
+// Collapse to a single selected row (or clear with -1). Resets the range anchor.
+function setSingleRow(rowIdx) {
+  const tab = props.activeTab
+  tab.selectedRow = rowIdx
+  tab.selectedRows = rowIdx < 0 ? [] : [rowIdx]
+  anchorRow.value = rowIdx
+}
+
+// Select the contiguous range from the anchor to rowIdx (Shift gesture). The anchor is
+// left untouched so successive Shift moves keep growing/shrinking from the same origin.
+function selectRangeTo(rowIdx) {
+  const tab = props.activeTab
+  const from = anchorRow.value < 0 ? rowIdx : anchorRow.value
+  const lo = Math.min(from, rowIdx)
+  const hi = Math.max(from, rowIdx)
+  const range = []
+  for (let i = lo; i <= hi; i++) range.push(i)
+  tab.selectedRows = range
+  tab.selectedRow = rowIdx
+}
+
+// Toggle a single row in/out of the selection (Ctrl/Cmd+click) without disturbing the rest.
+function toggleRow(rowIdx) {
+  const tab = props.activeTab
+  const set = new Set(tab.selectedRows && tab.selectedRows.length
+    ? tab.selectedRows
+    : (tab.selectedRow >= 0 ? [tab.selectedRow] : []))
+  if (set.has(rowIdx)) set.delete(rowIdx)
+  else set.add(rowIdx)
+  const arr = [...set].sort((a, b) => a - b)
+  tab.selectedRows = arr
+  tab.selectedRow = set.has(rowIdx) ? rowIdx : (arr.length ? arr[arr.length - 1] : -1)
+  anchorRow.value = rowIdx
+}
+
+// Apply a click gesture's modifiers to the row selection: Shift = range, Ctrl/Cmd =
+// toggle, plain = single.
+function applyRowGesture(e, rowIdx) {
+  if (e.shiftKey) selectRangeTo(rowIdx)
+  else if (e.metaKey || e.ctrlKey) toggleRow(rowIdx)
+  else setSingleRow(rowIdx)
+}
 
 // Mirror the selected field onto the active tab so App.vue's menu context (and the
 // Document menu's field-scoped gates) can see it — ResultTable owns cell selection,
@@ -285,6 +344,7 @@ watch(() => props.activeTab?.id, () => {
   selectedCol.value = null
   cellCtx.value = null
   colWidths.value = {}
+  anchorRow.value = -1
 })
 
 function getAtPath(doc, path) {
@@ -427,6 +487,14 @@ watch([() => props.activeTab?.id, () => props.activeTab?.results, () => props.dr
   () => {
     if (gridWrapRef.value) gridWrapRef.value.scrollTop = 0
     nextTick(measureRowH)
+    // The row set just changed (requery/drill/tab switch): drop any multi-row selection,
+    // whose indices may no longer line up, collapsing back to the single active row so we
+    // never carry stale indices into a copy/delete.
+    const tab = props.activeTab
+    if (tab) {
+      tab.selectedRows = tab.selectedRow >= 0 ? [tab.selectedRow] : []
+      anchorRow.value = tab.selectedRow ?? -1
+    }
   }, { flush: 'post' })
 
 function isDrillable(col, val) {
@@ -449,14 +517,16 @@ function goToDrillLevel(level) {
   if (props.activeTab) props.activeTab.selectedRow = -1
 }
 
-function selectRow(rowIdx) {
-  props.activeTab.selectedRow = rowIdx
+// Row-area click (row number / filler): apply the gesture, clear any cell selection.
+function selectRow(e, rowIdx) {
+  applyRowGesture(e, rowIdx)
   selectedCol.value = null
   cellCtx.value = null
 }
 
+// Single-row + single-cell selection (right-click, programmatic). No modifiers.
 function selectCell(rowIdx, col) {
-  props.activeTab.selectedRow = rowIdx
+  setSingleRow(rowIdx)
   selectedCol.value = col
   cellCtx.value = null
 }
@@ -478,6 +548,23 @@ function copySelectedDocument() {
   const tab = props.activeTab
   if (!tab || tab.selectedRow < 0) return
   navigator.clipboard.writeText(JSON.stringify(tab.results[tab.selectedRow], null, 2))
+}
+
+// Ctrl/Cmd+C: copy the selection. A single cell → that value; a single row → its
+// document; multiple rows → a JSON array of the selected documents (in row order).
+function copySelection() {
+  const tab = props.activeTab
+  if (!tab) return
+  const rows = tab.selectedRows && tab.selectedRows.length
+    ? tab.selectedRows
+    : (tab.selectedRow >= 0 ? [tab.selectedRow] : [])
+  if (!rows.length) return
+  if (rows.length === 1) {
+    selectedCol.value ? copySelectedCell() : copySelectedDocument()
+    return
+  }
+  const docs = rows.map((i) => tab.results[i]).filter((d) => d != null)
+  navigator.clipboard.writeText(JSON.stringify(docs, null, 2))
 }
 
 function openCellCtx(e, rowIdx, col) {
@@ -620,22 +707,34 @@ function handleKeydown(e) {
 
   if (e.key === 'Escape' && cellCtx.value) { cellCtx.value = null; return }
 
+  const docs   = gridDocs.value
+
+  // Ctrl/Cmd+A — select every fetched row. Works regardless of the current selection.
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
+    if (!docs.length) return
+    e.preventDefault()
+    tab.selectedRows = docs.map((_, i) => i)
+    tab.selectedRow = docs.length - 1
+    anchorRow.value = 0
+    selectedCol.value = null
+    return
+  }
+
   if (tab.selectedRow < 0) return
 
-  const docs   = gridDocs.value
   const cols   = gridColumns.value
   const colIdx = cols.indexOf(selectedCol.value)
   const rowIdx = tab.selectedRow
 
-  if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C')) {
     e.preventDefault()
-    selectedCol.value ? copySelectedCell() : copySelectedDocument()
+    copySelection()
     return
   }
 
   if (e.key === 'Escape') {
+    setSingleRow(-1)
     selectedCol.value = null
-    tab.selectedRow   = -1
     return
   }
 
@@ -658,11 +757,14 @@ function handleKeydown(e) {
     scrollToCell()
   } else if (e.key === 'ArrowDown' && rowIdx < docs.length - 1) {
     e.preventDefault()
-    tab.selectedRow = rowIdx + 1
+    // Shift extends the selection from the anchor; a plain move re-anchors on the new row.
+    if (e.shiftKey) selectRangeTo(rowIdx + 1)
+    else setSingleRow(rowIdx + 1)
     scrollToCell()
   } else if (e.key === 'ArrowUp' && rowIdx > 0) {
     e.preventDefault()
-    tab.selectedRow = rowIdx - 1
+    if (e.shiftKey) selectRangeTo(rowIdx - 1)
+    else setSingleRow(rowIdx - 1)
     scrollToCell()
   }
 }
@@ -759,8 +861,8 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
             v-for="vrow in virtualRows"
             :key="vrow.index"
             class="datarow"
-            :class="{ selrow: activeTab.selectedRow === vrow.index, stripe: vrow.index % 2 === 1 }"
-            @click="selectRow(vrow.index)"
+            :class="{ selrow: isRowSelected(vrow.index), stripe: vrow.index % 2 === 1 }"
+            @click="selectRow($event, vrow.index)"
           >
             <td class="rownum">{{ vrow.index + 1 }}</td>
             <td
@@ -768,7 +870,7 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
               :key="cell.col"
               :class="{ selcell: activeTab.selectedRow === vrow.index && selectedCol === cell.col, drillable: cell.drillable }"
               @mousedown="onCellMouseDown($event, cell.col, cell.display)"
-              @click.stop="onCellClick(vrow.index, cell.col)"
+              @click.stop="onCellClick($event, vrow.index, cell.col)"
               @dblclick.stop="cell.drillable ? openCellDrill(vrow.index, cell.col) : startInlineEdit(vrow.index, cell.col)"
               @contextmenu="openCellCtx($event, vrow.index, cell.col)"
             >
@@ -902,8 +1004,11 @@ table.grid td {
    virtualization spacer rows would otherwise flip the nth-child parity as you scroll. */
 table.grid tr.datarow.stripe td { background: var(--bg-row-alt); }
 table.grid tr:hover td { background: var(--bg-hover); }
-table.grid tr.selrow td { background: var(--bg-active); box-shadow: inset 0 0 0 9999px rgba(255,255,255,.02); }
-table.grid td.selcell { outline: 1px solid var(--accent); outline-offset: -1px; position: relative; z-index: 4; }
+/* Selection — accent-blue tint. The .datarow.selrow specificity intentionally beats the
+   striped-row and hover rules so a selected row reads clearly whether it's striped or
+   hovered (the old single-class .selrow lost to .datarow.stripe on odd rows). */
+table.grid tr.datarow.selrow td { background: var(--bg-selected); }
+table.grid td.selcell { outline: 2px solid var(--accent); outline-offset: -2px; position: relative; z-index: 4; }
 table.grid td.drillable { cursor: pointer; }
 /* rownum — sticky left gutter column */
 table.grid th.rownum,
@@ -919,7 +1024,13 @@ table.grid td.rownum {
 }
 table.grid th.rownum { z-index: 3; }
 table.grid tr:hover td.rownum { background: var(--bg-hover); }
-table.grid tr.selrow td.rownum { background: var(--bg-hover); }
+/* Selected rows get an accent bar down the sticky row-number gutter — a clear, contiguous
+   marker for a multi-row selection. Higher specificity than the hover rule above. */
+table.grid tr.datarow.selrow td.rownum {
+  background: var(--bg-selected);
+  color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 /* virtualization spacers — reserve scroll height for the un-mounted rows above/below
    the window; they carry no border or fill so they read as empty gap, not a row. */
 table.grid tr.vspacer td { padding: 0; border: none; background: transparent; }

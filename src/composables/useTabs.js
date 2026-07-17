@@ -80,7 +80,7 @@ export function useTabs({ tabs, activeTabId, contextMenu, runRestoredTab }) {
         sessionId: (crypto.randomUUID ? crypto.randomUUID() : id),
         code: src.code || '', history: [], isRunning: false,
         results: [], resultView: 'table', resultTab: 'Console',
-        runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
+        runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1, selectedRows: [],
         logs: [], scalar: undefined, hasScalar: false,
         color: src.color ?? null,
       })
@@ -95,7 +95,7 @@ export function useTabs({ tabs, activeTabId, contextMenu, runRestoredTab }) {
       skip: src.skip, limit: src.limit, mode: src.mode, pipeline: src.pipeline,
       color: src.color ?? null,
       results: [], hasRun: false, isRunning: false, runError: null,
-      selectedRow: -1, elapsedMs: null,
+      selectedRow: -1, selectedRows: [], elapsedMs: null,
     }
     tabs.value.push(dup)
     activeTabId.value = id

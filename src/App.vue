@@ -577,7 +577,7 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
     filter: filter || '', projection: '', sort: '', skip: 0, limit: defaultQueryLimit.value,
     mode: startMode, pipeline: '',
     results: [], hasRun: false, isRunning: false, runError: null,
-    selectedRow: -1, elapsedMs: null,
+    selectedRow: -1, selectedRows: [], elapsedMs: null,
   })
   activeTabId.value = id
 
@@ -646,7 +646,7 @@ function openShellTab({ connectionId, connectionName, dbName }) {
     code: '', history: [], isRunning: false,
     // result state, read by the reused result grid (ResultTable / TreeView)
     results: [], resultView: 'table', resultTab: 'Console',
-    runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1,
+    runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1, selectedRows: [],
     logs: [], scalar: undefined, hasScalar: false,
   })
   activeTabId.value = id

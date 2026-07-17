@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../utils/errors'
 import { inspectField, setFieldValue, addFieldValue, removeField, renameField, getContainer } from '../utils/docEdit'
@@ -89,26 +89,55 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
     invoke('open_document_window', { target: target })
   }
 
+  // Indices of the current row selection (multi-select), falling back to the single active
+  // row. Empty when nothing is selected. Shared by the toolbar Copy and Delete actions.
+  function selectedRowIndices(tab) {
+    if (!tab) return []
+    if (tab.selectedRows && tab.selectedRows.length) return tab.selectedRows
+    return (tab.selectedRow ?? -1) >= 0 ? [tab.selectedRow] : []
+  }
+
+  // How many documents Copy/Delete will act on — drives the delete-confirm wording.
+  const selectedCount = computed(() => selectedRowIndices(activeTab()).length)
+
   // ── copy document (toolbar button) ─────────────────────
+  // One selected row copies its document; multiple copy a JSON array (mirrors the grid's
+  // Ctrl+C so the toolbar button and the shortcut agree).
   function copySelectedDocument() {
     const tab = activeTab()
-    if (!tab || tab.selectedRow < 0) return
-    navigator.clipboard.writeText(JSON.stringify(tab.results[tab.selectedRow], null, 2))
+    const docs = selectedRowIndices(tab).map((i) => tab.results[i]).filter((d) => d != null)
+    if (!docs.length) return
+    const payload = docs.length === 1 ? docs[0] : docs
+    navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
   }
 
   async function onDeleteConfirm() {
     const tab = activeTab()
-    const original = tab.results[tab.selectedRow]
+    const rows = selectedRowIndices(tab)
+    if (!rows.length) return
     crudError.value = null
     try {
-      await invoke('delete_document', {
-        id: tab.connectionId,
-        database: tab.dbName,
-        collection: tab.collectionName,
-        idFilter: buildIdFilter(original),
-      })
+      if (rows.length === 1) {
+        await invoke('delete_document', {
+          id: tab.connectionId,
+          database: tab.dbName,
+          collection: tab.collectionName,
+          idFilter: buildIdFilter(tab.results[rows[0]]),
+        })
+      } else {
+        // Bulk delete via a single { _id: { $in: [...] } } filter. The _id values are
+        // already in the same Extended-JSON shape buildIdFilter relies on.
+        const ids = rows.map((i) => tab.results[i]).filter((d) => d != null).map((d) => d._id)
+        await invoke('delete_many', {
+          id: tab.connectionId,
+          database: tab.dbName,
+          collection: tab.collectionName,
+          filter: JSON.stringify({ _id: { $in: ids } }),
+        })
+      }
       showDeleteConfirm.value = false
       tab.selectedRow = -1
+      tab.selectedRows = []
       requery(true)
     } catch (e) {
       crudError.value = errText(e)
@@ -408,6 +437,7 @@ export function useDocumentActions({ activeTab, docMenuRequest, viewMode, showTo
   return {
     drillPath: drillPath,
     showDeleteConfirm: showDeleteConfirm,
+    selectedCount: selectedCount,
     crudError: crudError,
     openInsert: openInsert,
     openEdit: openEdit,
