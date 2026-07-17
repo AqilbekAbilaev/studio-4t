@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Opened from App.vue for a collection node. Samples documents server-side and
@@ -14,6 +15,17 @@ const props = defineProps({
 defineEmits(['close'])
 
 const SAMPLE_SIZES = [100, 500, 1000, 5000]
+const sampleSizeOptions = SAMPLE_SIZES.map((n) => ({ value: n, label: String(n) }))
+const EXPORT_FORMAT_OPTIONS = [
+  { value: 'csv',  label: 'CSV' },
+  { value: 'docx', label: 'Word (.docx)' },
+]
+
+// Changing the sample size re-runs the analysis (was the native select's @change).
+function onSampleSize(n) {
+  sampleSize.value = n
+  analyze()
+}
 
 const loading = ref(true)
 const error = ref(null)
@@ -135,24 +147,22 @@ const fields = computed(() => (report.value ? report.value.fields : []))
         <div class="sc-controls">
           <label class="sc-sample">
             Sample size
-            <select v-model.number="sampleSize" class="sc-select" @change="analyze" :disabled="loading">
-              <option v-for="n in SAMPLE_SIZES" :key="n" :value="n">{{ n }}</option>
-            </select>
+            <BaseSelect :model-value="sampleSize" class="sc-select" :options="sampleSizeOptions"
+              :disabled="loading" size="sm" @update:model-value="onSampleSize" />
           </label>
           <div class="sc-count" v-if="report && !loading">
             Sampled {{ report.sampled }} document{{ report.sampled === 1 ? '' : 's' }},
             {{ fields.length }} field{{ fields.length === 1 ? '' : 's' }}
           </div>
           <span v-if="exportMsg" class="sc-export-msg">{{ exportMsg }}</span>
-          <select
+          <BaseSelect
             v-model="exportFormat"
             class="sc-select sc-export-fmt"
             :class="{ 'no-count': !(report && !loading) }"
+            :options="EXPORT_FORMAT_OPTIONS"
             :disabled="loading || exporting || !fields.length"
-          >
-            <option value="csv">CSV</option>
-            <option value="docx">Word (.docx)</option>
-          </select>
+            size="sm"
+          />
           <button
             class="sc-export"
             type="button"
@@ -285,14 +295,7 @@ const fields = computed(() => (report.value ? report.value.fields : []))
   align-items: center;
   gap: 6px;
 }
-.sc-select {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 3px 6px;
-  font-size: 12px;
-}
+.sc-select { min-width: 96px; }
 .sc-count { font-size: 12px; color: var(--text-faint); margin-left: auto; }
 .sc-export-msg { font-size: 12px; color: var(--text-dim); }
 .sc-export {

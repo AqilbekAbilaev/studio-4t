@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar "Data Masking" tool for the active collection. Lists the collection's
@@ -21,6 +22,11 @@ const STRATEGIES = [
   { value: 'partial', label: 'Partial' },
   { value: 'nullify', label: 'Null' },
   { value: 'remove',  label: 'Remove' },
+]
+const FORMAT_OPTIONS = [
+  { value: 'json', label: 'JSON' },
+  { value: 'csv',  label: 'CSV' },
+  { value: 'xlsx', label: 'Excel (.xlsx)' },
 ]
 
 const loading = ref(true)
@@ -147,9 +153,7 @@ async function runExport() {
           <div class="mk-rows">
             <div v-for="f in fields" :key="f.name" class="mk-row">
               <code class="mk-field" :title="f.name">{{ f.name }}</code>
-              <select v-model="f.strategy" class="mk-select">
-                <option v-for="s in STRATEGIES" :key="s.value" :value="s.value">{{ s.label }}</option>
-              </select>
+              <BaseSelect v-model="f.strategy" class="mk-select" :options="STRATEGIES" size="sm" />
               <span class="mk-opts">
                 <template v-if="f.strategy === 'partial'">
                   keep
@@ -165,11 +169,7 @@ async function runExport() {
           <div class="mk-footer">
             <label class="mk-f">
               Format
-              <select v-model="format" class="mk-select">
-                <option value="json">JSON</option>
-                <option value="csv">CSV</option>
-                <option value="xlsx">Excel (.xlsx)</option>
-              </select>
+              <BaseSelect v-model="format" class="mk-select" :options="FORMAT_OPTIONS" size="sm" />
             </label>
             <label class="mk-f">
               Limit
@@ -276,14 +276,7 @@ async function runExport() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.mk-select {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 3px 6px;
-  font-size: 12px;
-}
+.mk-select { min-width: 120px; }
 .mk-opts { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
 .mk-num {
   width: 44px;

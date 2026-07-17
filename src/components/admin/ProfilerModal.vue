@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Opened from App.vue for a database node. Reads the database's profiling status,
@@ -32,6 +33,7 @@ const refreshing = ref(false)
 const expanded = ref(null)
 
 const LEVEL_LABELS = { 0: 'Off', 1: 'Slow ops', 2: 'All' }
+const LEVEL_OPTIONS = [0, 1, 2].map((v) => ({ value: v, label: LEVEL_LABELS[v] }))
 
 const currentLevel = computed(() =>
   status.value && typeof status.value.was === 'number' ? status.value.was : null
@@ -163,11 +165,7 @@ function rawFor(op) {
           <div class="ctrl-bar">
             <span class="ctrl-label">Profiling</span>
             <span class="badge" :class="'lvl-' + (currentLevel ?? 'na')">{{ currentLevelLabel }}</span>
-            <select v-model="level" class="ctrl-select">
-              <option :value="0">Off</option>
-              <option :value="1">Slow ops</option>
-              <option :value="2">All</option>
-            </select>
+            <BaseSelect v-model="level" class="ctrl-select" :options="LEVEL_OPTIONS" size="sm" />
             <label class="ctrl-inline">
               slowms
               <input v-model="slowms" type="number" min="0" class="ctrl-num" />
@@ -332,7 +330,7 @@ function rawFor(op) {
 .badge.lvl-1 { color: var(--accent); border-color: var(--accent); }
 .badge.lvl-2 { color: var(--accent); border-color: var(--accent); }
 
-.ctrl-select,
+.ctrl-select { min-width: 120px; }
 .ctrl-num {
   background: var(--bg-input);
   border: 1px solid var(--border);

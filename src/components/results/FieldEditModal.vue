@@ -8,7 +8,10 @@
 // backend error back in via `saveError` (the dialog stays open on error).
 import { ref, computed, watch } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import { BSON_TYPES, buildTypedValue } from '../../utils/docEdit'
+
+const typeOptions = BSON_TYPES.map((t) => ({ value: t, label: t }))
 
 const props = defineProps({
   mode:        { type: String, required: true },   // 'edit' | 'add' | 'rename'
@@ -91,9 +94,7 @@ const shownError = computed(() => localError.value || props.saveError)
 
         <label v-if="showValue" class="fe-row">
           <span class="fe-lbl">Type</span>
-          <select class="fe-input" v-model="type">
-            <option v-for="t in BSON_TYPES" :key="t" :value="t">{{ t }}</option>
-          </select>
+          <BaseSelect class="fe-select" v-model="type" :options="typeOptions" />
         </label>
 
         <label v-if="showValueInput" class="fe-row">
@@ -150,6 +151,7 @@ const shownError = computed(() => localError.value || props.saveError)
   color: var(--text); font-family: var(--mono); font-size: 12.5px; padding: 7px 9px; outline: none;
 }
 .fe-input:focus { border-color: var(--accent); }
+.fe-select { width: 100%; }
 .fe-area { resize: vertical; min-height: 96px; line-height: 1.5; }
 .fe-hint { margin: -4px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-faint); }
 .fe-error { font-size: 12px; color: var(--danger-text); }

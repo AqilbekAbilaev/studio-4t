@@ -15,6 +15,8 @@ const props = defineProps({
   options: { type: Array, default: () => [] },
   placeholder: { type: String, default: 'Select…' },
   disabled: { type: Boolean, default: false },
+  // Trigger density: 'md' (default form control) or 'sm' (compact pills / inline).
+  size: { type: String, default: 'md' },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -91,7 +93,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="rootEl" class="base-select" :class="{ disabled }">
-    <button ref="triggerEl" type="button" class="bs-trigger" :class="{ placeholder: !selected, open }"
+    <button ref="triggerEl" type="button" class="bs-trigger" :class="[`bs-${size}`, { placeholder: !selected, open }]"
       :disabled="disabled" @click="toggle">
       <span class="bs-label">{{ triggerLabel }}</span>
       <BaseIcon name="caretDown" :size="12" class="bs-caret" />
@@ -119,11 +121,11 @@ onBeforeUnmount(() => {
   background: var(--bg-input);
   border: 1px solid var(--border-soft);
   border-radius: 5px;
-  padding: 5px 8px;
-  font-size: 12.5px;
   color: var(--text);
   cursor: pointer;
 }
+.bs-trigger.bs-md { padding: 5px 8px; font-size: 12.5px; }
+.bs-trigger.bs-sm { padding: 3px 7px; font-size: 12px; }
 .bs-trigger:hover:not(:disabled) { background: var(--bg-hover); }
 .bs-trigger:disabled { cursor: default; }
 .bs-trigger.open { border-color: var(--accent); }

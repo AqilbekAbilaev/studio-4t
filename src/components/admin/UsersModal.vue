@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Manage Users for a database: list, create, and drop users (via usersInfo /
@@ -83,6 +84,7 @@ async function dropUser(user) {
 // user gets a generated temporary password that must be reset.
 const showCopy = ref(false)
 const connections = ref([])
+const connOptions = computed(() => connections.value.map((c) => ({ value: c.id, label: c.name })))
 const copyTargetConn = ref('')
 const copyTargetDb = ref('')
 const copying = ref(false)
@@ -149,9 +151,7 @@ function copyText(text) {
         <div v-if="showCopy" class="um-copy">
           <div class="um-copy-row">
             <label class="um-copy-lbl">Target connection</label>
-            <select v-model="copyTargetConn" class="um-input">
-              <option v-for="c in connections" :key="c.id" :value="c.id">{{ c.name }}</option>
-            </select>
+            <BaseSelect v-model="copyTargetConn" class="um-select" :options="connOptions" />
           </div>
           <div class="um-copy-row">
             <label class="um-copy-lbl">Target database</label>
@@ -254,6 +254,7 @@ function copyText(text) {
   border: 1px solid var(--border-soft); background: var(--bg-window); color: var(--text); font-size: 13px;
 }
 .um-input:focus { outline: none; border-color: var(--accent); }
+.um-select { width: 100%; }
 .um-error { font-size: 12px; color: var(--danger-text); }
 
 .um-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }

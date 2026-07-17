@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Add / Edit Validator for a collection. Fetches the current validator on open so an
@@ -19,6 +20,8 @@ const error = ref(null)
 const validatorText = ref('')
 const level = ref('strict')   // off | moderate | strict
 const action = ref('error')   // error | warn
+const LEVEL_OPTIONS = ['off', 'moderate', 'strict'].map((v) => ({ value: v, label: v }))
+const ACTION_OPTIONS = ['error', 'warn'].map((v) => ({ value: v, label: v }))
 
 onMounted(async () => {
   try {
@@ -91,18 +94,11 @@ async function save() {
           <div class="vd-row">
             <div class="vd-field">
               <label class="vd-label">Validation Level</label>
-              <select v-model="level" class="vd-select">
-                <option value="off">off</option>
-                <option value="moderate">moderate</option>
-                <option value="strict">strict</option>
-              </select>
+              <BaseSelect v-model="level" class="vd-select" :options="LEVEL_OPTIONS" />
             </div>
             <div class="vd-field">
               <label class="vd-label">Validation Action</label>
-              <select v-model="action" class="vd-select">
-                <option value="error">error</option>
-                <option value="warn">warn</option>
-              </select>
+              <BaseSelect v-model="action" class="vd-select" :options="ACTION_OPTIONS" />
             </div>
           </div>
 
@@ -205,16 +201,7 @@ async function save() {
 .vd-editor:focus { outline: none; border-color: var(--accent); }
 .vd-row { display: flex; gap: 12px; }
 .vd-field { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.vd-select {
-  height: 30px;
-  padding: 0 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-input);
-  color: var(--text);
-  font-size: 13px;
-}
-.vd-select:focus { outline: none; border-color: var(--accent); }
+.vd-select { width: 100%; }
 .vd-error { font-size: 12px; color: var(--danger-text); }
 
 .vd-footer {

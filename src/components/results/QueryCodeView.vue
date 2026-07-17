@@ -3,8 +3,11 @@ import { ref, computed } from 'vue'
 import { keymap } from '@codemirror/view'
 import { defaultKeymap } from '@codemirror/commands'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import CodeEditor from '../base/CodeEditor.vue'
 import { generateCode, LANGUAGES } from '../../utils/queryCodegen'
+
+const languageOptions = LANGUAGES.map((lang) => ({ value: lang.id, label: lang.label }))
 
 // Query Code sub-tab: the active tab's query rendered as a copy-ready snippet in a chosen
 // target language (Shell, drivers, …). Generation lives in utils/queryCodegen; display is
@@ -53,12 +56,7 @@ function copyQueryCode() {
     <div class="qcode-toolbar">
       <label class="qc-lang">
         <span class="qc-lang-label">Language</span>
-        <span class="qc-select-wrap">
-          <select class="qc-select" v-model="queryCodeLang">
-            <option v-for="lang in LANGUAGES" :key="lang.id" :value="lang.id">{{ lang.label }}</option>
-          </select>
-          <BaseIcon name="caretDown" :size="12" class="qc-caret" />
-        </span>
+        <BaseSelect class="qc-select" v-model="queryCodeLang" :options="languageOptions" size="sm" />
       </label>
       <span class="qc-spacer"></span>
       <button class="qcode-copy" type="button" @click="copyQueryCode">
@@ -86,28 +84,7 @@ function copyQueryCode() {
 .qc-lang { display: inline-flex; align-items: center; gap: 7px; }
 .qc-lang-label { font-size: 11px; color: var(--text-dim); }
 /* language dropdown — strip native chrome, overlay a caret so the pill reads as selectable */
-.qc-select-wrap { position: relative; display: inline-flex; }
-.qc-select {
-  appearance: none;
-  -webkit-appearance: none;
-  background: var(--bg-input);
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
-  color: var(--text);
-  font-size: 12px;
-  padding: 4px 26px 4px 9px;
-  cursor: pointer;
-}
-.qc-select:hover { border-color: var(--border); }
-.qc-select:focus { outline: none; border-color: var(--accent); }
-.qc-caret {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-dim);
-  pointer-events: none;
-}
+.qc-select { min-width: 130px; }
 
 .qcode-copy {
   display: inline-flex;

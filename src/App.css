@@ -175,6 +175,8 @@
   box-sizing: border-box;
 }
 .prompt-input:focus { outline: none; border-color: var(--accent); }
+/* BaseSelect used where a .prompt-input would go — it self-styles, so this is width only. */
+.prompt-select { width: 100%; }
 .pipeline-input {
   height: auto;
   min-height: 76px;

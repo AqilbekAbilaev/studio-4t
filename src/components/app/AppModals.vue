@@ -1,6 +1,7 @@
 <script setup>
 import { inject } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import ServerStatusModal from '../admin/ServerStatusModal.vue'
@@ -34,6 +35,14 @@ import SshHostKeyModal from '../connection/SshHostKeyModal.vue'
 // Single provide/inject from App.vue. Each group is destructured back to the same
 // identifier names the moved template already uses, so that template is verbatim.
 const ctx = inject('appModals')
+
+// Time-series granularity options for the Add Collection dialog's BaseSelect.
+const GRANULARITY_OPTIONS = [
+  { value: '', label: 'Auto' },
+  { value: 'seconds', label: 'Seconds' },
+  { value: 'minutes', label: 'Minutes' },
+  { value: 'hours', label: 'Hours' },
+]
 
 const {
   showConnectionManager,
@@ -409,12 +418,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             </label>
             <label class="cc-field">
               <span class="cc-label">Granularity <span class="cc-opt">(optional)</span></span>
-              <select v-model="newCollectionOpts.granularity" class="prompt-input">
-                <option value="">Auto</option>
-                <option value="seconds">Seconds</option>
-                <option value="minutes">Minutes</option>
-                <option value="hours">Hours</option>
-              </select>
+              <BaseSelect v-model="newCollectionOpts.granularity" class="prompt-select" :options="GRANULARITY_OPTIONS" />
             </label>
             <label class="cc-field">
               <span class="cc-label">Expire after (seconds) <span class="cc-opt">(optional)</span></span>

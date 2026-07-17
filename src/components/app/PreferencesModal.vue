@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 
 // App preferences. Persisted via update_settings; on save the parent adopts the
 // new default so newly opened collection tabs use it.
@@ -13,6 +14,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved', 'open-shortcuts'])
 
 const PAGE_SIZES = [10, 25, 50, 100, 200]
+const THEME_OPTIONS = [{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]
+const pageSizeOptions = PAGE_SIZES.map((sz) => ({ value: sz, label: String(sz) }))
 const limit = ref(props.defaultQueryLimit)
 const theme = ref(props.theme)
 const saving = ref(false)
@@ -55,10 +58,7 @@ async function save() {
             <div class="pf-label">Theme</div>
             <div class="pf-hint">Overall color scheme for the app.</div>
           </div>
-          <select v-model="theme" class="pf-select">
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
+          <BaseSelect v-model="theme" class="pf-select" :options="THEME_OPTIONS" />
         </div>
 
         <div class="pf-row">
@@ -66,9 +66,7 @@ async function save() {
             <div class="pf-label">Default query limit</div>
             <div class="pf-hint">Page size used when a collection is first opened.</div>
           </div>
-          <select v-model.number="limit" class="pf-select">
-            <option v-for="sz in PAGE_SIZES" :key="sz" :value="sz">{{ sz }}</option>
-          </select>
+          <BaseSelect v-model="limit" class="pf-select" :options="pageSizeOptions" />
         </div>
 
         <div class="pf-row">
@@ -158,17 +156,7 @@ async function save() {
 .pf-label { font-size: 13px; color: var(--text); }
 .pf-hint { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
 
-.pf-select {
-  flex: none;
-  height: 30px;
-  min-width: 80px;
-  padding: 0 8px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--text);
-  font-size: 13px;
-}
+.pf-select { flex: none; min-width: 120px; }
 .pf-link {
   flex: none;
   height: 30px;

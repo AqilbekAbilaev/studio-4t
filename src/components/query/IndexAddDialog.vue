@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 
 // The Add / Edit index dialog (Screenshot A). It owns all of its form state and
 // emits an assembled { keys, options } pair — two JSON strings the backend merges
@@ -55,6 +56,16 @@ const colCaseFirst      = ref('off')
 const colNumericOrdering = ref(false)
 const colAlternate      = ref('non-ignorable')
 const colBackwards      = ref(false)
+const COL_STRENGTH_OPTIONS = [
+  { value: '',  label: 'default' },
+  { value: '1', label: '1 — primary' },
+  { value: '2', label: '2 — secondary' },
+  { value: '3', label: '3 — tertiary' },
+  { value: '4', label: '4 — quaternary' },
+  { value: '5', label: '5 — identical' },
+]
+const COL_CASE_FIRST_OPTIONS = ['off', 'upper', 'lower'].map((v) => ({ value: v, label: v }))
+const COL_ALTERNATE_OPTIONS = ['non-ignorable', 'shifted'].map((v) => ({ value: v, label: v }))
 
 // Footer
 const background = ref(false)
@@ -261,9 +272,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
                   <input v-model="row.field" class="prompt-input sm" placeholder="e.g. email or address.city" spellcheck="false" autocorrect="off" autocapitalize="off" />
                 </td>
                 <td class="fc-type">
-                  <select v-model="row.type" class="prompt-input sm">
-                    <option v-for="opt in TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                  </select>
+                  <BaseSelect v-model="row.type" class="prompt-select" :options="TYPE_OPTIONS" size="sm" />
                 </td>
                 <td class="fc-x">
                   <button class="icon-btn" title="Remove field" @click="removeField(i)"><BaseIcon name="trash" :size="14" /></button>
@@ -328,29 +337,15 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
           <div class="geo-grid">
             <div>
               <label class="idx-flabel">Strength</label>
-              <select v-model="colStrength" class="prompt-input">
-                <option value="">default</option>
-                <option value="1">1 — primary</option>
-                <option value="2">2 — secondary</option>
-                <option value="3">3 — tertiary</option>
-                <option value="4">4 — quaternary</option>
-                <option value="5">5 — identical</option>
-              </select>
+              <BaseSelect v-model="colStrength" class="prompt-select" :options="COL_STRENGTH_OPTIONS" />
             </div>
             <div>
               <label class="idx-flabel">Case first</label>
-              <select v-model="colCaseFirst" class="prompt-input">
-                <option value="off">off</option>
-                <option value="upper">upper</option>
-                <option value="lower">lower</option>
-              </select>
+              <BaseSelect v-model="colCaseFirst" class="prompt-select" :options="COL_CASE_FIRST_OPTIONS" />
             </div>
             <div>
               <label class="idx-flabel">Alternate</label>
-              <select v-model="colAlternate" class="prompt-input">
-                <option value="non-ignorable">non-ignorable</option>
-                <option value="shifted">shifted</option>
-              </select>
+              <BaseSelect v-model="colAlternate" class="prompt-select" :options="COL_ALTERNATE_OPTIONS" />
             </div>
           </div>
           <label class="opt-row"><input type="checkbox" v-model="colCaseLevel" /><span>Case level</span></label>
@@ -420,7 +415,6 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 .pane-note { font-size: 12px; color: var(--text-faint); margin: 0 0 12px; }
 .pane-note code { font-family: var(--mono); font-size: 11.5px; }
 .geo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 16px; margin-top: 6px; }
-.geo-grid select.prompt-input { width: 100%; }
 
 .json-pane { min-height: 264px; }
 .json-area {

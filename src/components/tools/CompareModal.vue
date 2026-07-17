@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // Top-bar "Compare" for a database: diff two collections by _id, the way
@@ -13,6 +14,7 @@ const props = defineProps({
 defineEmits(['close'])
 
 const collections = ref([])
+const collectionOptions = computed(() => collections.value.map((c) => ({ value: c, label: c })))
 const source = ref('')
 const targetColl = ref('')
 const result = ref(null)
@@ -82,16 +84,12 @@ function j(v) {
           <div class="cm-pick">
             <label class="cm-f">
               Source
-              <select v-model="source" class="cm-select">
-                <option v-for="c in collections" :key="'s'+c" :value="c">{{ c }}</option>
-              </select>
+              <BaseSelect v-model="source" class="cm-select" :options="collectionOptions" />
             </label>
             <BaseIcon name="compare" :size="16" class="cm-vs" />
             <label class="cm-f">
               Target
-              <select v-model="targetColl" class="cm-select">
-                <option v-for="c in collections" :key="'t'+c" :value="c">{{ c }}</option>
-              </select>
+              <BaseSelect v-model="targetColl" class="cm-select" :options="collectionOptions" />
             </label>
             <button class="cm-run" :disabled="loading || !source || !targetColl" @click="compare">
               {{ loading ? 'Comparing…' : 'Compare' }}
@@ -219,15 +217,7 @@ function j(v) {
 }
 .cm-pick { display: flex; align-items: flex-end; gap: 12px; }
 .cm-f { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.cm-select {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 5px 8px;
-  font-size: 12.5px;
-  width: 100%;
-}
+.cm-select { width: 100%; }
 .cm-vs { color: var(--text-faint); margin-bottom: 6px; }
 .cm-run {
   background: var(--accent);
