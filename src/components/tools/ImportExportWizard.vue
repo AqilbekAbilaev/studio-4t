@@ -4,7 +4,18 @@ import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
+
+const IMPORT_FORMATS = [
+  { value: 'json', label: 'JSON' },
+  { value: 'csv',  label: 'CSV' },
+]
+const EXPORT_FORMATS = [
+  { value: 'json', label: 'JSON' },
+  { value: 'csv',  label: 'CSV' },
+  { value: 'xlsx', label: 'Excel (.xlsx)' },
+]
 
 // Stepped Import / Export wizard for a single collection. One component, two
 // modes:
@@ -313,10 +324,7 @@ const titleText = computed(
           </div>
           <label class="iew-f">
             Format
-            <select v-model="format" class="iew-select">
-              <option value="json">JSON</option>
-              <option value="csv">CSV</option>
-            </select>
+            <BaseSelect v-model="format" class="iew-select" :options="IMPORT_FORMATS" size="sm" />
           </label>
         </template>
 
@@ -339,9 +347,7 @@ const titleText = computed(
               <input type="checkbox" v-model="f.include" class="iew-chk" />
               <code class="iew-field" :title="f.source">{{ f.source }}</code>
               <input v-model="f.target" class="iew-input" :disabled="!f.include" />
-              <select v-model="f.kind" class="iew-select" :disabled="!f.include">
-                <option v-for="k in KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
-              </select>
+              <BaseSelect v-model="f.kind" class="iew-select" :options="KINDS" :disabled="!f.include" size="sm" />
               <span v-if="!isImport" class="iew-order">
                 <button class="iew-move" :disabled="i === 0" @click="moveField(i, -1)">↑</button>
                 <button class="iew-move" :disabled="i === fields.length - 1" @click="moveField(i, 1)">↓</button>
@@ -360,11 +366,7 @@ const titleText = computed(
             <div v-if="!isImport" class="iew-export-opts">
               <label class="iew-f">
                 Format
-                <select v-model="format" class="iew-select">
-                  <option value="json">JSON</option>
-                  <option value="csv">CSV</option>
-                  <option value="xlsx">Excel (.xlsx)</option>
-                </select>
+                <BaseSelect v-model="format" class="iew-select" :options="EXPORT_FORMATS" size="sm" />
               </label>
               <label class="iew-f iew-inc" title="Export only documents added since this collection's last incremental export (tracked by _id)">
                 <input type="checkbox" v-model="incremental" />
@@ -545,7 +547,7 @@ const titleText = computed(
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.iew-input, .iew-select {
+.iew-input {
   background: var(--bg-input);
   color: var(--text);
   border: 1px solid var(--border);
@@ -553,19 +555,8 @@ const titleText = computed(
   padding: 3px 6px;
   font-size: 12px;
 }
-/* Native <select> needs appearance:none + a drawn chevron, or WebKitGTK renders
-   the OS widget (white) and ignores the themed background. Mirrors NewConnection's
-   .nc-native so all themed selects look the same. */
-.iew-select {
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-  padding-right: 26px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a94' stroke-width='1.5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 9px center;
-}
-.iew-input:disabled, .iew-select:disabled { opacity: .5; }
+.iew-select { min-width: 110px; }
+.iew-input:disabled { opacity: .5; }
 .iew-order { display: flex; gap: 4px; }
 .iew-move {
   background: var(--bg-input);
