@@ -79,13 +79,16 @@ npm test
 ### Data flow
 
 ```
-App.vue  (owns all app state: tabs[], showConnectionManager, etc.)
+App.vue  (holds the tab/pane spine: tabs[], activeTabId, split-pane sizing)
+  ├── Toolbar.vue          (global toolbar actions)
   ├── ConnectionTree.vue   (sidebar; calls list_connections, list_databases on mount/expand)
   ├── QueryWorkspace.vue   (tabs + query UI; emits run-query → App.vue calls find_documents)
-  ├── ConnectionManager.vue (modal; calls list_connections, delete_connection, update_last_accessed)
-  │     └── NewConnection.vue (calls test_connection, save_connection, set_connection_tag)
+  ├── OperationsPane.vue   (surface for long-running operations)
+  ├── AppModals.vue        (renders every top-level modal, incl. ConnectionManager → NewConnection)
   └── ContextMenu.vue      (handled entirely in App.vue's handleContextAction)
 ```
+
+Most app state and logic now live in `src/composables/*` (`useTabs`, `useModals`, `useQueryRunner`, `useDbActions`, `useMenu`, `useOperations`, `useSessionPersistence`, …) — `useModals` owns the open-state for every modal. App.vue composes these and passes props/handlers down; treat the composable as the source of truth for its slice. The tab/pane spine is intentionally kept in App.vue.
 
 **Tab state** lives in `App.vue`'s `tabs` ref as plain objects. Child components mutate tab properties directly (e.g. `tab.filter`, `tab.skip`) — this works because Vue 3 makes array items reactive. `QueryWorkspace` receives `tabs` as a prop and reads `activeTab` via a computed, then emits `run-query` up to App.vue which calls `invoke('find_documents', ...)`.
 
@@ -95,12 +98,12 @@ App.vue  (owns all app state: tabs[], showConnectionManager, etc.)
 |---|---|
 | `commands/` | All `#[tauri::command]` functions, split by area (`query`, `admin`, `connection`, `schema`, `sql`, `masking`, `migration`, `gridfs`, `compare`, `stats`, …) and re-exported from `commands/mod.rs`. `mod.rs` also holds shared helpers — notably `client_for(pool, storage, id)`, the single entry point every command uses to resolve a connection to a live client, plus the EJSON/CSV parse helpers. |
 | `pool.rs` | `ConnectionPool`: one `Client` per connection id behind a `tokio::Mutex` (and the live `SshTunnel` for tunnelled connections). `connect()` returns the cached client on a hit and only reads the keychain / builds the URI on a miss. |
-| `storage.rs` | JSON persistence for `ConnectionConfig` (`connections.json`). Read-modify-write goes through the locked `update_with`; the raw `save` is private so writes can't bypass the lock. Other JSON stores share the same shape: `folders`, `history`, `saved_queries`, `default_queries`, `settings`, `tabs`, `shell_history`, `known_hosts`. |
+| `storage/mod.rs` | JSON persistence for `ConnectionConfig` (`connections.json`). Read-modify-write goes through the locked `update_with`; the raw `save` is private so writes can't bypass the lock. Other JSON stores (`folders`, `history`, `saved_queries`, `default_queries`, `settings`, `tabs`, `shell_history`, `known_hosts`) share the same shape via the generic `JsonStore<T>` in `json_store.rs`. |
 | `persist.rs` | `atomic_write()` — write-to-temp-then-rename so a crash can't leave a truncated file. Shared by every JSON store. |
 | `keychain.rs` | Secrets (passwords, SSH key passphrases) in the OS keychain, keyed by connection id (SSH secrets under `id::ssh-*`). Configs on disk are credential-free. |
-| `ssh.rs` / `known_hosts.rs` | Optional SSH tunnel (pure-Rust `russh`) with trust-on-first-use host-key verification: unchanged key accepted, new host prompts, changed key refused. |
-| `shell/` | Embedded JS shell ("IntelliShell"): `engine.rs` runs one `boa` context per session on its own worker thread; `bridge.rs` exposes the `db` object that forwards to the driver. |
-| `uri.rs` | `build_uri()` assembles the connection string from a config; `with_timeout()` appends MongoDB timeout params; `tcp_probe()` does a fast TCP check before the MongoDB handshake. |
+| `ssh.rs` / `known_hosts/mod.rs` | Optional SSH tunnel (pure-Rust `russh`) with trust-on-first-use host-key verification: unchanged key accepted, new host prompts, changed key refused. |
+| `shell/` | Embedded JS shell ("IntelliShell"): `engine.rs` runs one `boa` context per session on its own worker thread; `bridge/mod.rs` exposes the `db` object that forwards to the driver. |
+| `uri/mod.rs` | `build_uri()` assembles the connection string from a config; `with_timeout()` appends MongoDB timeout params; `tcp_probe()` does a fast TCP check before the MongoDB handshake. |
 | `error.rs` | `AppError` enum serialized as `{ code, message }` so the frontend gets a stable category plus a human-readable message. |
 | `menu.rs` | Native OS menu (source of truth); File → Connect opens a **second Tauri webview window** at `src/pages/connect.html`. See "Native menu" below. |
 
@@ -132,11 +135,8 @@ removed.
 - The gate→enabled derivation is unit-tested in `menu.rs` (`cargo test`) and `menuContext.test.js`
   (`npm test`).
 
-### Design reference
+### Design conventions
 
-`ui-design/` contains the authoritative design prototype (React/JSX, browser-runnable). Before implementing any new screen or component, read the relevant JSX file and `ui-design/design_handoff_ozendb/README.md` for exact spacing, colors, and interaction spec.
-
-Key rules from the handoff:
 - **Dialog headers must not have macOS traffic lights.** Only the real OS window gets them. Dialogs use a centered title + a single close ✕ button on the right.
 - All colors come from CSS custom properties in `src/assets/theme.css` — never hardcode hex values that already exist as tokens.
 - Icons are inline SVG rendered by `BaseIcon.vue` via a `name` prop — add new icons there, never use external icon fonts or raster images.
