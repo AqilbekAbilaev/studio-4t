@@ -5,6 +5,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { errText, errCode } from '../../utils/errors'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 
@@ -305,15 +306,7 @@ function fmtDate(iso) {
 </script>
 
 <template>
-  <div class="overlay" @mousedown.self="$emit('close')">
-    <div class="dialog">
-      <div class="dlg-title">
-        <div class="t">GridFS — {{ target.dbName }}</div>
-        <button class="close-btn" @click="$emit('close')">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
-
+  <BaseModal :title="`GridFS — ${target.dbName}`" width="680px" max-width="92vw" @close="$emit('close')">
       <div class="gf-body">
         <div class="gf-controls">
           <label class="gf-f">
@@ -365,15 +358,10 @@ function fmtDate(iso) {
           </div>
         </template>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 
   <!-- Rename file -->
-  <div v-if="renameTarget" class="overlay sub" @mousedown.self="renameTarget = null">
-    <div class="sub-dialog">
-      <div class="dlg-title"><div class="t">Rename File</div>
-        <button class="close-btn" @click="renameTarget = null"><BaseIcon name="close" :size="14" /></button>
-      </div>
+  <BaseModal v-if="renameTarget" title="Rename File" width="440px" max-width="92vw" @close="renameTarget = null">
       <div class="sub-body">
         <input v-model="renameName" class="sub-input" placeholder="New filename" spellcheck="false" @keydown.enter="doRename" />
         <div v-if="subError" class="sub-error">{{ subError }}</div>
@@ -382,15 +370,10 @@ function fmtDate(iso) {
         <button class="btn" @click="renameTarget = null">Cancel</button>
         <button class="btn primary" :disabled="!renameName.trim() || busy" @click="doRename">Rename</button>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 
   <!-- Edit metadata -->
-  <div v-if="metaTarget" class="overlay sub" @mousedown.self="metaTarget = null">
-    <div class="sub-dialog">
-      <div class="dlg-title"><div class="t">Edit Metadata — {{ metaTarget.filename }}</div>
-        <button class="close-btn" @click="metaTarget = null"><BaseIcon name="close" :size="14" /></button>
-      </div>
+  <BaseModal v-if="metaTarget" :title="`Edit Metadata — ${metaTarget.filename}`" width="440px" max-width="92vw" @close="metaTarget = null">
       <div class="sub-body">
         <textarea v-model="metaText" class="sub-input sub-area" spellcheck="false" placeholder='{ "author": "…", "tags": [ … ] }'></textarea>
         <div class="sub-hint">Sets the file's <code>metadata</code> document. Leave empty to clear.</div>
@@ -400,15 +383,10 @@ function fmtDate(iso) {
         <button class="btn" @click="metaTarget = null">Cancel</button>
         <button class="btn primary" :disabled="busy" @click="doSetMeta">Save</button>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 
   <!-- View file details -->
-  <div v-if="viewTarget" class="overlay sub" @mousedown.self="viewTarget = null">
-    <div class="sub-dialog">
-      <div class="dlg-title"><div class="t">File Details</div>
-        <button class="close-btn" @click="viewTarget = null"><BaseIcon name="close" :size="14" /></button>
-      </div>
+  <BaseModal v-if="viewTarget" title="File Details" width="440px" max-width="92vw" @close="viewTarget = null">
       <div class="sub-body">
         <dl class="vf-list">
           <dt>Filename</dt><dd>{{ viewTarget.filename }}</dd>
@@ -421,15 +399,10 @@ function fmtDate(iso) {
       <div class="sub-footer">
         <button class="btn" @click="viewTarget = null">Close</button>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 
   <!-- Copy bucket -->
-  <div v-if="copyBucketOpen" class="overlay sub" @mousedown.self="copyBucketOpen = false">
-    <div class="sub-dialog">
-      <div class="dlg-title"><div class="t">Copy Bucket "{{ selectedBucket }}"</div>
-        <button class="close-btn" @click="copyBucketOpen = false"><BaseIcon name="close" :size="14" /></button>
-      </div>
+  <BaseModal v-if="copyBucketOpen" :title="`Copy Bucket &quot;${selectedBucket}&quot;`" width="440px" max-width="92vw" @close="copyBucketOpen = false">
       <div class="sub-body">
         <input v-model="copyBucketName" class="sub-input" placeholder="New bucket name" spellcheck="false" @keydown.enter="doCopyBucket" />
         <div v-if="subError" class="sub-error">{{ subError }}</div>
@@ -438,61 +411,10 @@ function fmtDate(iso) {
         <button class="btn" @click="copyBucketOpen = false">Cancel</button>
         <button class="btn primary" :disabled="!copyBucketName.trim() || busy" @click="doCopyBucket">Copy</button>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 </template>
 
 <style scoped>
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .5);
-  display: grid;
-  place-items: center;
-  z-index: 70;
-}
-.dialog {
-  width: 680px;
-  max-width: 92vw;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.dlg-title {
-  height: 36px;
-  flex: none;
-  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  position: relative;
-}
-.dlg-title .t {
-  position: absolute;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 500;
-  pointer-events: none;
-}
-.close-btn {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  z-index: 1;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
 
 .gf-body {
   padding: 14px 16px 16px;
@@ -569,17 +491,6 @@ function fmtDate(iso) {
 .gf-row.selected { background: var(--bg-active); box-shadow: inset 2px 0 0 var(--accent); }
 
 /* Sub-form overlays (rename / metadata / view / copy bucket) sit above the modal. */
-.overlay.sub { z-index: 80; }
-.sub-dialog {
-  width: 440px;
-  max-width: 92vw;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
 .sub-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .sub-input {
   width: 100%;

@@ -5,6 +5,7 @@ import { emit as tauriEmit } from '@tauri-apps/api/event'
 import { errText } from '../../utils/errors'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../../data/connectionOptions.js'
 import { partitionUriOptions } from '../../utils/connectionUri.js'
@@ -586,15 +587,7 @@ async function save() {
 
 <template>
   <!-- ── Intro step ─────────────────────────────────── -->
-  <div v-if="step === 'intro'" class="overlay" @mousedown.self="$emit('close')">
-    <div class="dialog nc-intro">
-      <div class="dlg-title">
-        <div class="t">New Connection</div>
-        <button class="dlg-close" title="Close" @click="$emit('close')">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
-
+  <BaseModal v-if="step === 'intro'" title="New Connection" width="640px" max-width="94vw" @close="$emit('close')">
       <div class="nci-body">
         <p class="nci-lead">
           If you have a connection string (SRV or standard), e.g. for your MongoDB deployment,
@@ -628,18 +621,10 @@ async function save() {
         <button class="btn" @click="$emit('close')">Cancel</button>
         <button class="btn primary" @click="goNext">Next</button>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 
   <!-- ── Form step ──────────────────────────────────── -->
-  <div v-else class="overlay" @mousedown.self="$emit('close')">
-    <div class="dialog nc">
-      <div class="dlg-title">
-        <div class="t">{{ isEditMode ? 'Edit Connection' : 'New Connection' }}</div>
-        <button class="dlg-close" title="Close" @click="$emit('close')">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
+  <BaseModal v-else :title="isEditMode ? 'Edit Connection' : 'New Connection'" width="720px" max-width="94vw" height="600px" max-height="92vh" @close="$emit('close')">
 
       <!-- Name row -->
       <div class="nc-top">
@@ -946,54 +931,10 @@ async function save() {
         </button>
       </div>
 
-    </div>
-  </div>
+  </BaseModal>
 </template>
 
 <style scoped>
-/* shared overlay/dialog/title/traffic */
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.5);
-  display: grid;
-  place-items: center;
-  z-index: 60;
-}
-.dialog {
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px #000;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.nc-intro { width: 640px; }
-.nc      { width: 720px; height: 600px; }
-
-.dlg-title {
-  height: 36px; flex: none;
-  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center;
-  padding: 0 14px; position: relative;
-}
-.dlg-title .t {
-  position: absolute; left: 0; right: 0; text-align: center;
-  font-size: 13px; color: var(--text-dim); font-weight: 500;
-  pointer-events: none;
-}
-.dlg-close {
-  margin-left: auto;
-  z-index: 1;
-  display: grid; place-items: center;
-  width: 24px; height: 24px;
-  border: none; background: none;
-  border-radius: 6px;
-  color: var(--text-dim); cursor: pointer;
-}
-.dlg-close:hover { background: var(--bg-hover); color: var(--text); }
-
 /* ── Intro body ── */
 .nci-body { padding: 22px 24px 8px; }
 .nci-lead { font-size: 13.5px; line-height: 1.6; color: var(--text); margin: 0 0 22px; }

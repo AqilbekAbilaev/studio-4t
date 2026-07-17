@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 
 // The Add / Edit index dialog (Screenshot A). It owns all of its form state and
@@ -224,13 +225,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 </script>
 
 <template>
-  <div class="del-overlay" @mousedown.self="emit('cancel')">
-    <div class="del-dialog idx-add-dialog">
-      <div class="del-title">
-        <div class="t">{{ title }}</div>
-        <button class="close-btn" @click="emit('cancel')"><BaseIcon name="close" :size="14" /></button>
-      </div>
-
+  <BaseModal :title="title" width="660px" max-width="92vw" @close="emit('cancel')">
       <div class="del-body idx-add-body">
         <label class="idx-flabel">Index name</label>
         <input
@@ -365,14 +360,12 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
           {{ busy ? (mode === 'edit' ? 'Saving…' : 'Creating…') : (mode === 'edit' ? 'Save changes' : 'Create index') }}
         </button>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 </template>
 
 <style scoped>
-.idx-add-dialog { width: 660px; max-width: 92vw; }
 /* Two-class selector so this padding wins over App.css's base .del-body. */
-.idx-add-dialog .idx-add-body {
+.del-body.idx-add-body {
   display: flex; flex-direction: column;
   padding: 24px 26px 18px;
   max-height: 76vh; overflow-y: auto;

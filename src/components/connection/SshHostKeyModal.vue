@@ -1,5 +1,6 @@
 <script setup>
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseModal from '../base/BaseModal.vue'
 
 // Driven entirely by App.vue: `prompt` is set for a first-contact trust request,
 // `changed` for a refused connection whose host key no longer matches. At most
@@ -14,15 +15,7 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
 <template>
   <!-- First-contact: ask the user to verify + trust the fingerprint. Backdrop /
        close act as Cancel so the waiting handshake always gets a decision. -->
-  <div v-if="prompt" class="overlay" @mousedown.self="$emit('cancel')">
-    <div class="dialog">
-      <div class="dlg-title">
-        <div class="t">Unknown SSH Host</div>
-        <button class="close-btn" @click="$emit('cancel')">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
-
+  <BaseModal v-if="prompt" title="Unknown SSH Host" width="520px" max-width="92vw" @close="$emit('cancel')">
       <div class="hk-body">
         <div class="hk-lead">
           <span class="hk-ico"><BaseIcon name="lock" :size="22" /></span>
@@ -44,20 +37,12 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
         <button class="btn" @click="$emit('cancel')">Cancel</button>
         <button class="btn primary" @click="$emit('trust')">Trust this host</button>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 
   <!-- Key changed: the connection was already refused; explain and offer the
        deliberate recovery path (forget the saved key, then reconnect). -->
-  <div v-else-if="changed" class="overlay" @mousedown.self="$emit('dismiss')">
-    <div class="dialog">
-      <div class="dlg-title">
-        <div class="t danger">SSH Host Key Changed</div>
-        <button class="close-btn" @click="$emit('dismiss')">
-          <BaseIcon name="close" :size="14" />
-        </button>
-      </div>
-
+  <BaseModal v-else-if="changed" width="520px" max-width="92vw" @close="$emit('dismiss')">
+      <template #title><span class="danger">SSH Host Key Changed</span></template>
       <div class="hk-body">
         <div class="hk-lead">
           <span class="hk-ico danger"><BaseIcon name="lock" :size="22" /></span>
@@ -84,66 +69,10 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
         <button class="btn" @click="$emit('dismiss')">Dismiss</button>
         <button class="btn danger" @click="$emit('forget')">Forget saved key</button>
       </div>
-    </div>
-  </div>
+  </BaseModal>
 </template>
 
 <style scoped>
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .5);
-  display: grid;
-  place-items: center;
-  z-index: 70;
-}
-
-.dialog {
-  width: 520px;
-  max-width: 92vw;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.dlg-title {
-  height: 36px;
-  flex: none;
-  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  position: relative;
-}
-.dlg-title .t {
-  position: absolute;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 500;
-  pointer-events: none;
-}
-.dlg-title .t.danger { color: var(--danger-text); }
-
-.close-btn {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  z-index: 1;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
-
 .hk-body {
   padding: 16px;
   display: flex;
