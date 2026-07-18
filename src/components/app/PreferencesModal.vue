@@ -5,6 +5,7 @@ import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // App preferences. Persisted via update_settings; on save the parent adopts the
 // new default so newly opened collection tabs use it.
@@ -76,8 +77,8 @@ async function save() {
 
       <div class="pf-footer">
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('close')">Cancel</button>
-        <button class="btn primary" :disabled="saving" @click="save">Save</button>
+        <BaseButton @click="$emit('close')">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="saving" @click="save">Save</BaseButton>
       </div>
     </BaseModal>
 </template>
@@ -125,18 +126,4 @@ async function save() {
   gap: 8px;
 }
 .spacer { flex: 1; }
-.btn {
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 5px;
-  border: none;
-  font-size: 13px;
-  cursor: pointer;
-  background: var(--bg-toolbar);
-  color: var(--text);
-}
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); color: #fff; }
-.btn.primary:hover { opacity: .88; }
-.btn:disabled { opacity: .5; cursor: default; }
 </style>

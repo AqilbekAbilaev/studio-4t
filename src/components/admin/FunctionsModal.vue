@@ -5,6 +5,7 @@ import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Add / Edit Stored Functions for a database (its system.js documents).
 const props = defineProps({
@@ -92,15 +93,15 @@ async function dropFunction(fn) {
           <textarea v-model="editing.body" class="fn-input fn-code" spellcheck="false" placeholder="function () { … }"></textarea>
           <div v-if="editError" class="fn-error">{{ editError }}</div>
           <div class="fn-actions">
-            <button class="btn" @click="editing = null">Back</button>
-            <button class="btn primary" :disabled="!editing.name.trim() || busy" @click="saveFunction">Save</button>
+            <BaseButton bordered @click="editing = null">Back</BaseButton>
+            <BaseButton variant="primary" :disabled="!editing.name.trim() || busy" @click="saveFunction">Save</BaseButton>
           </div>
         </template>
 
         <!-- List -->
         <template v-else>
           <div class="fn-bar">
-            <button class="btn primary" :disabled="busy" @click="newFunction"><BaseIcon name="plus" :size="12" /> New Function</button>
+            <BaseButton variant="primary" :disabled="busy" @click="newFunction"><BaseIcon name="plus" :size="12" /> New Function</BaseButton>
           </div>
           <StateMessage v-if="loading" mode="loading" label="Loading functions…" />
           <StateMessage v-else-if="error" mode="error" :message="error" />
@@ -109,10 +110,10 @@ async function dropFunction(fn) {
             <div v-for="fn in functions" :key="fn.name" class="fn-row">
               <span class="fn-name">{{ fn.name }}</span>
               <span class="fn-row-act">
-                <button class="btn" :disabled="busy" @click="editFunction(fn)">Edit</button>
-                <button class="btn danger-btn" :class="{ armed: pendingDrop === fn.name }" :disabled="busy" @click="dropFunction(fn)">
+                <BaseButton bordered :disabled="busy" @click="editFunction(fn)">Edit</BaseButton>
+                <BaseButton bordered :variant="pendingDrop === fn.name ? 'danger' : 'default'" :disabled="busy" @click="dropFunction(fn)">
                   {{ pendingDrop === fn.name ? 'Confirm' : 'Delete' }}
-                </button>
+                </BaseButton>
               </span>
             </div>
           </div>
@@ -139,9 +140,4 @@ async function dropFunction(fn) {
 .fn-name { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
 .fn-row-act { display: flex; gap: 6px; }
 
-.btn { height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--border-soft); background: var(--bg-input); color: var(--text); font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:disabled { opacity: .55; cursor: default; }
-.danger-btn.armed { background: var(--danger-text); border-color: var(--danger-text); color: #fff; }
 </style>

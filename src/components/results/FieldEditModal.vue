@@ -9,6 +9,7 @@
 import { ref, computed, watch } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseButton from '../base/BaseButton.vue'
 import { BSON_TYPES, buildTypedValue } from '../../utils/docEdit'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -106,8 +107,8 @@ const shownError = computed(() => localError.value || props.saveError)
 
       <div class="fe-footer">
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('close')">Cancel</button>
-        <button class="btn primary" @click="onSave">Save</button>
+        <BaseButton @click="$emit('close')">Cancel</BaseButton>
+        <BaseButton variant="primary" @click="onSave">Save</BaseButton>
       </div>
     </BaseModal>
 </template>
@@ -132,11 +133,4 @@ const shownError = computed(() => localError.value || props.saveError)
   display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-top: 8px;
 }
 .spacer { flex: 1; }
-.btn {
-  height: 28px; padding: 0 14px; border-radius: 5px; border: none;
-  font-size: 13px; cursor: pointer; background: var(--bg-toolbar); color: var(--text);
-}
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); color: #fff; }
-.btn.primary:hover { opacity: .88; }
 </style>

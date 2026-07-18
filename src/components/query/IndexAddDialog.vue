@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // The Add / Edit index dialog (Screenshot A). It owns all of its form state and
 // emits an assembled { keys, options } pair — two JSON strings the backend merges
@@ -270,13 +271,13 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
                   <BaseSelect v-model="row.type" class="prompt-select" :options="TYPE_OPTIONS" size="sm" />
                 </td>
                 <td class="fc-x">
-                  <button class="icon-btn" title="Remove field" @click="removeField(i)"><BaseIcon name="trash" :size="14" /></button>
+                  <BaseButton icon="trash" variant="danger" :icon-size="14" title="Remove field" @click="removeField(i)" />
                 </td>
               </tr>
             </tbody>
           </table>
           <div class="fields-foot">
-            <button class="btn sm" @click="addField"><BaseIcon name="plus" :size="13" /> Add field</button>
+            <BaseButton size="sm" icon="plus" @click="addField">Add field</BaseButton>
             <span class="kind-label">{{ kindLabel }}</span>
           </div>
         </div>
@@ -353,12 +354,12 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 
       <div class="del-footer idx-add-footer">
         <label class="bg-check"><input type="checkbox" v-model="background" /><span>Create in background</span></label>
-        <button class="btn sm json-btn" @click="toggleJson">{{ jsonMode ? 'Form' : 'JSON' }}</button>
+        <BaseButton size="sm" class="json-btn" @click="toggleJson">{{ jsonMode ? 'Form' : 'JSON' }}</BaseButton>
         <span class="spacer"></span>
-        <button class="btn" @click="emit('cancel')">Cancel</button>
-        <button class="btn primary" :disabled="busy" @click="onSubmit">
+        <BaseButton @click="emit('cancel')">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="busy" @click="onSubmit">
           {{ busy ? (mode === 'edit' ? 'Saving…' : 'Creating…') : (mode === 'edit' ? 'Save changes' : 'Create index') }}
-        </button>
+        </BaseButton>
       </div>
   </BaseModal>
 </template>
@@ -396,11 +397,8 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 .fc-x { width: 40px; text-align: center; }
 .prompt-input.sm { padding: 5px 9px; font-size: 12.5px; width: 100%; }
 .prompt-input.ttl { width: 120px; margin-left: 10px; }
-.icon-btn { border: none; background: transparent; color: var(--text-faint); cursor: pointer; padding: 5px; border-radius: var(--radius); display: inline-flex; }
-.icon-btn:hover { color: var(--danger-text); background: var(--bg-hover); }
 
 .fields-foot { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
-.btn.sm { padding: 5px 11px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
 .kind-label { font-size: 12px; color: var(--text-faint); }
 
 .options-pane { display: flex; flex-direction: column; gap: 6px; }

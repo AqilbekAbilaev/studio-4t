@@ -15,6 +15,7 @@ import TreeResultView from './TreeResultView.vue'
 import ExplainResultView from './ExplainResultView.vue'
 import QueryCodeView from './QueryCodeView.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 import Resizer from '../base/Resizer.vue'
 import { useDocumentActions } from '../../composables/useDocumentActions'
 
@@ -207,24 +208,22 @@ function toggleReadOnly() {
 
     <!-- Result toolbar -->
     <div class="rtoolbar" v-if="rtab === 'Result'">
-      <button class="icon-btn" @click="emit('run')" :disabled="activeTab.isRunning || !runValid">
-        <BaseIcon name="refresh" :size="18" />
-      </button>
+      <BaseButton icon="refresh" :icon-size="18" @click="emit('run')" :disabled="activeTab.isRunning || !runValid" />
       <button v-if="activeTab.isRunning" class="cancel-btn" @click="emit('cancel')" title="Cancel the running query">
         <BaseIcon name="close" :size="13" /> Cancel
       </button>
-      <button class="icon-btn"
+      <BaseButton icon="first" :icon-size="18"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
-        @click="goFirst"><BaseIcon name="first" :size="18" /></button>
-      <button class="icon-btn"
+        @click="goFirst" />
+      <BaseButton icon="prev" :icon-size="18"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
-        @click="goPrev"><BaseIcon name="prev" :size="18" /></button>
-      <button class="icon-btn"
+        @click="goPrev" />
+      <BaseButton icon="next" :icon-size="18"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
-        @click="goNext"><BaseIcon name="next" :size="18" /></button>
-      <button class="icon-btn"
+        @click="goNext" />
+      <BaseButton icon="last" :icon-size="18"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.results?.length ?? 0) < (activeTab.limit || 50) || activeTab.isRunning"
-        @click="goLast"><BaseIcon name="last" :size="18" /></button>
+        @click="goLast" />
       <div class="page-size-wrap">
         <span class="page-size" @click="pageSizeMenu = !pageSizeMenu">
           {{ activeTab.limit || 50 }} <BaseIcon name="caretDown" :size="12" />
@@ -242,31 +241,30 @@ function toggleReadOnly() {
       <span class="docs-range">
         Documents {{ rangeText }}
       </span>
-      <button class="icon-btn" :class="{ active: activeTab.readOnly }"
+      <BaseButton icon="lock" :icon-size="18" :active="activeTab.readOnly"
         :title="activeTab.readOnly ? 'Read-only mode is on — click to allow edits' : 'Read-only mode (block accidental edits)'"
-        @click="toggleReadOnly"><BaseIcon name="lock" :size="18" /></button>
-      <button class="icon-btn" title="Add document"
+        @click="toggleReadOnly" />
+      <BaseButton icon="plus" :icon-size="18" title="Add document"
         :disabled="!activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
-        @click="openInsert"><BaseIcon name="plus" :size="18" /></button>
-      <button class="icon-btn" title="View document (read-only)"
+        @click="openInsert" />
+      <BaseButton icon="eye" :icon-size="18" title="View document (read-only)"
         :disabled="activeTab.selectedRow < 0"
-        @click="openView"><BaseIcon name="eye" :size="18" /></button>
-      <button class="icon-btn" title="Edit document"
+        @click="openView" />
+      <BaseButton icon="edit" :icon-size="18" title="Edit document"
         :disabled="activeTab.selectedRow < 0 || activeTab.readOnly"
-        @click="openEdit"><BaseIcon name="edit" :size="18" /></button>
-      <button class="icon-btn" title="Copy document"
+        @click="openEdit" />
+      <BaseButton icon="copy" :icon-size="18" title="Copy document"
         :disabled="activeTab.selectedRow < 0"
-        @click="copySelectedDocument"><BaseIcon name="copy" :size="18" /></button>
-      <button class="icon-btn" title="Delete document"
+        @click="copySelectedDocument" />
+      <BaseButton icon="trash" :icon-size="18" title="Delete document"
         :disabled="activeTab.selectedRow < 0 || activeTab.readOnly"
-        @click="showDeleteConfirm = true; crudError = null"><BaseIcon name="trash" :size="18" />
-      </button>
-      <button class="icon-btn" title="Update documents by query…"
+        @click="showDeleteConfirm = true; crudError = null" />
+      <BaseButton icon="updateDialog" :icon-size="18" title="Update documents by query…"
         :disabled="!isCollection || !activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
-        @click="showUpdateDialog = true"><BaseIcon name="updateDialog" :size="18" /></button>
-      <button class="icon-btn" title="Delete documents by query…"
+        @click="showUpdateDialog = true" />
+      <BaseButton icon="deleteDialog" :icon-size="18" title="Delete documents by query…"
         :disabled="!isCollection || !activeTab.hasRun || activeTab.isRunning || activeTab.readOnly"
-        @click="showDeleteDialog = true"><BaseIcon name="deleteDialog" :size="18" /></button>
+        @click="showDeleteDialog = true" />
       <span class="rtoolbar-spacer"></span>
 
       <!-- View mode selector -->
@@ -391,8 +389,8 @@ function toggleReadOnly() {
     </div>
     <div class="del-footer">
       <span class="spacer"></span>
-      <button class="btn" @click="showDeleteConfirm = false">Cancel</button>
-      <button class="btn danger" @click="onDeleteConfirm">{{ selectedCount > 1 ? `Delete ${selectedCount}` : 'Delete' }}</button>
+      <BaseButton @click="showDeleteConfirm = false">Cancel</BaseButton>
+      <BaseButton variant="danger" @click="onDeleteConfirm">{{ selectedCount > 1 ? `Delete ${selectedCount}` : 'Delete' }}</BaseButton>
     </div>
   </BaseModal>
 
@@ -416,8 +414,8 @@ function toggleReadOnly() {
     </div>
     <div class="del-footer">
       <span class="spacer"></span>
-      <button class="btn" @click="removeFieldName = null">Cancel</button>
-      <button class="btn danger" @click="onRemoveFieldConfirm">Remove</button>
+      <BaseButton @click="removeFieldName = null">Cancel</BaseButton>
+      <BaseButton variant="danger" @click="onRemoveFieldConfirm">Remove</BaseButton>
     </div>
   </BaseModal>
 
@@ -449,16 +447,16 @@ function toggleReadOnly() {
     </div>
     <div class="del-footer">
       <span class="spacer"></span>
-      <button class="btn" @click="showClearConfirm = false">Cancel</button>
-      <button class="btn danger" :disabled="clearBusy || clearConfirmText !== activeTab.collectionName"
-              @click="onClearConfirm">{{ clearBusy ? 'Clearing…' : 'Clear Collection' }}</button>
+      <BaseButton @click="showClearConfirm = false">Cancel</BaseButton>
+      <BaseButton variant="danger" :disabled="clearBusy || clearConfirmText !== activeTab.collectionName"
+              @click="onClearConfirm">{{ clearBusy ? 'Clearing…' : 'Clear Collection' }}</BaseButton>
     </div>
   </BaseModal>
 
   <!-- CRUD error banner (for delete errors shown outside a dialog) -->
   <div v-if="crudError && !showDeleteConfirm" class="crud-err-banner">
     {{ crudError }}
-    <button @click="crudError = null"><BaseIcon name="close" :size="13" /></button>
+    <BaseButton icon="close" :icon-size="13" @click="crudError = null" />
   </div>
 </template>
 
@@ -486,25 +484,6 @@ function toggleReadOnly() {
   border-bottom: 1px solid var(--border);
   flex: none;
 }
-.icon-btn {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--text-dim);
-  padding: 4px;
-  display: grid;
-  place-items: center;
-}
-.icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-.icon-btn:disabled { opacity: .4; }
-/* Read-only lock, engaged: accent the glyph + border so the toolbar clearly reads
-   as guarded, without a saturated fill that would wash out the icon. */
-.icon-btn.active {
-  background: var(--bg-hover);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.icon-btn.active:hover { color: var(--accent); }
 .cancel-btn {
   display: inline-flex;
   align-items: center;
@@ -646,20 +625,6 @@ function toggleReadOnly() {
   padding: 0 16px;
   gap: 8px;
 }
-.btn {
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 5px;
-  border: none;
-  font-size: 13px;
-  cursor: pointer;
-  background: var(--bg-toolbar);
-  color: var(--text);
-}
-.btn:hover { background: var(--bg-hover); }
-.btn.danger { background: var(--danger); color: #fff; }
-.btn.danger:hover:not(:disabled) { background: var(--danger-hover); }
-.btn:disabled { opacity: .5; cursor: default; }
 .del-body code { font-family: var(--mono); color: var(--text); }
 .cc-prompt { margin-top: 12px; }
 .cc-input {

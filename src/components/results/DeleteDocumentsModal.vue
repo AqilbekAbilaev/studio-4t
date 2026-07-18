@@ -12,6 +12,7 @@ import { predefinedQuery, hasSelectedDocs } from '../../utils/predefinedQuery'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseButton from '../base/BaseButton.vue'
 import CodeEditor from '../base/CodeEditor.vue'
 
 const props = defineProps({
@@ -128,15 +129,15 @@ async function onDelete() {
       </div>
 
       <div class="dw-footer">
-        <button class="btn" @click="onValidate">Validate JSON</button>
-        <button class="btn" :disabled="busy" @click="onCount">Find matches</button>
+        <BaseButton @click="onValidate">Validate JSON</BaseButton>
+        <BaseButton :disabled="busy" @click="onCount">Find matches</BaseButton>
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('close')">Cancel</button>
-        <button
-          class="btn danger"
+        <BaseButton @click="$emit('close')">Cancel</BaseButton>
+        <BaseButton
+          variant="danger"
           :disabled="busy || matched === null || countedFilter !== filter"
           @click="onDelete"
-        >{{ matched !== null && countedFilter === filter ? `Delete ${matched.toLocaleString()}` : 'Delete' }}</button>
+        >{{ matched !== null && countedFilter === filter ? `Delete ${matched.toLocaleString()}` : 'Delete' }}</BaseButton>
       </div>
   </BaseModal>
 </template>
@@ -167,12 +168,4 @@ async function onDelete() {
   display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-top: 8px;
 }
 .spacer { flex: 1; }
-.btn {
-  height: 28px; padding: 0 14px; border-radius: 5px; border: none;
-  font-size: 13px; cursor: pointer; background: var(--bg-toolbar); color: var(--text);
-}
-.btn:hover:not(:disabled) { background: var(--bg-hover); }
-.btn:disabled { opacity: .5; cursor: default; }
-.btn.danger { background: var(--danger); color: #fff; }
-.btn.danger:hover:not(:disabled) { background: var(--danger-hover); }
 </style>

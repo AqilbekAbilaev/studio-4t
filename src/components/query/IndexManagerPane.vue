@@ -2,6 +2,7 @@
 import { computed, ref, inject, watch, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
 import IndexAddDialog from './IndexAddDialog.vue'
 import {
   isProtectedIndex, isIndexHidden, indexKeyLabel, indexType, indexProperties,
@@ -264,16 +265,16 @@ function fmtBytes(bytes) {
 
     <!-- Toolbar -->
     <div class="idx-toolbar">
-      <button class="tb" @click="loadIndexes()"><BaseIcon name="refresh" :size="16" /><span>Refresh</span></button>
-      <button class="tb" @click="openCreateIndex()"><BaseIcon name="plus" :size="16" /><span>Add index</span></button>
+      <BaseButton variant="ghost" size="sm" icon="refresh" :icon-size="16" @click="loadIndexes()">Refresh</BaseButton>
+      <BaseButton variant="ghost" size="sm" icon="plus" :icon-size="16" @click="openCreateIndex()">Add index</BaseButton>
       <span class="tb-sep"></span>
-      <button class="tb" :disabled="!hasSel || selProtected" @click="handleDropIndex()"><BaseIcon name="trash" :size="16" /><span>Drop index</span></button>
-      <button class="tb" :disabled="!hasSel || selProtected" @click="handleStartEdit()"><BaseIcon name="edit" :size="16" /><span>Edit index</span></button>
-      <button class="tb" :disabled="!hasSel" @click="handleViewDetails()"><BaseIcon name="eye" :size="16" /><span>View details</span></button>
-      <button class="tb" :disabled="!hasSel || selProtected" @click="toggleHidden()"><BaseIcon :name="selHidden ? 'eye' : 'eyeOff'" :size="16" /><span>{{ selHidden ? 'Unhide index' : 'Hide index' }}</span></button>
+      <BaseButton variant="ghost" size="sm" icon="trash" :icon-size="16" :disabled="!hasSel || selProtected" @click="handleDropIndex()">Drop index</BaseButton>
+      <BaseButton variant="ghost" size="sm" icon="edit" :icon-size="16" :disabled="!hasSel || selProtected" @click="handleStartEdit()">Edit index</BaseButton>
+      <BaseButton variant="ghost" size="sm" icon="eye" :icon-size="16" :disabled="!hasSel" @click="handleViewDetails()">View details</BaseButton>
+      <BaseButton variant="ghost" size="sm" :icon="selHidden ? 'eye' : 'eyeOff'" :icon-size="16" :disabled="!hasSel || selProtected" @click="toggleHidden()">{{ selHidden ? 'Unhide index' : 'Hide index' }}</BaseButton>
       <span class="tb-sep"></span>
-      <button class="tb" :disabled="!hasSel" @click="handleCopyIndex()"><BaseIcon name="copy" :size="16" /><span>Copy</span></button>
-      <button class="tb" @click="pasteIndex()"><BaseIcon name="paste" :size="16" /><span>Paste</span></button>
+      <BaseButton variant="ghost" size="sm" icon="copy" :icon-size="16" :disabled="!hasSel" @click="handleCopyIndex()">Copy</BaseButton>
+      <BaseButton variant="ghost" size="sm" icon="paste" :icon-size="16" @click="pasteIndex()">Paste</BaseButton>
     </div>
 
     <!-- Index list -->
@@ -364,14 +365,6 @@ function fmtBytes(bytes) {
   padding: 5px 8px; background: var(--bg-toolbar);
   border-bottom: 1px solid var(--border); flex: none;
 }
-.tb {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 8px; border: none; background: transparent;
-  color: var(--text); font-size: 12.5px; border-radius: var(--radius);
-  cursor: pointer;
-}
-.tb:hover:not(:disabled) { background: var(--bg-hover); }
-.tb:disabled { color: var(--text-faint); cursor: default; }
 .tb-sep { width: 1px; align-self: stretch; margin: 3px 6px; background: var(--border); }
 
 /* Table */

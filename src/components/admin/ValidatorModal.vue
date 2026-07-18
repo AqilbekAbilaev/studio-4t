@@ -7,6 +7,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Add / Edit Validator for a collection. Fetches the current validator on open so an
 // existing rule is never silently overwritten, then writes changes via collMod.
@@ -102,10 +103,10 @@ async function save() {
 
       <div class="vd-footer">
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('close')">Cancel</button>
-        <button class="btn primary" :disabled="loading || saving" @click="save">
+        <BaseButton bordered @click="$emit('close')">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="loading || saving" @click="save">
           {{ saving ? 'Saving…' : 'Save' }}
-        </button>
+        </BaseButton>
       </div>
     </BaseModal>
 </template>
@@ -155,17 +156,4 @@ async function save() {
   gap: 8px;
 }
 .vd-footer .spacer { flex: 1; }
-.btn {
-  height: 30px;
-  padding: 0 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-input);
-  color: var(--text);
-  font-size: 13px;
-  cursor: pointer;
-}
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:disabled { opacity: .55; cursor: default; }
 </style>

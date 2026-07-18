@@ -6,6 +6,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Opened from App.vue for a database node. Reads the database's profiling status,
 // lists the slow ops captured in `system.profile`, and lets the user change the
@@ -164,9 +165,9 @@ function rawFor(op) {
               slowms
               <input v-model="slowms" type="number" min="0" class="ctrl-num" />
             </label>
-            <button class="btn" :disabled="applying" @click="applyLevel">
+            <BaseButton bordered :disabled="applying" @click="applyLevel">
               {{ applying ? 'Applying…' : 'Apply' }}
-            </button>
+            </BaseButton>
           </div>
 
           <div class="filter-bar">
@@ -175,9 +176,9 @@ function rawFor(op) {
               <input v-model="slowerThan" type="number" min="0" class="ctrl-num" placeholder="—" />
               ms
             </label>
-            <button class="btn" :disabled="refreshing" @click="refreshList">
+            <BaseButton bordered :disabled="refreshing" @click="refreshList">
               {{ refreshing ? 'Refreshing…' : 'Refresh' }}
-            </button>
+            </BaseButton>
           </div>
 
           <StateMessage
@@ -284,17 +285,6 @@ function rawFor(op) {
 }
 .ctrl-num { width: 84px; }
 
-.btn {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 12.5px;
-  padding: 5px 12px;
-  cursor: pointer;
-}
-.btn:hover:not(:disabled) { background: var(--bg-hover); }
-.btn:disabled { opacity: .55; cursor: default; }
 
 .ops-table {
   width: 100%;

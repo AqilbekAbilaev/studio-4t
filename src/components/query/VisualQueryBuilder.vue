@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseButton from '../base/BaseButton.vue'
 import {
   OPERATORS,
   detectType,
@@ -203,9 +204,7 @@ function removeSortField(id) {
             />
             <BaseSelect class="op-select grow" :model-value="c.op" :options="OPERATORS" size="sm"
               @update:model-value="v => { c.op = v; applyAndRun() }" />
-            <button class="icon-btn sm" @click="removeCondition(c.id)">
-              <BaseIcon name="trash" :size="18" />
-            </button>
+            <BaseButton icon="trash" size="sm" :icon-size="18" @click="removeCondition(c.id)" />
           </div>
           <div class="cond-line" v-if="!opNoValue(c.op)">
             <span class="pill type-pill">{{ detectType(c.value) }}</span>
@@ -249,9 +248,7 @@ function removeSortField(id) {
             :class="f.include ? 'inc' : 'exc'"
             @click="f.include = !f.include; applyAndRun()"
           >{{ f.include ? 'Include' : 'Exclude' }}</button>
-          <button class="icon-btn sm" @click="removeProjField(f.id)">
-            <BaseIcon name="trash" :size="18" />
-          </button>
+          <BaseButton icon="trash" size="sm" :icon-size="18" @click="removeProjField(f.id)" />
         </div>
         <div class="add-field-row">
           <input
@@ -290,9 +287,7 @@ function removeSortField(id) {
             :class="f.dir === 1 ? 'asc' : 'desc'"
             @click="f.dir = f.dir === 1 ? -1 : 1; applyAndRun()"
           >{{ f.dir === 1 ? '↑ ASC' : '↓ DESC' }}</button>
-          <button class="icon-btn sm" @click="removeSortField(f.id)">
-            <BaseIcon name="trash" :size="18" />
-          </button>
+          <BaseButton icon="trash" size="sm" :icon-size="18" @click="removeSortField(f.id)" />
         </div>
         <div class="add-field-row">
           <input
@@ -464,13 +459,6 @@ function removeSortField(id) {
 .op-select.grow { flex: 1; }
 
 /* icon buttons */
-.icon-btn.sm {
-  background: none; border: none;
-  color: var(--text-faint); padding: 3px;
-  border-radius: 4px; cursor: pointer;
-  display: flex; align-items: center; flex: none;
-}
-.icon-btn.sm:hover { background: var(--bg-hover); color: var(--text); }
 
 /* sort / projection rows */
 .sp-row {

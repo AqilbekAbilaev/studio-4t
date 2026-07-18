@@ -1,6 +1,7 @@
 <script setup>
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Driven entirely by App.vue: `prompt` is set for a first-contact trust request,
 // `changed` for a refused connection whose host key no longer matches. At most
@@ -34,8 +35,8 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
 
       <div class="hk-footer">
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('cancel')">Cancel</button>
-        <button class="btn primary" @click="$emit('trust')">Trust this host</button>
+        <BaseButton @click="$emit('cancel')">Cancel</BaseButton>
+        <BaseButton variant="primary" @click="$emit('trust')">Trust this host</BaseButton>
       </div>
   </BaseModal>
 
@@ -66,8 +67,8 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
 
       <div class="hk-footer">
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('dismiss')">Dismiss</button>
-        <button class="btn danger" @click="$emit('forget')">Forget saved key</button>
+        <BaseButton @click="$emit('dismiss')">Dismiss</BaseButton>
+        <BaseButton variant="danger" @click="$emit('forget')">Forget saved key</BaseButton>
       </div>
   </BaseModal>
 </template>
@@ -120,19 +121,4 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
 }
 .spacer { flex: 1; }
 
-.btn {
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 5px;
-  border: none;
-  font-size: 13px;
-  cursor: pointer;
-  background: var(--bg-toolbar);
-  color: var(--text);
-}
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); color: #fff; }
-.btn.primary:hover { opacity: .88; }
-.btn.danger { background: var(--danger); color: #fff; }
-.btn.danger:hover { opacity: .88; }
 </style>

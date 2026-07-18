@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 const emit = defineEmits(['close', 'apply'])
 
@@ -133,12 +134,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
       <!-- Footer -->
       <div class="qb-footer">
-        <button class="btn del" @click="remove" :disabled="!selected">
+        <BaseButton bordered :disabled="!selected" @click="remove">
           <BaseIcon name="trash" :size="13" class="ic" /> Delete
-        </button>
+        </BaseButton>
         <span class="spacer" />
-        <button class="btn" @click="emit('close')">Close</button>
-        <button class="btn primary" @click="load" :disabled="!selected">Load</button>
+        <BaseButton bordered @click="emit('close')">Close</BaseButton>
+        <BaseButton variant="primary" :disabled="!selected" @click="load">Load</BaseButton>
       </div>
   </BaseModal>
 </template>
@@ -265,30 +266,5 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
   padding: 0 16px;
 }
 .spacer { flex: 1; }
-.btn {
-  padding: 7px 20px;
-  border-radius: 7px;
-  font-size: 13px;
-  background: var(--bg-toolbar);
-  border: 1px solid var(--border-soft);
-  color: var(--text);
-  cursor: pointer;
-}
-.btn:hover:not(:disabled) { background: var(--bg-hover); }
-.btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
-.btn.del {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
-  color: var(--text-dim);
-}
-.btn.del:hover:not(:disabled) { color: var(--danger-text); }
-.btn:disabled { opacity: .4; cursor: default; }
-.btn .ic { color: inherit; }
+.ic { color: inherit; }
 </style>

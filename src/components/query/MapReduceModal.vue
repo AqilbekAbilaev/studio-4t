@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Open Map-Reduce for a collection: enter map / reduce / (optional) finalize JS and
 // an output collection (blank = inline), run mapReduce, and show the raw result.
@@ -66,10 +67,10 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 
       <div class="mr-footer">
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('close')">Close</button>
-        <button class="btn primary" :disabled="running || !map.trim() || !reduce.trim()" @click="run">
+        <BaseButton bordered @click="$emit('close')">Close</BaseButton>
+        <BaseButton variant="primary" :disabled="running || !map.trim() || !reduce.trim()" @click="run">
           {{ running ? 'Running…' : 'Run' }}
-        </button>
+        </BaseButton>
       </div>
     </BaseModal>
 </template>
@@ -93,8 +94,4 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 }
 .mr-footer { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
 .mr-footer .spacer { flex: 1; }
-.btn { height: 30px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--border-soft); background: var(--bg-input); color: var(--text); font-size: 13px; cursor: pointer; }
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:disabled { opacity: .55; cursor: default; }
 </style>

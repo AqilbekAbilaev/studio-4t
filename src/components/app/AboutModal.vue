@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { getVersion, getName, getTauriVersion } from '@tauri-apps/api/app'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Help → About. Shows the real application name/version reported by the Tauri
 // runtime (never hardcoded), plus the build's Tauri version.
@@ -36,7 +37,7 @@ onMounted(async () => {
 
       <div class="ab-footer">
         <span class="spacer"></span>
-        <button class="btn primary" @click="$emit('close')">Close</button>
+        <BaseButton variant="primary" @click="$emit('close')">Close</BaseButton>
       </div>
   </BaseModal>
 </template>
@@ -60,15 +61,4 @@ onMounted(async () => {
   border-top: 1px solid var(--border);
 }
 .ab-footer .spacer { flex: 1; }
-.btn {
-  height: 30px;
-  padding: 0 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-input);
-  color: var(--text);
-  font-size: 13px;
-  cursor: pointer;
-}
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 </style>

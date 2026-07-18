@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
 import ResultTable from '../results/ResultTable.vue'
 import TreeView from '../base/TreeView.vue'
 import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
@@ -229,22 +230,22 @@ function formatScalar(value) {
   <div class="shell">
     <!-- Toolbar -->
     <div class="shell-toolbar">
-      <button class="qbtn run" @click="run()" :disabled="activeTab.isRunning">
+      <BaseButton variant="ghost" size="sm" class="run" @click="run()" :disabled="activeTab.isRunning">
         <BaseIcon name="run" :size="16" class="ic" /> Run <span class="kbd">⌘⏎</span>
-      </button>
-      <button class="qbtn" @click="runCurrentLine" :disabled="activeTab.isRunning" title="Run the line under the cursor">
+      </BaseButton>
+      <BaseButton variant="ghost" size="sm" @click="runCurrentLine" :disabled="activeTab.isRunning" title="Run the line under the cursor">
         <BaseIcon name="run" :size="16" class="ic" /> Run line <span class="kbd">⌘⇧⏎</span>
-      </button>
+      </BaseButton>
       <div class="tb-sep"></div>
       <div class="hist-wrap">
-        <button class="qbtn" :class="{ on: historyMenu }" @click="openHistory">
+        <BaseButton variant="ghost" size="sm" :active="historyMenu" @click="openHistory">
           <BaseIcon name="history" :size="16" class="ic" /> History
-        </button>
+        </BaseButton>
         <div v-if="historyMenu" class="hist-backdrop" @mousedown.self="historyMenu = false"></div>
         <div v-if="historyMenu" class="hist-menu">
           <div class="hist-header">
             <span class="hist-title">Shell History</span>
-            <button class="hist-clear" @click="clearHistory" :disabled="!activeTab.history.length">Clear</button>
+            <BaseButton variant="ghost" size="sm" @click="clearHistory" :disabled="!activeTab.history.length">Clear</BaseButton>
           </div>
           <div v-if="!activeTab.history.length" class="hist-empty">No history yet.</div>
           <div
@@ -256,12 +257,12 @@ function formatScalar(value) {
         </div>
       </div>
       <div class="tb-sep"></div>
-      <button class="qbtn" @click="openScript" title="Load a .js script into the editor">
+      <BaseButton variant="ghost" size="sm" @click="openScript" title="Load a .js script into the editor">
         <BaseIcon name="folder" :size="16" class="ic" /> Open
-      </button>
-      <button class="qbtn" @click="saveScript" title="Save the editor contents to a .js file">
+      </BaseButton>
+      <BaseButton variant="ghost" size="sm" @click="saveScript" title="Save the editor contents to a .js file">
         <BaseIcon name="save" :size="16" class="ic" /> Save
-      </button>
+      </BaseButton>
       <span class="tb-spacer"></span>
       <span class="shell-db"><BaseIcon name="dbSmall" :size="14" /> {{ activeTab.dbName }}</span>
     </div>
@@ -352,16 +353,8 @@ function formatScalar(value) {
   padding: 6px 10px; border-bottom: 1px solid var(--border);
   background: var(--bg-toolbar); flex: none;
 }
-.qbtn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 9px; border-radius: 6px;
-  background: none; border: none; color: var(--text); font-size: 12.5px; cursor: pointer;
-}
-.qbtn:hover { background: var(--bg-hover); }
-.qbtn.on { background: var(--bg-hover); }
-.qbtn:disabled { opacity: .5; cursor: default; }
-.qbtn .ic { color: var(--text-dim); }
-.qbtn.run .ic { color: var(--green); }
+.ic { color: var(--text-dim); }
+.run .ic { color: var(--green); }
 .kbd {
   font-size: 10.5px; color: var(--text-faint);
   border: 1px solid var(--border-soft); border-radius: 4px; padding: 1px 5px; margin-left: 4px;
@@ -385,13 +378,6 @@ function formatScalar(value) {
   border-bottom: 1px solid var(--border-soft);
 }
 .hist-title { font-size: 12px; font-weight: 600; color: var(--text-dim); flex: 1; }
-.hist-clear {
-  font-size: 11px; color: var(--text-faint);
-  background: none; border: none; padding: 2px 6px;
-  border-radius: 4px; cursor: pointer;
-}
-.hist-clear:hover:not(:disabled) { color: var(--text); background: var(--bg-hover); }
-.hist-clear:disabled { opacity: .4; cursor: default; }
 .hist-empty { padding: 12px; color: var(--text-faint); font-size: 12px; }
 .hist-item {
   padding: 7px 9px; border-radius: 5px; cursor: pointer;

@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import RawToggle from '../base/RawToggle.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -70,10 +71,7 @@ const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2)
             </div>
           </div>
 
-          <button class="ss-raw-toggle" @click="showRaw = !showRaw">
-            <BaseIcon :name="showRaw ? 'caretDown' : 'caret'" :size="12" />
-            Raw response
-          </button>
+          <RawToggle v-model="showRaw" label="Raw response" />
           <pre v-if="showRaw || !cards.length" class="ss-raw">{{ rawJson }}</pre>
         </template>
       </div>
@@ -109,19 +107,6 @@ const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2)
 .ss-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
 .ss-value { font-size: 13.5px; color: var(--text); margin-top: 2px; word-break: break-word; user-select: text; }
 
-.ss-raw-toggle {
-  align-self: flex-start;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 12.5px;
-  cursor: pointer;
-  padding: 2px 0;
-}
-.ss-raw-toggle:hover { color: var(--text); }
 .ss-raw {
   margin: 0;
   font-family: var(--mono);

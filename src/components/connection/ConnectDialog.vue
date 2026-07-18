@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import BaseButton from "../base/BaseButton.vue";
 
 const activeTab = ref("server");
 
@@ -158,14 +159,14 @@ async function cancel() {
     </div>
 
     <div class="actions">
-      <button class="btn btn-secondary" @click="cancel">Cancel</button>
+      <BaseButton bordered @click="cancel">Cancel</BaseButton>
       <div class="actions-right">
-        <button class="btn btn-secondary" :disabled="isTesting" @click="testConnection">
+        <BaseButton bordered :disabled="isTesting" @click="testConnection">
           {{ isTesting ? "Testing..." : "Test Connection" }}
-        </button>
-        <button class="btn btn-primary" :disabled="isSaving" @click="saveAndConnect">
+        </BaseButton>
+        <BaseButton variant="primary" :disabled="isSaving" @click="saveAndConnect">
           {{ isSaving ? "Saving..." : "Save & Connect" }}
-        </button>
+        </BaseButton>
       </div>
     </div>
   </div>
@@ -322,35 +323,4 @@ input:focus {
   gap: 8px;
 }
 
-.btn {
-  padding: 5px 14px;
-  border: 1px solid var(--border-soft);
-  cursor: pointer;
-  font-size: 12px;
-  background-color: transparent;
-  color: var(--text);
-}
-
-.btn:hover:not(:disabled) {
-  background-color: var(--bg-active);
-}
-
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.btn-primary {
-  background-color: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: var(--accent-soft);
-}
 </style>

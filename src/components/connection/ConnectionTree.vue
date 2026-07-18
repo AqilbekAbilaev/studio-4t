@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errMessage, errCode, errTitle } from '../../utils/errors'
 import { listen } from '@tauri-apps/api/event'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 const props = defineProps({
   activeCollectionKey: String,
@@ -324,9 +325,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
         <BaseIcon name="search" :size="14" style="color:var(--text-faint);flex:none" />
         <input v-model="searchText" placeholder="Search open connections (⌘F)" />
       </div>
-      <button class="icon-btn sm" title="Font size">
-        <BaseIcon name="textType" :size="15" />
-      </button>
+      <BaseButton icon="textType" size="sm" :icon-size="15" title="Font size" />
     </div>
 
     <!-- Tree -->
@@ -478,17 +477,6 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
 
 .search-box input::placeholder { color: var(--text-faint); }
 
-.icon-btn {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--text-dim);
-  padding: 5px;
-  display: grid;
-  place-items: center;
-}
-.icon-btn:hover { background: var(--bg-hover); color: var(--text); }
-.icon-btn.sm { padding: 4px; }
 
 .tree {
   flex: 1;

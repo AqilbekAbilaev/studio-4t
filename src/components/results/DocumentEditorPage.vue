@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import CodeEditor from '../base/CodeEditor.vue'
+import BaseButton from '../base/BaseButton.vue'
 import { docExtensions } from '../../utils/docEditor'
 import { mongoStringify } from '../../utils/mongoFormat'
 import { parseField } from '../../utils/queryParser'
@@ -242,20 +243,20 @@ onBeforeUnmount(() => {
     <div v-if="jsonErr" class="err">{{ jsonErr }}</div>
 
     <div class="footer">
-      <button v-if="isInsert" class="btn" :disabled="saving || loading" @click="onValidate">Validate JSON</button>
-      <button v-if="isInsert" class="btn" :disabled="saving || loading" @click="onFormat">Format JSON</button>
+      <BaseButton v-if="isInsert" :disabled="saving || loading" @click="onValidate">Validate JSON</BaseButton>
+      <BaseButton v-if="isInsert" :disabled="saving || loading" @click="onFormat">Format JSON</BaseButton>
       <span v-if="loading" class="hint">Loading…</span>
       <span v-else-if="readonly" class="hint">Read-only</span>
       <span v-else-if="okMsg" class="hint ok">{{ okMsg }}</span>
       <span v-else-if="dirty" class="hint">Unsaved changes</span>
       <span class="spacer"></span>
-      <button v-if="isInsert" class="btn" :disabled="saving || loading" @click="onSave(true)">
+      <BaseButton v-if="isInsert" :disabled="saving || loading" @click="onSave(true)">
         Add &amp; Continue
-      </button>
-      <button class="btn" @click="onClose">{{ isInsert ? 'Cancel' : 'Close' }}</button>
-      <button v-if="!readonly" class="btn primary" :disabled="saving || loading" @click="onSave(false)">
+      </BaseButton>
+      <BaseButton @click="onClose">{{ isInsert ? 'Cancel' : 'Close' }}</BaseButton>
+      <BaseButton v-if="!readonly" variant="primary" :disabled="saving || loading" @click="onSave(false)">
         {{ saving ? 'Saving…' : (isInsert ? 'Add Document' : 'Save') }}
-      </button>
+      </BaseButton>
     </div>
   </div>
 </template>
@@ -300,18 +301,4 @@ onBeforeUnmount(() => {
 .hint.ok { color: var(--success-text); }
 .spacer { flex: 1; }
 
-.btn {
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 5px;
-  border: none;
-  font-size: 13px;
-  cursor: pointer;
-  background: var(--bg-toolbar);
-  color: var(--text);
-}
-.btn:hover { background: var(--bg-hover); }
-.btn:disabled { opacity: .5; cursor: default; }
-.btn.primary { background: var(--accent); color: #fff; }
-.btn.primary:hover:not(:disabled) { opacity: .88; }
 </style>

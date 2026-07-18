@@ -6,6 +6,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 import NewConnection from './NewConnection.vue'
 import ContextMenu from '../base/ContextMenu.vue'
 
@@ -518,8 +519,8 @@ const CM_TOOLS = [
           Show on startup
         </label>
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('close')">Close</button>
-        <button class="btn primary" :disabled="!selectedId" @click="connectSelected">Connect</button>
+        <BaseButton bordered @click="$emit('close')">Close</BaseButton>
+        <BaseButton variant="primary" :disabled="!selectedId" @click="connectSelected">Connect</BaseButton>
       </div>
 
   </BaseModal>
@@ -753,16 +754,4 @@ table.cmt tr.sel .cm-key { color: rgba(255,255,255,.85); }
 }
 .cb.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-.btn {
-  padding: 8px 20px;
-  border-radius: 7px;
-  font-size: 13px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-toolbar);
-  color: var(--text);
-}
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { background: var(--accent-soft); }
-.btn:disabled { opacity: .4; cursor: default; }
 </style>

@@ -4,6 +4,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import { DATE_TAGS } from '../../utils/dateTags'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
+import SegmentedControl from '../base/SegmentedControl.vue'
+import NumberStepper from '../base/NumberStepper.vue'
 
 const props = defineProps({
   activeTab:      { type: Object,  required: true },
@@ -206,20 +209,22 @@ watch(() => props.activeTab && props.activeTab.id, () => {
 <template>
   <!-- Query bar -->
   <div class="qbar">
-    <div class="mode-toggle">
-      <button :class="{ on: !isAggregate }" @click="setMode('find')">Find</button>
-      <button :class="{ on: isAggregate }" @click="setMode('aggregate')">Aggregate</button>
-    </div>
-    <button class="qbtn run" @click="emit('run')" :disabled="activeTab.isRunning || !runValid">
+    <SegmentedControl
+      class="mode-toggle"
+      :model-value="isAggregate ? 'aggregate' : 'find'"
+      :options="[{ value: 'find', label: 'Find' }, { value: 'aggregate', label: 'Aggregate' }]"
+      @update:model-value="setMode"
+    />
+    <BaseButton variant="ghost" size="sm" class="run" @click="emit('run')" :disabled="activeTab.isRunning || !runValid">
       <BaseIcon name="run" :size="18" class="ic" />
       {{ activeTab.isRunning ? 'Running…' : 'Run' }}
-    </button>
+    </BaseButton>
     <template v-if="!isAggregate">
-      <button class="qbtn" @click="emit('open-browser')"><BaseIcon name="load" :size="18" class="ic" /> Load query</button>
+      <BaseButton variant="ghost" size="sm" @click="emit('open-browser')"><BaseIcon name="load" :size="18" class="ic" /> Load query</BaseButton>
       <div class="save-wrap">
-        <button class="qbtn" :class="{ on: showSaveForm }" @click="showSaveForm = !showSaveForm">
+        <BaseButton variant="ghost" size="sm" :active="showSaveForm" @click="showSaveForm = !showSaveForm">
           <BaseIcon name="save" :size="18" class="ic" /> Save query
-        </button>
+        </BaseButton>
         <div v-if="showSaveForm" class="save-backdrop" @mousedown.self="showSaveForm = false"></div>
         <div v-if="showSaveForm" class="save-form">
           <input
@@ -230,19 +235,19 @@ watch(() => props.activeTab && props.activeTab.id, () => {
             @keydown.escape="showSaveForm = false"
             v-focus
           />
-          <button class="save-btn primary" @click="saveCurrentQuery" :disabled="!saveName.trim()">Save</button>
-          <button class="save-btn" @click="showSaveForm = false">Cancel</button>
+          <BaseButton variant="primary" size="sm" @click="saveCurrentQuery" :disabled="!saveName.trim()">Save</BaseButton>
+          <BaseButton variant="ghost" size="sm" bordered @click="showSaveForm = false">Cancel</BaseButton>
         </div>
       </div>
       <div class="hist-wrap">
-        <button class="qbtn" :class="{ on: historyMenu }" @click="openHistoryMenu">
+        <BaseButton variant="ghost" size="sm" :active="historyMenu" @click="openHistoryMenu">
           <BaseIcon name="history" :size="18" class="ic" /> Query history
-        </button>
+        </BaseButton>
         <div v-if="historyMenu" class="hist-backdrop" @mousedown.self="historyMenu = false"></div>
         <div v-if="historyMenu" class="hist-menu">
           <div class="hist-header">
             <span class="hist-title">Query History</span>
-            <button class="hist-clear" @click="clearHistory" :disabled="!historyEntries.length">Clear</button>
+            <BaseButton variant="ghost" size="sm" @click="clearHistory" :disabled="!historyEntries.length">Clear</BaseButton>
           </div>
           <div v-if="historyLoading" class="hist-empty">Loading…</div>
           <div v-else-if="!historyEntries.length" class="hist-empty">No history for this collection.</div>
@@ -263,10 +268,10 @@ watch(() => props.activeTab && props.activeTab.id, () => {
         </div>
       </div>
       <div class="default-wrap">
-        <button class="qbtn" :class="{ on: showDefaultMenu }" @click="showDefaultMenu = !showDefaultMenu">
+        <BaseButton variant="ghost" size="sm" :active="showDefaultMenu" @click="showDefaultMenu = !showDefaultMenu">
           <BaseIcon name="anchor" :size="18" class="ic" /> Set default query
           <BaseIcon name="caretDown" :size="11" class="drop" />
-        </button>
+        </BaseButton>
         <div v-if="showDefaultMenu" class="default-backdrop" @mousedown.self="showDefaultMenu = false"></div>
         <div v-if="showDefaultMenu" class="default-menu">
           <button class="default-item" @click="setDefaultQuery">
@@ -277,17 +282,17 @@ watch(() => props.activeTab && props.activeTab.id, () => {
           </button>
         </div>
       </div>
-      <button class="qbtn" @click="emit('copy-query')">
+      <BaseButton variant="ghost" size="sm" @click="emit('copy-query')">
         <BaseIcon name="copy" :size="18" class="ic" /> Copy
-      </button>
-      <button class="qbtn" :disabled="!clipboardQuery" @click="emit('paste-query')">
+      </BaseButton>
+      <BaseButton variant="ghost" size="sm" :disabled="!clipboardQuery" @click="emit('paste-query')">
         <BaseIcon name="paste" :size="18" class="ic" /> Paste
-      </button>
+      </BaseButton>
     </template>
     <span class="qbar-spacer"></span>
-    <button v-if="!isAggregate" class="vqb-toggle" :class="{ on: vqbOpen }" @click="emit('toggle-vqb')">
+    <BaseButton v-if="!isAggregate" size="sm" bordered class="vqb-toggle" :class="{ on: vqbOpen }" @click="emit('toggle-vqb')">
       <BaseIcon name="aggregate" :size="15" /> Visual Query Builder
-    </button>
+    </BaseButton>
   </div>
 
   <!-- Query fields grid (find mode) -->
@@ -336,41 +341,11 @@ watch(() => props.activeTab && props.activeTab.id, () => {
       </div>
       <div class="num-cluster">
         <span class="qlabel">Limit</span>
-        <div class="numbox">
-          <input
-            :value="activeTab.limit || 50"
-            placeholder="50"
-            inputmode="numeric"
-            @input="activeTab.limit = Math.max(1, parseInt($event.target.value) || 1)"
-            @keydown.enter.prevent="emit('run')"
-          />
-          <div class="num-steppers">
-            <button tabindex="-1" @click="activeTab.limit = Math.max(1, (activeTab.limit || 50) + 1)">
-              <BaseIcon name="caret" :size="9" style="transform: rotate(-90deg)" />
-            </button>
-            <button tabindex="-1" @click="activeTab.limit = Math.max(1, (activeTab.limit || 50) - 1)">
-              <BaseIcon name="caret" :size="9" style="transform: rotate(90deg)" />
-            </button>
-          </div>
-        </div>
+        <NumberStepper :model-value="activeTab.limit || 50" :min="1" placeholder="50"
+          @update:model-value="activeTab.limit = $event" @enter="emit('run')" />
         <span class="qlabel">Skip</span>
-        <div class="numbox">
-          <input
-            :value="activeTab.skip || 0"
-            placeholder="0"
-            inputmode="numeric"
-            @input="activeTab.skip = Math.max(0, parseInt($event.target.value) || 0)"
-            @keydown.enter.prevent="emit('run')"
-          />
-          <div class="num-steppers">
-            <button tabindex="-1" @click="activeTab.skip = Math.max(0, (activeTab.skip || 0) + 1)">
-              <BaseIcon name="caret" :size="9" style="transform: rotate(-90deg)" />
-            </button>
-            <button tabindex="-1" @click="activeTab.skip = Math.max(0, (activeTab.skip || 0) - 1)">
-              <BaseIcon name="caret" :size="9" style="transform: rotate(90deg)" />
-            </button>
-          </div>
-        </div>
+        <NumberStepper :model-value="activeTab.skip || 0" :min="0" placeholder="0"
+          @update:model-value="activeTab.skip = $event" @enter="emit('run')" />
       </div>
     </div>
     <div v-if="queryErrorText" class="qparse-error">{{ queryErrorText }}</div>
@@ -388,42 +363,18 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   flex: none;
   flex-wrap: wrap;
 }
-.qbtn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 9px;
-  border-radius: 6px;
-  background: none;
-  border: none;
-  color: var(--text);
-  font-size: 12.5px;
-}
-.qbtn:hover:not(:disabled) { background: var(--bg-hover); }
-.qbtn.run { min-width: 92px; border: 1px solid var(--green); }
-.qbtn.run .ic { color: var(--green); }
-.qbtn .ic  { color: var(--text-dim); }
-.qbtn .drop { color: var(--text-faint); }
-.qbtn:disabled { opacity: .5; cursor: default; }
-.qbtn.on { background: var(--bg-hover); }
+/* Run button: green outline + fixed width, left-aligned so the icon doesn't shift
+   when the label flips Run → Running…. Scoped to .base-btn to beat BaseButton's
+   own border/justify defaults reliably (order-independent). */
+.base-btn.run { min-width: 92px; justify-content: flex-start; border: 1px solid var(--green); }
+.run .ic { color: var(--green); }
+.ic  { color: var(--text-dim); }
+.drop { color: var(--text-faint); }
 .qbar-spacer { flex: 1; }
-.vqb-toggle {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-input);
-  color: var(--text-dim);
-  font-size: 12px;
-}
 .vqb-toggle.on { color: var(--accent); border-color: var(--accent-soft); }
 .vqb-toggle:disabled { opacity: .4; }
 
-.mode-toggle { display: flex; border: 1px solid var(--border-soft); border-radius: 6px; overflow: hidden; margin-right: 6px; }
-.mode-toggle button { padding: 4px 11px; background: none; border: none; color: var(--text-dim); font-size: 12px; cursor: pointer; }
-.mode-toggle button.on { background: var(--accent); color: #fff; }
+.mode-toggle { margin-right: 6px; }
 
 .qparse-error { color: var(--danger-text); font-size: 12px; padding: 4px 12px 6px; flex: none; }
 
@@ -483,47 +434,6 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   gap: 10px;
 }
 
-/* numeric stepper (Skip / Limit) */
-.numbox {
-  display: flex;
-  align-items: stretch;
-  background: var(--bg-input);
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  width: 72px;
-  overflow: hidden;
-}
-.numbox:focus-within { border-color: var(--accent); }
-.numbox input {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 12.5px;
-  padding: 5px 0 5px 9px;
-}
-.numbox input::placeholder { color: var(--text-faint); }
-.num-steppers {
-  display: flex;
-  flex-direction: column;
-  flex: none;
-  border-left: 1px solid var(--border-soft);
-}
-.num-steppers button {
-  flex: 1;
-  width: 17px;
-  display: grid;
-  place-items: center;
-  background: var(--bg-toolbar);
-  border: none;
-  color: var(--text-dim);
-  padding: 0;
-}
-.num-steppers button:first-child { border-bottom: 1px solid var(--border-soft); }
-.num-steppers button:hover { background: var(--bg-hover); color: var(--text); }
 
 /* ── set default query dropdown ────────────────────────── */
 .default-wrap { position: relative; }
@@ -644,19 +554,6 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   min-width: 0;
 }
 .save-input:focus { border-color: var(--accent); }
-.save-btn {
-  padding: 5px 10px;
-  border-radius: 5px;
-  font-size: 12px;
-  background: var(--bg-toolbar);
-  border: 1px solid var(--border-soft);
-  color: var(--text);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.save-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.save-btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
-.save-btn:disabled { opacity: .4; cursor: default; }
 
 /* ── query history dropdown ────────────────────────────── */
 .hist-wrap { position: relative; }
@@ -692,17 +589,6 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   color: var(--text-dim);
   flex: 1;
 }
-.hist-clear {
-  font-size: 11px;
-  color: var(--text-faint);
-  background: none;
-  border: none;
-  padding: 2px 6px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.hist-clear:hover:not(:disabled) { color: var(--text); background: var(--bg-hover); }
-.hist-clear:disabled { opacity: .4; cursor: default; }
 .hist-empty {
   padding: 20px 14px;
   font-size: 12px;

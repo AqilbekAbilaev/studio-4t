@@ -8,6 +8,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
 // upload / download / delete / rename / edit-metadata files, plus bucket copy/drop.
@@ -367,8 +368,8 @@ function fmtDate(iso) {
         <div v-if="subError" class="sub-error">{{ subError }}</div>
       </div>
       <div class="sub-footer">
-        <button class="btn" @click="renameTarget = null">Cancel</button>
-        <button class="btn primary" :disabled="!renameName.trim() || busy" @click="doRename">Rename</button>
+        <BaseButton @click="renameTarget = null">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="!renameName.trim() || busy" @click="doRename">Rename</BaseButton>
       </div>
   </BaseModal>
 
@@ -380,8 +381,8 @@ function fmtDate(iso) {
         <div v-if="subError" class="sub-error">{{ subError }}</div>
       </div>
       <div class="sub-footer">
-        <button class="btn" @click="metaTarget = null">Cancel</button>
-        <button class="btn primary" :disabled="busy" @click="doSetMeta">Save</button>
+        <BaseButton @click="metaTarget = null">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="busy" @click="doSetMeta">Save</BaseButton>
       </div>
   </BaseModal>
 
@@ -397,7 +398,7 @@ function fmtDate(iso) {
         </dl>
       </div>
       <div class="sub-footer">
-        <button class="btn" @click="viewTarget = null">Close</button>
+        <BaseButton @click="viewTarget = null">Close</BaseButton>
       </div>
   </BaseModal>
 
@@ -408,8 +409,8 @@ function fmtDate(iso) {
         <div v-if="subError" class="sub-error">{{ subError }}</div>
       </div>
       <div class="sub-footer">
-        <button class="btn" @click="copyBucketOpen = false">Cancel</button>
-        <button class="btn primary" :disabled="!copyBucketName.trim() || busy" @click="doCopyBucket">Copy</button>
+        <BaseButton @click="copyBucketOpen = false">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="!copyBucketName.trim() || busy" @click="doCopyBucket">Copy</BaseButton>
       </div>
   </BaseModal>
 </template>
@@ -514,20 +515,6 @@ function fmtDate(iso) {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
 }
-.btn {
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 5px;
-  border: none;
-  background: var(--bg-input);
-  color: var(--text);
-  font-size: 13px;
-  cursor: pointer;
-}
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); color: #fff; }
-.btn.primary:hover:not(:disabled) { opacity: .88; }
-.btn.primary:disabled { opacity: .55; cursor: default; }
 .vf-list { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 12.5px; }
 .vf-list dt { color: var(--text-faint); }
 .vf-list dd { margin: 0; color: var(--text); user-select: text; word-break: break-word; }

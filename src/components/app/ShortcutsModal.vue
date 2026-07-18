@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import { SHORTCUT_COMMANDS, defaultAccel, accelToTokens, accelFromEvent } from '../../utils/keybindings'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Keyboard shortcuts: the top section is customizable (the menu actions the app
 // can rebind); the reference groups below list the fixed shortcuts the editors
@@ -183,8 +184,8 @@ const REFERENCE = computed(() => [
       </div>
 
       <div class="sc-footer">
-        <button class="btn ghost" @click="$emit('close')">Close</button>
-        <button class="btn primary" :disabled="!dirty" @click="save">Save changes</button>
+        <BaseButton bordered @click="$emit('close')">Close</BaseButton>
+        <BaseButton variant="primary" :disabled="!dirty" @click="save">Save changes</BaseButton>
       </div>
     </BaseModal>
 </template>
@@ -300,18 +301,6 @@ const REFERENCE = computed(() => [
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
 }
-.btn {
-  font-size: 13px;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid var(--border);
-}
-.btn.ghost { background: var(--bg-input); color: var(--text); }
-.btn.ghost:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent-soft); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
-.btn.primary:disabled { opacity: .45; cursor: default; }
 
 kbd {
   font-family: var(--mono);

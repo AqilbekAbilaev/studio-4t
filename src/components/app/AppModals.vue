@@ -3,6 +3,7 @@ import { inject } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseButton from '../base/BaseButton.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import ServerStatusModal from '../admin/ServerStatusModal.vue'
@@ -432,10 +433,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="addCollectionTarget = null">Cancel</button>
-          <button class="btn primary" :disabled="!newCollectionName.trim() || addCollectionSaving" @click="confirmAddCollection">
+          <BaseButton @click="addCollectionTarget = null">Cancel</BaseButton>
+          <BaseButton variant="primary" :disabled="!newCollectionName.trim() || addCollectionSaving" @click="confirmAddCollection">
             {{ addCollectionSaving ? 'Creating…' : 'Create' }}
-          </button>
+          </BaseButton>
         </div>
   </BaseModal>
 
@@ -468,10 +469,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="addViewTarget = null">Cancel</button>
-          <button class="btn primary" :disabled="!newViewName.trim() || !newViewSource.trim() || addViewSaving" @click="confirmAddView">
+          <BaseButton @click="addViewTarget = null">Cancel</BaseButton>
+          <BaseButton variant="primary" :disabled="!newViewName.trim() || !newViewSource.trim() || addViewSaving" @click="confirmAddView">
             {{ addViewSaving ? 'Creating…' : 'Create' }}
-          </button>
+          </BaseButton>
         </div>
   </BaseModal>
 
@@ -491,10 +492,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="addBucketTarget = null">Cancel</button>
-          <button class="btn primary" :disabled="!newBucketName.trim() || addBucketSaving" @click="confirmAddBucket">
+          <BaseButton @click="addBucketTarget = null">Cancel</BaseButton>
+          <BaseButton variant="primary" :disabled="!newBucketName.trim() || addBucketSaving" @click="confirmAddBucket">
             {{ addBucketSaving ? 'Creating…' : 'Create' }}
-          </button>
+          </BaseButton>
         </div>
   </BaseModal>
 
@@ -514,8 +515,8 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="renameTabTarget = null">Cancel</button>
-          <button class="btn primary" :disabled="!renameTabValue.trim()" @click="confirmRenameTab">Rename</button>
+          <BaseButton @click="renameTabTarget = null">Cancel</BaseButton>
+          <BaseButton variant="primary" :disabled="!renameTabValue.trim()" @click="confirmRenameTab">Rename</BaseButton>
         </div>
   </BaseModal>
 
@@ -527,10 +528,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="dropDatabaseTarget = null">Cancel</button>
-          <button class="btn danger" :disabled="dropDatabaseDeleting" @click="confirmDropDatabase">
+          <BaseButton @click="dropDatabaseTarget = null">Cancel</BaseButton>
+          <BaseButton variant="danger" :disabled="dropDatabaseDeleting" @click="confirmDropDatabase">
             {{ dropDatabaseDeleting ? 'Dropping…' : 'Drop' }}
-          </button>
+          </BaseButton>
         </div>
   </BaseModal>
 
@@ -542,10 +543,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="dropCollectionTarget = null">Cancel</button>
-          <button class="btn danger" :disabled="dropCollectionDeleting" @click="confirmDropCollection">
+          <BaseButton @click="dropCollectionTarget = null">Cancel</BaseButton>
+          <BaseButton variant="danger" :disabled="dropCollectionDeleting" @click="confirmDropCollection">
             {{ dropCollectionDeleting ? 'Dropping…' : 'Drop' }}
-          </button>
+          </BaseButton>
         </div>
   </BaseModal>
 
@@ -565,10 +566,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="renameCollectionTarget = null">Cancel</button>
-          <button class="btn primary" :disabled="!renameCollectionName.trim() || renameCollectionName.trim() === renameCollectionTarget.collName || renameCollectionSaving" @click="confirmRenameCollection">
+          <BaseButton @click="renameCollectionTarget = null">Cancel</BaseButton>
+          <BaseButton variant="primary" :disabled="!renameCollectionName.trim() || renameCollectionName.trim() === renameCollectionTarget.collName || renameCollectionSaving" @click="confirmRenameCollection">
             {{ renameCollectionSaving ? 'Renaming…' : 'Rename' }}
-          </button>
+          </BaseButton>
         </div>
   </BaseModal>
 
@@ -588,10 +589,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="duplicateCollectionTarget = null">Cancel</button>
-          <button class="btn primary" :disabled="!duplicateCollectionName.trim() || duplicateCollectionName.trim() === duplicateCollectionTarget.collName || duplicateCollectionSaving" @click="confirmDuplicateCollection">
+          <BaseButton @click="duplicateCollectionTarget = null">Cancel</BaseButton>
+          <BaseButton variant="primary" :disabled="!duplicateCollectionName.trim() || duplicateCollectionName.trim() === duplicateCollectionTarget.collName || duplicateCollectionSaving" @click="confirmDuplicateCollection">
             {{ duplicateCollectionSaving ? 'Duplicating…' : 'Duplicate' }}
-          </button>
+          </BaseButton>
         </div>
   </BaseModal>
 
@@ -621,10 +622,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="addDatabaseTarget = null">Cancel</button>
-          <button class="btn primary" :disabled="!newDatabaseName.trim() || !newDatabaseCollName.trim() || addDatabaseSaving" @click="confirmAddDatabase">
+          <BaseButton @click="addDatabaseTarget = null">Cancel</BaseButton>
+          <BaseButton variant="primary" :disabled="!newDatabaseName.trim() || !newDatabaseCollName.trim() || addDatabaseSaving" @click="confirmAddDatabase">
             {{ addDatabaseSaving ? 'Creating…' : 'Create' }}
-          </button>
+          </BaseButton>
         </div>
   </BaseModal>
 
@@ -645,7 +646,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="indexDetailsTarget = null">Close</button>
+          <BaseButton @click="indexDetailsTarget = null">Close</BaseButton>
         </div>
   </BaseModal>
 
@@ -669,12 +670,12 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
-          <button class="btn" @click="dropIndexTarget = null">Cancel</button>
-          <button
-            class="btn danger"
+          <BaseButton @click="dropIndexTarget = null">Cancel</BaseButton>
+          <BaseButton
+            variant="danger"
             :disabled="dropIndexBusy || dropIndexConfirmText !== dropIndexTarget.name"
             @click="confirmDropIndex"
-          >{{ dropIndexBusy ? 'Dropping…' : 'Drop Index' }}</button>
+          >{{ dropIndexBusy ? 'Dropping…' : 'Drop Index' }}</BaseButton>
         </div>
   </BaseModal>
 </template>

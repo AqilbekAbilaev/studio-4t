@@ -6,6 +6,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Manage Users for a database: list, create, and drop users (via usersInfo /
 // createUser / dropUser).
@@ -136,12 +137,12 @@ function copyText(text) {
 
       <div class="um-body">
         <div class="um-bar">
-          <button class="btn primary" :disabled="busy" @click="showCreate = !showCreate">
+          <BaseButton variant="primary" :disabled="busy" @click="showCreate = !showCreate">
             <BaseIcon name="plus" :size="12" /> Add User
-          </button>
-          <button class="btn" :class="{ armed: showCopy }" :disabled="busy || !users.length" @click="openCopyPanel">
+          </BaseButton>
+          <BaseButton bordered :active="showCopy" :disabled="busy || !users.length" @click="openCopyPanel">
             <BaseIcon name="export" :size="12" /> Copy Users To…
-          </button>
+          </BaseButton>
         </div>
 
         <div v-if="showCopy" class="um-copy">
@@ -158,10 +159,10 @@ function copyText(text) {
             <strong>temporary password</strong> that must be reset.
           </p>
           <div class="um-create-actions">
-            <button class="btn" @click="showCopy = false">Close</button>
-            <button class="btn primary" :disabled="!copyTargetConn || !copyTargetDb.trim() || copying" @click="runCopyUsers">
+            <BaseButton bordered @click="showCopy = false">Close</BaseButton>
+            <BaseButton variant="primary" :disabled="!copyTargetConn || !copyTargetDb.trim() || copying" @click="runCopyUsers">
               {{ copying ? 'Copying…' : 'Copy Users' }}
-            </button>
+            </BaseButton>
           </div>
           <div v-if="copyError" class="um-error">{{ copyError }}</div>
 
@@ -192,8 +193,8 @@ function copyText(text) {
           <input v-model="newPassword" class="um-input" type="password" placeholder="Password" />
           <input v-model="newRoles" class="um-input" placeholder="Roles (comma-separated, e.g. readWrite, read@other)" spellcheck="false" />
           <div class="um-create-actions">
-            <button class="btn" @click="showCreate = false">Cancel</button>
-            <button class="btn primary" :disabled="!newName.trim() || !newPassword || busy" @click="createUser">Create</button>
+            <BaseButton bordered @click="showCreate = false">Cancel</BaseButton>
+            <BaseButton variant="primary" :disabled="!newName.trim() || !newPassword || busy" @click="createUser">Create</BaseButton>
           </div>
           <div v-if="createError" class="um-error">{{ createError }}</div>
         </div>
@@ -211,12 +212,12 @@ function copyText(text) {
               <td>{{ u.db }}</td>
               <td class="um-roles">{{ u.roles.join(', ') || '—' }}</td>
               <td class="um-act">
-                <button
-                  class="btn danger-btn"
-                  :class="{ armed: pendingDrop === u.user }"
+                <BaseButton
+                  bordered
+                  :variant="pendingDrop === u.user ? 'danger' : 'default'"
                   :disabled="busy"
                   @click="dropUser(u)"
-                >{{ pendingDrop === u.user ? 'Confirm' : 'Drop' }}</button>
+                >{{ pendingDrop === u.user ? 'Confirm' : 'Drop' }}</BaseButton>
               </td>
             </tr>
           </tbody>
@@ -245,12 +246,6 @@ function copyText(text) {
 .um-roles { color: var(--text-dim); }
 .um-act { text-align: right; }
 
-.btn { height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--border-soft); background: var(--bg-input); color: var(--text); font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
-.btn:hover { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:disabled { opacity: .55; cursor: default; }
-.danger-btn.armed { background: var(--danger-text); border-color: var(--danger-text); color: #fff; }
-.btn.armed { background: var(--bg-hover); border-color: var(--accent); }
 
 .um-bar { gap: 8px; }
 .um-copy { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }

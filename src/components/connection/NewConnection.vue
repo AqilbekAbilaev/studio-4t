@@ -7,6 +7,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseButton from '../base/BaseButton.vue'
 import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../../data/connectionOptions.js'
 import { partitionUriOptions } from '../../utils/connectionUri.js'
 
@@ -618,8 +619,8 @@ async function save() {
 
       <div class="cm-footer">
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('close')">Cancel</button>
-        <button class="btn primary" @click="goNext">Next</button>
+        <BaseButton bordered @click="$emit('close')">Cancel</BaseButton>
+        <BaseButton variant="primary" @click="goNext">Next</BaseButton>
       </div>
   </BaseModal>
 
@@ -920,15 +921,15 @@ async function save() {
 
       <!-- Footer -->
       <div class="cm-footer">
-        <button class="btn" :disabled="isTesting" @click="testConnection">
+        <BaseButton bordered :disabled="isTesting" @click="testConnection">
           <BaseIcon name="connect" :size="15" />
           {{ isTesting ? 'Testing…' : 'Test Connection' }}
-        </button>
+        </BaseButton>
         <span class="spacer"></span>
-        <button class="btn" @click="$emit('close')">Cancel</button>
-        <button class="btn primary" :disabled="isSaving" @click="save">
+        <BaseButton bordered @click="$emit('close')">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="isSaving" @click="save">
           {{ isSaving ? 'Saving…' : (isEditMode ? 'Save Changes' : 'Save') }}
-        </button>
+        </BaseButton>
       </div>
 
   </BaseModal>
@@ -1116,15 +1117,6 @@ async function save() {
   padding: 12px 16px; border-top: 1px solid var(--border); flex: none;
 }
 .spacer { flex: 1; }
-.btn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 20px; border-radius: 7px; font-size: 13px;
-  border: 1px solid var(--border-soft); background: var(--bg-toolbar); color: var(--text);
-}
-.btn:hover:not(:disabled) { background: var(--bg-hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
-.btn:disabled { opacity: .4; cursor: default; }
 
 .nc-soon {
   font-size: 10.5px;
