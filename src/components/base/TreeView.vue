@@ -10,9 +10,22 @@ const props = defineProps({
   value:    { default: undefined },
   depth:    { type: Number,  default: 0 },
   expanded: { type: Boolean, default: false },
+  // Namespaced path of THIS node (e.g. "0.address.city"); root nodes get the doc index.
+  // Tags the row (data-path) for search highlighting and lines up with expandPaths.
+  path:        { type: String,  default: '' },
+  // While a search is active, every ancestor path of a match is in this set so matched
+  // branches auto-expand; nodes outside it stay collapsed (keeps the render cheap).
+  expandPaths: { default: null },
+  searching:   { type: Boolean, default: false },
 })
 
-const open = ref(props.expanded)
+// User's manual expand state. During a search a node is also forced open when it's an
+// ancestor of a match (its path is in expandPaths), revealing hits without expanding
+// the whole tree.
+const localOpen = ref(props.expanded)
+const open = computed(() =>
+  props.searching ? (props.expandPaths?.has(props.path) || localOpen.value) : localOpen.value
+)
 
 // MongoDB extended-JSON wrappers that should read as a single scalar, not an
 // expandable object (e.g. {"$oid": "..."} is an ObjectId, not a sub-document).
@@ -66,8 +79,8 @@ const typeLabel = computed(() => {
 const children = computed(() => {
   const v = props.value
   if (isEjsonScalar(v) || v === null || typeof v !== 'object') return []
-  if (Array.isArray(v)) return v.map((el, i) => ({ label: `[${i}]`, value: el }))
-  return Object.entries(v).map(([k, val]) => ({ label: k, value: val }))
+  if (Array.isArray(v)) return v.map((el, i) => ({ label: `[${i}]`, value: el, path: props.path + '[' + i + ']' }))
+  return Object.entries(v).map(([k, val]) => ({ label: k, value: val, path: props.path ? props.path + '.' + k : k }))
 })
 
 const expandable = computed(() => children.value.length > 0)
@@ -93,13 +106,13 @@ const preview = computed(() => {
 })
 
 function toggle() {
-  if (expandable.value) open.value = !open.value
+  if (expandable.value) localOpen.value = !localOpen.value
 }
 </script>
 
 <template>
   <div class="tnode">
-    <div class="trow" :class="{ root: depth === 0 }" @click="toggle">
+    <div class="trow" :class="{ root: depth === 0 }" :data-path="path" @click="toggle">
       <span class="tkey-col" :style="{ paddingLeft: (depth * 16 + 6) + 'px' }">
         <span class="ttoggle" :class="{ hidden: !expandable }">
           <BaseIcon :name="open ? 'caretDown' : 'caret'" :size="12" />
@@ -117,6 +130,9 @@ function toggle() {
         :label="c.label"
         :value="c.value"
         :depth="depth + 1"
+        :path="c.path"
+        :expand-paths="expandPaths"
+        :searching="searching"
       />
     </template>
   </div>
@@ -136,6 +152,10 @@ function toggle() {
 .trow:hover { background: var(--bg-panel-2); }
 .trow.root { background: var(--bg-toolbar); }
 .trow.root:hover { background: var(--bg-panel-2); }
+/* Search highlight — classes toggled imperatively by TreeResultView (data-path lookup).
+   !important so a hit reads clearly over the root/hover backgrounds, like the grid does. */
+.trow.search-hit    { background: var(--search-hit) !important; }
+.trow.search-active { background: var(--search-active) !important; }
 
 .tkey-col {
   display: flex;

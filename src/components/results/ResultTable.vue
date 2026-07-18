@@ -5,7 +5,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import { valueToClipboard } from '../../utils/clipboardCopy'
 import { dbRefOf, idFilterString } from '../../utils/dbRef'
+import { useResultSearch } from '../../composables/useResultSearch'
 import BaseIcon from '../base/BaseIcon.vue'
+import SearchBar from '../base/SearchBar.vue'
 
 const props = defineProps({
   activeTab: { type: Object,  required: true },
@@ -401,6 +403,60 @@ const cellData = computed(() => {
     })
   )
 })
+
+// ── in-grid search (Ctrl/Cmd+F) ─────────────────────────
+// Match-finding and the reactive highlight classes are grid-specific; the bar's
+// open/index/debounce state lives in useResultSearch (shared with the JSON view).
+function scrollToMatch() {
+  const m = searchMatches.value[searchIdx.value]
+  if (!m) return
+  rowVirtualizer.value.scrollToIndex(m.row, { align: 'auto' })
+  nextTick(() => {
+    const td = tableRef.value?.querySelector(`td[data-match="${m.row},${m.col}"]`)
+    if (td) td.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  })
+}
+
+const {
+  open: searchOpen, count: searchTotal, index: searchIdx, query: searchQuery,
+  setOpen, setQuery, next: searchNext, prev: searchPrev, close: searchClose,
+} = useResultSearch({
+  getMatches: () => searchMatches.value,
+  onActivate: scrollToMatch,   // next/prev: scroll the active match into view
+  onApply:    scrollToMatch,   // query settled: jump to the first match
+  debounce:   150,
+  resetOn:    () => props.activeTab?.results,
+})
+
+// Flat list of all matches: { row, col } for every cell whose display text contains
+// the query (case-insensitive).
+const searchMatches = computed(() => {
+  const q = searchQuery.value.toLowerCase()
+  if (!q) return []
+  const docs  = gridDocs.value
+  const cols  = gridColumns.value
+  const cells = cellData.value
+  const out   = []
+  for (let r = 0; r < docs.length; r++) {
+    const row = cells[r]
+    if (!row) continue
+    for (let c = 0; c < cols.length; c++) {
+      if (row[c].display.toLowerCase().includes(q)) out.push({ row: r, col: cols[c] })
+    }
+  }
+  return out
+})
+
+// Set of "row,col" strings for O(1) highlight lookups in the template.
+const matchSet = computed(() => {
+  const s = new Set()
+  for (const m of searchMatches.value) s.add(m.row + ',' + m.col)
+  return s
+})
+
+function isMatchCell(row, col) {
+  return matchSet.value.has(row + ',' + col)
+}
 
 // ── column widths ───────────────────────────────────────
 // Virtualization mounts only the visible rows, so auto table-layout would resize columns
@@ -799,6 +855,18 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
 
 <template>
   <div class="grid-outer">
+    <!-- In-grid search bar (Ctrl/Cmd+F) -->
+    <SearchBar
+      :open="searchOpen"
+      :count="searchTotal"
+      :current="searchIdx"
+      @update:open="setOpen"
+      @update:query="setQuery"
+      @next="searchNext"
+      @prev="searchPrev"
+      @close="searchClose"
+    />
+
     <div class="fieldpath">
       <span class="fp fp-link" @click="goToDrillLevel(-1)">{{ activeTab.collectionName }}</span>
       <template v-for="(seg, idx) in drillPath" :key="idx">
@@ -868,7 +936,8 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
             <td
               v-for="cell in cellData[vrow.index]"
               :key="cell.col"
-              :class="{ selcell: activeTab.selectedRow === vrow.index && selectedCol === cell.col, drillable: cell.drillable }"
+              :data-match="searchOpen && isMatchCell(vrow.index, cell.col) ? vrow.index + ',' + cell.col : undefined"
+              :class="{ selcell: activeTab.selectedRow === vrow.index && selectedCol === cell.col, drillable: cell.drillable, 'search-match': isMatchCell(vrow.index, cell.col), 'search-active': searchOpen && searchMatches[searchIdx]?.row === vrow.index && searchMatches[searchIdx]?.col === cell.col }"
               @mousedown="onCellMouseDown($event, cell.col, cell.display)"
               @click.stop="onCellClick($event, vrow.index, cell.col)"
               @dblclick.stop="cell.drillable ? openCellDrill(vrow.index, cell.col) : startInlineEdit(vrow.index, cell.col)"
@@ -950,7 +1019,7 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
 
 <style scoped>
 /* Grid */
-.grid-outer { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-window); }
+.grid-outer { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-window); position: relative; }
 .grid-wrap { flex: 1; overflow: auto; min-height: 0; }
 .grid-scroll { width: max-content; min-width: 100%; }
 .fieldpath {
@@ -1133,4 +1202,8 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
   padding: 0;
   outline: none;
 }
+
+/* Search match highlighting */
+td.search-match { background: var(--search-hit) !important; }
+td.search-active { background: var(--search-active) !important; }
 </style>

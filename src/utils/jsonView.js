@@ -4,7 +4,7 @@
 // utils/codemirror/theme.js. CodeMirror virtualizes rendering and folds objects/arrays via
 // the JS syntax tree, which is why the JSON view uses it rather than a hand-rolled row list.
 import { EditorView, Decoration } from '@codemirror/view'
-import { StateField, RangeSetBuilder } from '@codemirror/state'
+import { EditorState, StateField, RangeSetBuilder } from '@codemirror/state'
 import { foldGutter, codeFolding } from '@codemirror/language'
 
 // Divider between documents. Each result document is a top-level object, so its first
@@ -50,8 +50,8 @@ const jsonTheme = EditorView.theme({
 /** Extensions for the read-only results JSON view (use with CodeEditor readonly highlight="json"). */
 export function jsonViewerExtensions() {
   return [
-    // Non-interactive viewer: mouse-select/copy only, no caret or keyboard focus.
-    EditorView.editable.of(false),
+    // Read-only but still focusable — allows Ctrl+F search and text selection.
+    EditorState.readOnly.of(true),
     codeFolding(),
     foldGutter(),
     docDividerField,
