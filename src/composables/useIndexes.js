@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { errText } from '../utils/errors'
+import { errText, errMessage } from '../utils/errors'
 import { isProtectedIndex, indexSpecJson } from '../utils/indexSpec'
 // NOTE: indexSpecJson is needed because copyIndex() calls it. App.vue ALSO keeps
 // its own indexSpecJson import for the template — both importing the pure helper is fine.
@@ -22,6 +22,7 @@ export function useIndexes({ showToast }) {
   // usage from $indexStats — either can be unavailable, leaving an index unlisted here.
   const indexSizes     = ref({})
   const indexUsage     = ref({})
+  const indexUsageError = ref(null)  // why $indexStats failed (e.g. missing indexStats privilege), for a hint in the UI
   const indexTotalSize = ref(null)   // collStats.totalIndexSize, for the status bar
 
   // Index-menu selection & dialogs. `selectedIndex` is the index row highlighted in
@@ -93,8 +94,15 @@ export function useIndexes({ showToast }) {
         if (ops != null) usage[entry.name] = typeof ops === 'object' ? (ops.$numberLong ?? null) : ops
       }
       indexUsage.value = usage
+      indexUsageError.value = null
     } catch (e) {
+      // $indexStats is best-effort (needs the indexStats privilege; also unsupported on
+      // some deployments). Keep the pane working, but keep the reason so the Usage column
+      // can explain why it reads "n/a" instead of leaving the user guessing. Use the raw
+      // message (not errText) — the tooltip is a details surface, and errText would
+      // collapse a mongo error to the generic "The database reported an error" title.
       indexUsage.value = {}
+      indexUsageError.value = errMessage(e)
     }
   }
 
@@ -350,6 +358,7 @@ export function useIndexes({ showToast }) {
     indexFormSeed: indexFormSeed,
     indexSizes: indexSizes,
     indexUsage: indexUsage,
+    indexUsageError: indexUsageError,
     indexTotalSize: indexTotalSize,
     pendingDropIndex: pendingDropIndex,
     selectedIndex: selectedIndex,

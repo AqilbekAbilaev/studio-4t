@@ -295,6 +295,14 @@ const HELP_URLS = {
   'help:knowledge_base':  `${HELP_REPO}/wiki`,
 }
 
+// Dispatch an Index menu action to the active Index Manager tab. Each tab owns
+// its own state (selectedIndex, form, etc.) and exposes a handler API on the tab
+// object via _idxApi. The menu only fires when the active tab is an index tab.
+function indexMenuAction(method, ...args) {
+  const tab = tabs.value.find(t => t.id === activeTabId.value)
+  if (tab && tab._idxApi && tab._idxApi[method]) tab._idxApi[method](...args)
+}
+
 // Routes menu-bar actions (emitted by id) to the same handlers the toolbar and
 // right-click menus already use. The menu bar never emits a disabled item.
 function handleMenuAction(id) {
@@ -401,13 +409,13 @@ function handleMenuAction(id) {
     case 'coll:aggregation':   menuNode('Open Aggregation Editor', 'collection'); return
     case 'coll:add_index':     menuNode('Indexes…', 'collection'); return
 
-    // --- index scoped (act on the row selected in the Indexes dialog) ---
-    case 'idx:edit':   startEditIndex(); return
-    case 'idx:view':   openIndexDetails(); return
-    case 'idx:copy':   copyIndex(); return
-    case 'idx:drop':   openDropIndexConfirm(); return
-    case 'idx:hide':   setIndexHidden(true); return
-    case 'idx:unhide': setIndexHidden(false); return
+    // --- index scoped (act on the active tab's selected index) ---
+    case 'idx:edit':   indexMenuAction('startEditIndex'); return
+    case 'idx:view':   indexMenuAction('openIndexDetails'); return
+    case 'idx:copy':   indexMenuAction('copyIndex'); return
+    case 'idx:drop':   indexMenuAction('openDropIndexConfirm'); return
+    case 'idx:hide':   indexMenuAction('setIndexHidden', true); return
+    case 'idx:unhide': indexMenuAction('setIndexHidden', false); return
     case 'coll:stats':
     case 'db:collection_stats': menuNode('Collection Stats', 'collection'); return
     case 'coll:schema':        menuNode('View Schema', 'collection'); return

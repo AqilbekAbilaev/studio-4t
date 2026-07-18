@@ -1,15 +1,17 @@
 <script setup>
-import { computed, ref, inject, onMounted, onUnmounted } from 'vue'
+import { computed, ref, inject, watch, onMounted, onUnmounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from '../base/BaseIcon.vue'
 import IndexAddDialog from './IndexAddDialog.vue'
 import {
   isProtectedIndex, isIndexHidden, indexKeyLabel, indexType, indexProperties,
 } from '../../utils/indexSpec'
+import { errText, errMessage } from '../../utils/errors'
 
-// The Index Manager tab (kind: 'indexes'). It's a thin view over the shared
-// useIndexes composable — the same state that drives the native Index menu — so
-// the toolbar buttons and the menu act on the one selected index. Provided
-// app-wide by App.vue as appModals.indexes.
+// Each Index Manager tab manages its own index list, selection, and metrics
+// independently so that two tabs for different collections don't interfere.
+// The shared useIndexes composable (via appModals) is only used for modal
+// state (View Details, Drop Index) and native Index menu actions.
 const props = defineProps({
   activeTab: { type: Object, required: true },
 })
@@ -18,37 +20,200 @@ const bundle = inject('appModals')
 const idx = bundle.indexes
 const showToast = bundle.handlers.showToast
 
-const {
-  indexesList, indexesLoading, indexesError, selectedIndex,
-  indexSizes, indexUsage, indexTotalSize,
-  indexFormOpen, indexFormMode, indexFormSeed, indexCreating,
-  loadIndexes, openIndexes, closeIndexesModal, openCreateIndex, closeIndexForm, submitIndex,
-  startEditIndex, openIndexDetails, copyIndex, openDropIndexConfirm, setIndexHidden,
-} = idx
+// Per-tab state (not shared across tabs)
+const localIndexesList     = ref([])
+const localIndexesLoading  = ref(false)
+const localIndexesError    = ref(null)
+const localSelectedIndex   = ref(null)
+const localIndexSizes      = ref({})
+const localIndexUsage      = ref({})
+const localIndexUsageError = ref(null)
+const localIndexTotalSize  = ref(null)
+const localIndexFormOpen   = ref(false)
+const localIndexFormMode   = ref('create')
+const localIndexFormSeed   = ref(null)
+const localIndexCreating   = ref(false)
+const localExpanded        = ref({})
 
-// Load this tab's collection on mount; clear the shared selection/target on unmount
-// so the Index menu disables again when a non-index tab becomes active.
-onMounted(() => {
-  openIndexes({
+async function loadIndexes() {
+  const t = props.activeTab
+  localIndexesLoading.value = true
+  localIndexesError.value = null
+  try {
+    localIndexesList.value = await invoke('list_indexes', {
+      id: t.connId, database: t.dbName, collection: t.collName,
+    })
+  } catch (e) {
+    localIndexesError.value = errText(e)
+    localIndexesList.value = []
+  } finally {
+    localIndexesLoading.value = false
+  }
+  await loadIndexMetrics(t)
+}
+
+async function loadIndexMetrics(t) {
+  try {
+    const stats = await invoke('collection_stats', {
+      id: t.connId, database: t.dbName, collection: t.collName,
+    })
+    const sizes = {}
+    for (const entry of (stats.indexes || [])) sizes[entry.name] = entry.size
+    localIndexSizes.value = sizes
+    localIndexTotalSize.value = stats.total_index_size ?? null
+  } catch (e) {
+    localIndexSizes.value = {}
+    localIndexTotalSize.value = null
+  }
+  try {
+    const stats = await invoke('index_stats', {
+      id: t.connId, database: t.dbName, collection: t.collName,
+    })
+    const usage = {}
+    for (const entry of stats) {
+      const ops = entry && entry.accesses && entry.accesses.ops
+      if (ops != null) usage[entry.name] = typeof ops === 'object' ? (ops.$numberLong ?? null) : ops
+    }
+    localIndexUsage.value = usage
+    localIndexUsageError.value = null
+  } catch (e) {
+    localIndexUsage.value = {}
+    localIndexUsageError.value = errMessage(e)
+  }
+}
+
+// Reload when the active tab changes to a different collection (Vue reuses the
+// component instance across index tabs since they share the same v-else-if branch).
+watch(() => props.activeTab.connId + ':' + props.activeTab.dbName + ':' + props.activeTab.collName, () => {
+  localIndexesList.value = []
+  localSelectedIndex.value = null
+  idx.selectedIndex.value = null
+  loadIndexes()
+  idx.indexesTarget.value = {
     connId: props.activeTab.connId,
     dbName: props.activeTab.dbName,
     collName: props.activeTab.collName,
-  })
+  }
+}, { immediate: true })
+onUnmounted(() => {
+  localIndexesList.value = []
+  localSelectedIndex.value = null
+  idx.selectedIndex.value = null
+  idx.indexesTarget.value = null
+  if (props.activeTab._idxApi) delete props.activeTab._idxApi
 })
-onUnmounted(() => { closeIndexesModal() })
 
 // --- toolbar enablement ---
-const hasSel      = computed(() => !!selectedIndex.value)
-const selProtected = computed(() => !!selectedIndex.value && isProtectedIndex(selectedIndex.value.name))
-const selHidden   = computed(() => !!selectedIndex.value && isIndexHidden(selectedIndex.value))
+const hasSel      = computed(() => !!localSelectedIndex.value)
+const selProtected = computed(() => !!localSelectedIndex.value && isProtectedIndex(localSelectedIndex.value.name))
+const selHidden   = computed(() => !!localSelectedIndex.value && isIndexHidden(localSelectedIndex.value))
 
-function selectRow(index) { selectedIndex.value = index }
+function selectRow(index) {
+  localSelectedIndex.value = index
+  // Sync to the shared composable so the native Index menu sees the selection
+  idx.selectedIndex.value = index
+}
 
-// Hide / Unhide is one toggle button whose label follows the selected index.
-function toggleHidden() { setIndexHidden(!selHidden.value) }
+// Toolbar actions that modify the index list (create, drop, hide) use local
+// invoke calls so they stay scoped to this tab. Actions that open a modal
+// (View Details, Drop Index) delegate to the shared composable since only
+// one modal can be open at a time.
 
-// Paste: create an index from a JSON spec on the clipboard (the shape produced by
-// "Copy index"). Pre-fills the Add-index form so the user confirms before writing.
+async function submitIndex({ keys, options }) {
+  const t = props.activeTab
+  if (!keys || !keys.trim()) return
+  const editing = localIndexFormMode.value === 'edit'
+  localIndexCreating.value = true
+  localIndexesError.value = null
+  try {
+    if (editing) {
+      await invoke('drop_index', {
+        id: t.connId, database: t.dbName, collection: t.collName,
+        name: localIndexFormSeed.value?.name,
+      })
+    }
+    await invoke('create_index', {
+      id: t.connId, database: t.dbName, collection: t.collName,
+      keys: keys, options: options || '{}',
+    })
+    localIndexFormOpen.value = false
+    localIndexFormMode.value = 'create'
+    localIndexFormSeed.value = null
+    await loadIndexes()
+    showToast(editing ? 'Index updated' : 'Index created')
+  } catch (e) {
+    localIndexesError.value = errText(e)
+  } finally {
+    localIndexCreating.value = false
+  }
+}
+
+function openCreateIndex(seed) {
+  localIndexFormMode.value = 'create'
+  localIndexFormSeed.value = seed || null
+  localIndexFormOpen.value = true
+}
+
+function closeIndexForm() {
+  localIndexFormOpen.value = false
+  localIndexesError.value = null
+  localIndexFormMode.value = 'create'
+  localIndexFormSeed.value = null
+}
+
+async function toggleHidden() {
+  const it = localSelectedIndex.value
+  if (!it) return
+  const t = props.activeTab
+  const hidden = !isIndexHidden(it)
+  localIndexesError.value = null
+  try {
+    await invoke('set_index_hidden', {
+      id: t.connId, database: t.dbName, collection: t.collName,
+      name: it.name, hidden: hidden,
+    })
+    await loadIndexes()
+    showToast(hidden ? `Index "${it.name}" hidden` : `Index "${it.name}" unhidden`)
+  } catch (e) {
+    localIndexesError.value = errText(e)
+  }
+}
+
+// Modal/menu actions: sync selection then delegate to shared composable
+function handleStartEdit() {
+  if (selProtected.value) { showToast('The _id index cannot be edited'); return }
+  idx.selectedIndex.value = localSelectedIndex.value
+  idx.startEditIndex()
+}
+
+function handleViewDetails() {
+  idx.selectedIndex.value = localSelectedIndex.value
+  idx.openIndexDetails()
+}
+
+function handleDropIndex() {
+  if (selProtected.value) { showToast('The _id index cannot be dropped'); return }
+  idx.selectedIndex.value = localSelectedIndex.value
+  idx.openDropIndexConfirm()
+}
+
+function handleCopyIndex() {
+  idx.selectedIndex.value = localSelectedIndex.value
+  idx.copyIndex()
+}
+
+// Expose a menu API so App.vue's native Index menu can reach this tab
+const menuApi = {
+  selectedIndex: localSelectedIndex,
+  startEditIndex: handleStartEdit,
+  openIndexDetails: handleViewDetails,
+  copyIndex: handleCopyIndex,
+  openDropIndexConfirm: handleDropIndex,
+  setIndexHidden: toggleHidden,
+}
+props.activeTab._idxApi = menuApi
+
+// Paste: create an index from a JSON spec on the clipboard
 async function pasteIndex() {
   let text = ''
   try { text = await navigator.clipboard.readText() } catch (e) { text = '' }
@@ -56,22 +221,19 @@ async function pasteIndex() {
   let spec
   try { spec = JSON.parse(text) } catch (e) { showToast('Clipboard is not a valid index spec'); return }
   if (!spec || typeof spec.key !== 'object') { showToast('Clipboard is not an index spec'); return }
-  // Seed the Add dialog with the pasted spec (drop the name so it doesn't collide).
   const seed = Object.assign({}, spec)
   delete seed.name
   openCreateIndex(seed)
 }
 
 // --- row rendering ---
-const expanded = ref({})   // index name -> whether its key spec is expanded
-function toggleExpand(name) { expanded.value[name] = !expanded.value[name] }
+function toggleExpand(name) { localExpanded.value[name] = !localExpanded.value[name] }
 
 function typeOf(index)   { return indexType(index) }
 function propsOf(index)  { const p = indexProperties(index); return p.length ? p.join(', ') : '—' }
-function sizeOf(index)   { return fmtBytes(indexSizes.value[index.name]) }
-function usageOf(index)  { const u = indexUsage.value[index.name]; return u == null ? 'n/a' : u }
+function sizeOf(index)   { return fmtBytes(localIndexSizes.value[index.name]) }
+function usageOf(index)  { const u = localIndexUsage.value[index.name]; return u == null ? 'n/a' : u }
 
-// Binary byte sizes, matching how collStats reports index sizes (e.g. "124.0 KiB").
 function fmtBytes(bytes) {
   if (bytes == null) return 'n/a'
   if (bytes < 1024) return `${bytes} B`
@@ -105,19 +267,19 @@ function fmtBytes(bytes) {
       <button class="tb" @click="loadIndexes()"><BaseIcon name="refresh" :size="16" /><span>Refresh</span></button>
       <button class="tb" @click="openCreateIndex()"><BaseIcon name="plus" :size="16" /><span>Add index</span></button>
       <span class="tb-sep"></span>
-      <button class="tb" :disabled="!hasSel || selProtected" @click="openDropIndexConfirm()"><BaseIcon name="trash" :size="16" /><span>Drop index</span></button>
-      <button class="tb" :disabled="!hasSel || selProtected" @click="startEditIndex()"><BaseIcon name="edit" :size="16" /><span>Edit index</span></button>
-      <button class="tb" :disabled="!hasSel" @click="openIndexDetails()"><BaseIcon name="eye" :size="16" /><span>View details</span></button>
+      <button class="tb" :disabled="!hasSel || selProtected" @click="handleDropIndex()"><BaseIcon name="trash" :size="16" /><span>Drop index</span></button>
+      <button class="tb" :disabled="!hasSel || selProtected" @click="handleStartEdit()"><BaseIcon name="edit" :size="16" /><span>Edit index</span></button>
+      <button class="tb" :disabled="!hasSel" @click="handleViewDetails()"><BaseIcon name="eye" :size="16" /><span>View details</span></button>
       <button class="tb" :disabled="!hasSel || selProtected" @click="toggleHidden()"><BaseIcon :name="selHidden ? 'eye' : 'eyeOff'" :size="16" /><span>{{ selHidden ? 'Unhide index' : 'Hide index' }}</span></button>
       <span class="tb-sep"></span>
-      <button class="tb" :disabled="!hasSel" @click="copyIndex()"><BaseIcon name="copy" :size="16" /><span>Copy</span></button>
+      <button class="tb" :disabled="!hasSel" @click="handleCopyIndex()"><BaseIcon name="copy" :size="16" /><span>Copy</span></button>
       <button class="tb" @click="pasteIndex()"><BaseIcon name="paste" :size="16" /><span>Paste</span></button>
     </div>
 
     <!-- Index list -->
     <div class="idx-body">
-      <div v-if="indexesLoading" class="idx-msg">Loading indexes…</div>
-      <div v-else-if="indexesError" class="idx-msg idx-err">{{ indexesError }}</div>
+      <div v-if="localIndexesLoading" class="idx-msg">Loading indexes…</div>
+      <div v-else-if="localIndexesError" class="idx-msg idx-err">{{ localIndexesError }}</div>
       <table v-else class="idx-table">
         <thead>
           <tr>
@@ -125,19 +287,26 @@ function fmtBytes(bytes) {
             <th class="col-type">Type</th>
             <th class="col-props">Properties</th>
             <th class="col-size">Size</th>
-            <th class="col-usage">Usage</th>
+            <th class="col-usage">
+              Usage
+              <span
+                v-if="localIndexUsageError"
+                class="usage-warn"
+                :title="`Index usage unavailable: ${localIndexUsageError}`"
+              ><BaseIcon name="info" :size="12" /></span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          <template v-for="index in indexesList" :key="index.name">
+          <template v-for="index in localIndexesList" :key="index.name">
             <tr
               class="idx-row"
-              :class="{ selected: selectedIndex && selectedIndex.name === index.name }"
+              :class="{ selected: localSelectedIndex && localSelectedIndex.name === index.name }"
               @click="selectRow(index)"
             >
               <td class="col-name">
                 <span class="name-inner">
-                  <button class="caret" :class="{ open: expanded[index.name] }" @click.stop="toggleExpand(index.name)">
+                  <button class="caret" :class="{ open: localExpanded[index.name] }" @click.stop="toggleExpand(index.name)">
                     <BaseIcon name="caret" :size="11" />
                   </button>
                   {{ index.name }}
@@ -148,29 +317,29 @@ function fmtBytes(bytes) {
               <td class="col-size">{{ sizeOf(index) }}</td>
               <td class="col-usage">{{ usageOf(index) }}</td>
             </tr>
-            <tr v-if="expanded[index.name]" class="idx-detail">
+            <tr v-if="localExpanded[index.name]" class="idx-detail">
               <td colspan="5"><span class="dt-label">Fields:</span> {{ indexKeyLabel(index) || '—' }}</td>
             </tr>
           </template>
-          <tr v-if="!indexesList.length"><td colspan="5" class="idx-empty">No indexes.</td></tr>
+          <tr v-if="!localIndexesList.length"><td colspan="5" class="idx-empty">No indexes.</td></tr>
         </tbody>
       </table>
     </div>
 
     <!-- Status bar -->
     <div class="idx-status">
-      <span>{{ indexesList.length }} {{ indexesList.length === 1 ? 'Index' : 'Indexes' }}</span>
+      <span>{{ localIndexesList.length }} {{ localIndexesList.length === 1 ? 'Index' : 'Indexes' }}</span>
       <span class="spacer"></span>
-      <span v-if="indexTotalSize != null">{{ fmtBytes(indexTotalSize) }}</span>
+      <span v-if="localIndexTotalSize != null">{{ fmtBytes(localIndexTotalSize) }}</span>
     </div>
 
     <!-- Add / Edit index dialog -->
     <IndexAddDialog
-      v-if="indexFormOpen"
-      :mode="indexFormMode"
-      :seed="indexFormSeed"
-      :busy="indexCreating"
-      :error="indexesError"
+      v-if="localIndexFormOpen"
+      :mode="localIndexFormMode"
+      :seed="localIndexFormSeed"
+      :busy="localIndexCreating"
+      :error="localIndexesError"
       @submit="submitIndex"
       @cancel="closeIndexForm"
     />
@@ -224,6 +393,12 @@ function fmtBytes(bytes) {
 .idx-row.selected { background: var(--accent); color: #fff; }
 .idx-row.selected td { color: #fff; }
 .col-name { white-space: nowrap; }
+/* Marker on the Usage header when $indexStats failed (e.g. missing indexStats privilege).
+   The tooltip carries the reason so "n/a" isn't a dead end. */
+.usage-warn {
+  display: inline-flex; align-items: center; vertical-align: middle;
+  margin-left: 4px; color: var(--danger-text); cursor: help;
+}
 .name-inner { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
 .caret {
   border: none; background: transparent; padding: 0; cursor: pointer;

@@ -149,6 +149,12 @@ fn mongo_message(e: &mongodb::error::Error) -> String {
         ErrorKind::Write(WriteFailure::WriteConcernError(wc_error)) => {
             write_message(wc_error.code, &wc_error.message)
         }
+        // Command failures (authorization, unsupported stage, …) Display as a driver dump
+        // ("Kind: Command failed: … , labels: {}"). Pull the server's own errmsg instead —
+        // the same text mongosh shows (e.g. "not authorized on <db> to execute command …").
+        ErrorKind::Command(command_error) => {
+            command_message(command_error.code, &command_error.message)
+        }
         _ => e.to_string(),
     }
 }
@@ -158,6 +164,16 @@ fn mongo_message(e: &mongodb::error::Error) -> String {
 fn write_message(code: i32, message: &str) -> String {
     if message.is_empty() {
         format!("Write error (code {code})")
+    } else {
+        message.to_string()
+    }
+}
+
+/// One command error as text: the server's own `errmsg`, or a code-only fallback if the
+/// server sent none.
+fn command_message(code: i32, message: &str) -> String {
+    if message.is_empty() {
+        format!("Command failed (code {code})")
     } else {
         message.to_string()
     }
@@ -187,7 +203,7 @@ fn join_write_messages(parts: Vec<String>) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{join_write_messages, write_message};
+    use super::{command_message, join_write_messages, write_message};
 
     #[test]
     fn write_message_prefers_the_server_text() {
@@ -200,6 +216,19 @@ mod tests {
     #[test]
     fn write_message_falls_back_to_code_when_blank() {
         assert_eq!(write_message(121, ""), "Write error (code 121)");
+    }
+
+    #[test]
+    fn command_message_prefers_the_server_errmsg() {
+        assert_eq!(
+            command_message(13, "not authorized on testify to execute command"),
+            "not authorized on testify to execute command"
+        );
+    }
+
+    #[test]
+    fn command_message_falls_back_to_code_when_blank() {
+        assert_eq!(command_message(13, ""), "Command failed (code 13)");
     }
 
     #[test]
