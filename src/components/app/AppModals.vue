@@ -1,6 +1,7 @@
 <script setup>
 import { inject } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
@@ -371,14 +372,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     />
 
     <!-- Add Collection modal -->
-    <div v-if="addCollectionTarget" class="del-overlay" @mousedown.self="addCollectionTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Add Collection</div>
-          <button class="close-btn" @click="addCollectionTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="addCollectionTarget" title="Add Collection" @close="addCollectionTarget = null">
         <div class="del-body">
           <input
             v-model="newCollectionName"
@@ -443,18 +437,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             {{ addCollectionSaving ? 'Creating…' : 'Create' }}
           </button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Add View modal -->
-    <div v-if="addViewTarget" class="del-overlay" @mousedown.self="addViewTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Add View</div>
-          <button class="close-btn" @click="addViewTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="addViewTarget" title="Add View" @close="addViewTarget = null">
         <div class="del-body">
           <input
             v-model="newViewName"
@@ -487,18 +473,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             {{ addViewSaving ? 'Creating…' : 'Create' }}
           </button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Add GridFS Bucket modal -->
-    <div v-if="addBucketTarget" class="del-overlay" @mousedown.self="addBucketTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Add GridFS Bucket</div>
-          <button class="close-btn" @click="addBucketTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="addBucketTarget" title="Add GridFS Bucket" @close="addBucketTarget = null">
         <div class="del-body">
           <input
             v-model="newBucketName"
@@ -518,18 +496,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             {{ addBucketSaving ? 'Creating…' : 'Create' }}
           </button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Rename Tab modal -->
-    <div v-if="renameTabTarget" class="del-overlay" @mousedown.self="renameTabTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Rename Tab</div>
-          <button class="close-btn" @click="renameTabTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="renameTabTarget" title="Rename Tab" @close="renameTabTarget = null">
         <div class="del-body">
           <input
             v-model="renameTabValue"
@@ -547,18 +517,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
           <button class="btn" @click="renameTabTarget = null">Cancel</button>
           <button class="btn primary" :disabled="!renameTabValue.trim()" @click="confirmRenameTab">Rename</button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Drop Database confirm -->
-    <div v-if="dropDatabaseTarget" class="del-overlay" @mousedown.self="dropDatabaseTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Drop Database</div>
-          <button class="close-btn" @click="dropDatabaseTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="dropDatabaseTarget" title="Drop Database" @close="dropDatabaseTarget = null">
         <div class="del-body">
           <p>Are you sure you want to drop "<strong>{{ dropDatabaseTarget.dbName }}</strong>"? This deletes all of its collections and cannot be undone.</p>
           <div v-if="dropDatabaseError" class="del-error">{{ dropDatabaseError }}</div>
@@ -570,18 +532,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             {{ dropDatabaseDeleting ? 'Dropping…' : 'Drop' }}
           </button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Drop Collection confirm -->
-    <div v-if="dropCollectionTarget" class="del-overlay" @mousedown.self="dropCollectionTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Drop Collection</div>
-          <button class="close-btn" @click="dropCollectionTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="dropCollectionTarget" title="Drop Collection" @close="dropCollectionTarget = null">
         <div class="del-body">
           <p>Are you sure you want to drop "<strong>{{ dropCollectionTarget.collName }}</strong>"? This deletes all of its documents and cannot be undone.</p>
           <div v-if="dropCollectionError" class="del-error">{{ dropCollectionError }}</div>
@@ -593,18 +547,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             {{ dropCollectionDeleting ? 'Dropping…' : 'Drop' }}
           </button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Rename Collection modal -->
-    <div v-if="renameCollectionTarget" class="del-overlay" @mousedown.self="renameCollectionTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Rename Collection</div>
-          <button class="close-btn" @click="renameCollectionTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="renameCollectionTarget" title="Rename Collection" @close="renameCollectionTarget = null">
         <div class="del-body">
           <input
             v-model="renameCollectionName"
@@ -624,18 +570,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             {{ renameCollectionSaving ? 'Renaming…' : 'Rename' }}
           </button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Duplicate Collection prompt -->
-    <div v-if="duplicateCollectionTarget" class="del-overlay" @mousedown.self="duplicateCollectionTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Duplicate Collection</div>
-          <button class="close-btn" @click="duplicateCollectionTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="duplicateCollectionTarget" title="Duplicate Collection" @close="duplicateCollectionTarget = null">
         <div class="del-body">
           <input
             v-model="duplicateCollectionName"
@@ -655,18 +593,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             {{ duplicateCollectionSaving ? 'Duplicating…' : 'Duplicate' }}
           </button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Add Database modal -->
-    <div v-if="addDatabaseTarget" class="del-overlay" @mousedown.self="addDatabaseTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Add Database</div>
-          <button class="close-btn" @click="addDatabaseTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="addDatabaseTarget" title="Add Database" @close="addDatabaseTarget = null">
         <div class="del-body">
           <input
             v-model="newDatabaseName"
@@ -696,18 +626,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             {{ addDatabaseSaving ? 'Creating…' : 'Create' }}
           </button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Index: View Details (read-only) -->
-    <div v-if="indexDetailsTarget" class="del-overlay" @mousedown.self="indexDetailsTarget = null">
-      <div class="del-dialog idx-dialog">
-        <div class="del-title">
-          <div class="t">Index Details — {{ indexDetailsTarget.name }}</div>
-          <button class="close-btn" @click="indexDetailsTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="indexDetailsTarget" :title="`Index Details — ${indexDetailsTarget.name}`" width="560px" @close="indexDetailsTarget = null">
         <div class="del-body">
           <div class="idx-detail-section">Definition</div>
           <pre class="idx-detail-json">{{ indexSpecJson(indexDetailsTarget) }}</pre>
@@ -725,18 +647,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
           <span class="spacer"></span>
           <button class="btn" @click="indexDetailsTarget = null">Close</button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 
     <!-- Index: Drop confirmation (type the name to confirm) -->
-    <div v-if="dropIndexTarget" class="del-overlay" @mousedown.self="dropIndexTarget = null">
-      <div class="del-dialog">
-        <div class="del-title">
-          <div class="t">Drop Index</div>
-          <button class="close-btn" @click="dropIndexTarget = null">
-            <BaseIcon name="close" :size="14" />
-          </button>
-        </div>
+    <BaseModal v-if="dropIndexTarget" title="Drop Index" @close="dropIndexTarget = null">
         <div class="del-body">
           <p>This permanently drops the index
             <code>{{ dropIndexTarget.name }}</code>. Queries that relied on it may slow down.
@@ -762,8 +676,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             @click="confirmDropIndex"
           >{{ dropIndexBusy ? 'Dropping…' : 'Drop Index' }}</button>
         </div>
-      </div>
-    </div>
+  </BaseModal>
 </template>
 
 <!-- Same stylesheet App.vue uses; scoped here so the dialog classes (.del-*, .idx-*,

@@ -105,56 +105,7 @@
   white-space: nowrap;
 }
 
-/* ── Add Collection / Drop Database dialogs ── */
-.del-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .5);
-  display: grid;
-  place-items: center;
-  z-index: 60;
-}
-.del-dialog {
-  width: 400px;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.del-title {
-  height: 36px;
-  flex: none;
-  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  position: relative;
-}
-.del-title .t {
-  position: absolute;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 500;
-  pointer-events: none;
-}
-.close-btn {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  z-index: 1;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
+/* ── Add Collection / Drop Database dialog bodies (chrome now via BaseModal) ── */
 .del-body {
   padding: 20px 20px 12px;
   font-size: 13px;
@@ -200,7 +151,6 @@
 .cc-hint { margin: 0; font-size: 12px; color: var(--text-dim); }
 .cc-hint code { font-family: var(--mono); font-size: 11px; }
 
-.idx-dialog { width: 560px; }
 .idx-msg { padding: 16px 0; color: var(--text-faint); font-size: 12px; }
 .idx-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .idx-table th { text-align: left; font-weight: 500; color: var(--text-faint); padding: 4px 8px; border-bottom: 1px solid var(--border); }
