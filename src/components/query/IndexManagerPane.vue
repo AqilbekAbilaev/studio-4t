@@ -136,10 +136,12 @@ function fmtBytes(bytes) {
               @click="selectRow(index)"
             >
               <td class="col-name">
-                <button class="caret" :class="{ open: expanded[index.name] }" @click.stop="toggleExpand(index.name)">
-                  <BaseIcon name="caret" :size="11" />
-                </button>
-                {{ index.name }}
+                <span class="name-inner">
+                  <button class="caret" :class="{ open: expanded[index.name] }" @click.stop="toggleExpand(index.name)">
+                    <BaseIcon name="caret" :size="11" />
+                  </button>
+                  {{ index.name }}
+                </span>
               </td>
               <td class="col-type">{{ typeOf(index) }}</td>
               <td class="col-props">{{ propsOf(index) }}</td>
@@ -213,7 +215,7 @@ function fmtBytes(bytes) {
   border-bottom: 1px solid var(--border); border-right: 1px solid var(--border-soft);
 }
 .idx-row td {
-  padding: 5px 10px; color: var(--text);
+  padding: 5px 10px; color: var(--text); vertical-align: middle;
   border-bottom: 1px solid var(--grid-line); border-right: 1px solid var(--border-soft);
   white-space: nowrap;
 }
@@ -221,7 +223,8 @@ function fmtBytes(bytes) {
 .idx-row:hover { background: var(--bg-hover); }
 .idx-row.selected { background: var(--accent); color: #fff; }
 .idx-row.selected td { color: #fff; }
-.col-name { display: flex; align-items: center; gap: 4px; }
+.col-name { white-space: nowrap; }
+.name-inner { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
 .caret {
   border: none; background: transparent; padding: 0; cursor: pointer;
   color: var(--text-faint); display: inline-flex; transition: transform .12s;
