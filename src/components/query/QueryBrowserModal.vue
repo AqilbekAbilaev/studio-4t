@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseModal from '../base/BaseModal.vue'
 
 const emit = defineEmits(['close', 'apply'])
 
@@ -57,20 +58,15 @@ function handleKey(e) {
   if (e.key === 'Escape') emit('close')
   if (e.key === 'Enter' && selected.value) load()
 }
+
+// The dialog moved into BaseModal (no focusable overlay to catch keys), so the
+// Escape/Enter shortcuts ride a window listener that lives only while it's open.
+onMounted(() => window.addEventListener('keydown', handleKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 </script>
 
 <template>
-  <div class="qb-overlay" @mousedown.self="emit('close')" @keydown="handleKey" tabindex="-1">
-    <div class="qb-dialog">
-
-      <!-- Title bar -->
-      <div class="qb-title">
-        <span class="t">Saved Queries</span>
-        <button class="qb-close" @click="emit('close')">
-          <BaseIcon name="close" :size="13" />
-        </button>
-      </div>
-
+  <BaseModal title="Saved Queries" width="700px" max-width="96vw" height="540px" max-height="92vh" @close="emit('close')">
       <!-- Search -->
       <div class="qb-search">
         <BaseIcon name="search" :size="14" class="search-ic" />
@@ -144,67 +140,10 @@ function handleKey(e) {
         <button class="btn" @click="emit('close')">Close</button>
         <button class="btn primary" @click="load" :disabled="!selected">Load</button>
       </div>
-
-    </div>
-  </div>
+  </BaseModal>
 </template>
 
 <style scoped>
-.qb-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .5);
-  display: grid;
-  place-items: center;
-  z-index: 70;
-}
-.qb-dialog {
-  width: 700px;
-  max-width: 96vw;
-  height: 540px;
-  max-height: 92vh;
-  background: var(--bg-window);
-  border-radius: 10px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Title bar */
-.qb-title {
-  height: 36px;
-  flex: none;
-  background: linear-gradient(var(--dlg-titlebar-1), var(--dlg-titlebar-2));
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  position: relative;
-}
-.qb-title .t {
-  position: absolute;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 500;
-  pointer-events: none;
-}
-.qb-close {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  padding: 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  z-index: 1;
-}
-.qb-close:hover { background: var(--bg-hover); color: var(--text); }
-
 /* Search */
 .qb-search {
   display: flex;
