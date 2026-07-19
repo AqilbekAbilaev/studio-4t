@@ -6,6 +6,7 @@ import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseRadio from '../base/BaseRadio.vue'
 import ReorderButtons from '../base/ReorderButtons.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -262,10 +263,10 @@ async function runApply() {
 
           <div class="rs-footer">
             <label class="rs-f">
-              <input type="radio" value="in_place" v-model="mode" /> In place
+              <BaseRadio value="in_place" v-model="mode" /> In place
             </label>
             <label class="rs-f">
-              <input type="radio" value="new_collection" v-model="mode" /> New collection
+              <BaseRadio value="new_collection" v-model="mode" /> New collection
             </label>
             <BaseInput
               v-if="mode === 'new_collection'"

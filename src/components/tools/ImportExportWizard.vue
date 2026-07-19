@@ -9,6 +9,7 @@ import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseCheckbox from '../base/BaseCheckbox.vue'
 import ReorderButtons from '../base/ReorderButtons.vue'
 
 const IMPORT_FORMATS = [
@@ -341,7 +342,7 @@ const titleText = computed(
           </div>
           <div class="iew-rows">
             <div v-for="(f, i) in fields" :key="f.source" class="iew-row">
-              <input type="checkbox" v-model="f.include" class="iew-chk" />
+              <BaseCheckbox v-model="f.include" class="iew-chk" />
               <code class="iew-field" :title="f.source">{{ f.source }}</code>
               <BaseInput v-model="f.target" class="iew-input" :disabled="!f.include" />
               <BaseSelect v-model="f.kind" class="iew-select" :options="KINDS" :disabled="!f.include" size="sm" />
@@ -370,7 +371,7 @@ const titleText = computed(
                 <BaseSelect v-model="format" class="iew-select" :options="EXPORT_FORMATS" size="sm" />
               </label>
               <label class="iew-f iew-inc" title="Export only documents added since this collection's last incremental export (tracked by _id)">
-                <input type="checkbox" v-model="incremental" />
+                <BaseCheckbox v-model="incremental" />
                 Incremental (new only)
               </label>
             </div>

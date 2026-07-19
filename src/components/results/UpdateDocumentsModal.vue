@@ -11,6 +11,7 @@ import { parseField } from '../../utils/queryParser'
 import { predefinedQuery, hasSelectedDocs } from '../../utils/predefinedQuery'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseCheckbox from '../base/BaseCheckbox.vue'
 import TabStrip from '../base/TabStrip.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
@@ -156,13 +157,13 @@ async function onRun() {
 
         <div class="uw-opts">
           <label class="uw-opt">
-            <input type="checkbox" v-model="upsert" />
+            <BaseCheckbox v-model="upsert" />
             <span>Upsert</span>
             <BaseIcon name="info" :size="13" class="uw-info"
               title="Insert a new document when no existing document matches the query." />
           </label>
           <label class="uw-opt">
-            <input type="checkbox" v-model="multi" />
+            <BaseCheckbox v-model="multi" />
             <span>Multi</span>
             <BaseIcon name="info" :size="13" class="uw-info"
               title="Update every matching document. When off, only the first match is updated." />
@@ -212,7 +213,6 @@ async function onRun() {
 .pq-select { flex: 1; min-width: 0; }
 .uw-opts { display: flex; align-items: center; gap: 22px; }
 .uw-opt { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); cursor: pointer; }
-.uw-opt input { cursor: pointer; accent-color: var(--accent); }
 .uw-info { color: var(--accent); cursor: help; }
 .uw-count { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); }
 .uw-msg { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }

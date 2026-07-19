@@ -4,6 +4,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseCheckbox from '../base/BaseCheckbox.vue'
 import TabStrip from '../base/TabStrip.vue'
 import BaseButton from '../base/BaseButton.vue'
 
@@ -287,10 +288,10 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 
         <!-- Options tab -->
         <div v-else-if="subtab === 'options'" class="tab-pane options-pane">
-          <label class="opt-row"><input type="checkbox" v-model="optUnique" /><span>Unique</span></label>
-          <label class="opt-row"><input type="checkbox" v-model="optSparse" /><span>Sparse</span></label>
-          <label class="opt-row"><input type="checkbox" v-model="optHidden" /><span>Hidden (ignored by the query planner)</span></label>
-          <label class="opt-row"><input type="checkbox" v-model="optTtlEnabled" /><span>TTL — expire documents after</span>
+          <label class="opt-row"><BaseCheckbox v-model="optUnique" /><span>Unique</span></label>
+          <label class="opt-row"><BaseCheckbox v-model="optSparse" /><span>Sparse</span></label>
+          <label class="opt-row"><BaseCheckbox v-model="optHidden" /><span>Hidden (ignored by the query planner)</span></label>
+          <label class="opt-row"><BaseCheckbox v-model="optTtlEnabled" /><span>TTL — expire documents after</span>
             <BaseInput v-model="optTtlSeconds" class="prompt-input sm ttl" :disabled="!optTtlEnabled" placeholder="seconds" /></label>
           <label class="idx-flabel">Partial filter expression (JSON)</label>
           <BaseInput v-model="optPartial" class="prompt-input" placeholder='e.g. {"status": "active"}' spellcheck="false" autocorrect="off" autocapitalize="off" />
@@ -347,16 +348,16 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
               <BaseSelect v-model="colAlternate" class="prompt-select" :options="COL_ALTERNATE_OPTIONS" />
             </div>
           </div>
-          <label class="opt-row"><input type="checkbox" v-model="colCaseLevel" /><span>Case level</span></label>
-          <label class="opt-row"><input type="checkbox" v-model="colNumericOrdering" /><span>Numeric ordering</span></label>
-          <label class="opt-row"><input type="checkbox" v-model="colBackwards" /><span>Backwards (French accent sort)</span></label>
+          <label class="opt-row"><BaseCheckbox v-model="colCaseLevel" /><span>Case level</span></label>
+          <label class="opt-row"><BaseCheckbox v-model="colNumericOrdering" /><span>Numeric ordering</span></label>
+          <label class="opt-row"><BaseCheckbox v-model="colBackwards" /><span>Backwards (French accent sort)</span></label>
         </div>
 
         <div v-if="shownError" class="del-error">{{ shownError }}</div>
       </div>
 
       <div class="del-footer idx-add-footer">
-        <label class="bg-check"><input type="checkbox" v-model="background" /><span>Create in background</span></label>
+        <label class="bg-check"><BaseCheckbox v-model="background" /><span>Create in background</span></label>
         <BaseButton size="sm" class="json-btn" @click="toggleJson">{{ jsonMode ? 'Form' : 'JSON' }}</BaseButton>
         <span class="spacer"></span>
         <BaseButton @click="emit('cancel')">Cancel</BaseButton>

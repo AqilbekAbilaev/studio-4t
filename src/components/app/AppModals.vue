@@ -5,6 +5,7 @@ import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseRadio from '../base/BaseRadio.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import ServerStatusModal from '../admin/ServerStatusModal.vue'
@@ -386,10 +387,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             @keydown.enter="confirmAddCollection"
           />
           <div class="cc-types">
-            <label class="cc-type"><input type="radio" value="standard" v-model="newCollectionType" /> Standard</label>
-            <label class="cc-type"><input type="radio" value="capped" v-model="newCollectionType" /> Capped</label>
-            <label class="cc-type"><input type="radio" value="timeseries" v-model="newCollectionType" /> Time-series</label>
-            <label class="cc-type"><input type="radio" value="clustered" v-model="newCollectionType" /> Clustered</label>
+            <label class="cc-type"><BaseRadio value="standard" v-model="newCollectionType" /> Standard</label>
+            <label class="cc-type"><BaseRadio value="capped" v-model="newCollectionType" /> Capped</label>
+            <label class="cc-type"><BaseRadio value="timeseries" v-model="newCollectionType" /> Time-series</label>
+            <label class="cc-type"><BaseRadio value="clustered" v-model="newCollectionType" /> Clustered</label>
           </div>
 
           <div v-if="newCollectionType === 'capped'" class="cc-opts">
