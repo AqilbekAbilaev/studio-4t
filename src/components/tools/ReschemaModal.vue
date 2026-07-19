@@ -5,6 +5,7 @@ import { errText, errCode } from '../../utils/errors'
 import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import ReorderButtons from '../base/ReorderButtons.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -211,17 +212,17 @@ async function runApply() {
                 @update:model-value="v => { row.kind = v; preview = null }" />
 
               <template v-if="row.kind === 'rename' || row.kind === 'move'">
-                <input v-model="row.from" list="rs-fields" class="rs-input" placeholder="from path" />
+                <BaseInput v-model="row.from" list="rs-fields" class="rs-input" placeholder="from path" />
                 <span class="rs-arrow">→</span>
-                <input v-model="row.to" class="rs-input" placeholder="to path" />
+                <BaseInput v-model="row.to" class="rs-input" placeholder="to path" />
               </template>
               <template v-else-if="row.kind === 'changeType'">
-                <input v-model="row.field" list="rs-fields" class="rs-input" placeholder="field path" />
+                <BaseInput v-model="row.field" list="rs-fields" class="rs-input" placeholder="field path" />
                 <span class="rs-arrow">→</span>
                 <BaseSelect v-model="row.toType" class="rs-select" :options="TYPE_OPTIONS" size="sm" />
               </template>
               <template v-else>
-                <input v-model="row.field" list="rs-fields" class="rs-input wide" placeholder="field path" />
+                <BaseInput v-model="row.field" list="rs-fields" class="rs-input wide" placeholder="field path" />
               </template>
 
               <span class="rs-row-actions">
@@ -266,7 +267,7 @@ async function runApply() {
             <label class="rs-f">
               <input type="radio" value="new_collection" v-model="mode" /> New collection
             </label>
-            <input
+            <BaseInput
               v-if="mode === 'new_collection'"
               v-model="newName"
               class="rs-input"
@@ -306,18 +307,15 @@ async function runApply() {
   padding: 4px 0;
 }
 .rs-select { min-width: 120px; }
-.rs-input {
+.base-input.rs-input {
   flex: 1;
   min-width: 0;
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
   border-radius: 5px;
   padding: 4px 7px;
   font-size: 12.5px;
   font-family: var(--mono);
 }
-.rs-input.wide { flex: 2; }
+.base-input.rs-input.wide { flex: 2; }
 .rs-arrow { color: var(--text-faint); flex: none; }
 .rs-row-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 

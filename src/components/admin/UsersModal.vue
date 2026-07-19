@@ -7,6 +7,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 
 // Manage Users for a database: list, create, and drop users (via usersInfo /
 // createUser / dropUser).
@@ -152,7 +153,7 @@ function copyText(text) {
           </div>
           <div class="um-copy-row">
             <label class="um-copy-lbl">Target database</label>
-            <input v-model="copyTargetDb" class="um-input" spellcheck="false" placeholder="database" />
+            <BaseInput v-model="copyTargetDb" spellcheck="false" placeholder="database" />
           </div>
           <p class="um-copy-note">
             Roles are copied as-is. Passwords can't be transferred — each user is created with a
@@ -189,9 +190,9 @@ function copyText(text) {
         </div>
 
         <div v-if="showCreate" class="um-create">
-          <input v-model="newName" class="um-input" placeholder="Username" spellcheck="false" />
-          <input v-model="newPassword" class="um-input" type="password" placeholder="Password" />
-          <input v-model="newRoles" class="um-input" placeholder="Roles (comma-separated, e.g. readWrite, read@other)" spellcheck="false" />
+          <BaseInput v-model="newName" placeholder="Username" spellcheck="false" />
+          <BaseInput v-model="newPassword" type="password" placeholder="Password" />
+          <BaseInput v-model="newRoles" placeholder="Roles (comma-separated, e.g. readWrite, read@other)" spellcheck="false" />
           <div class="um-create-actions">
             <BaseButton bordered @click="showCreate = false">Cancel</BaseButton>
             <BaseButton variant="primary" :disabled="!newName.trim() || !newPassword || busy" @click="createUser">Create</BaseButton>
@@ -232,11 +233,6 @@ function copyText(text) {
 .um-bar { display: flex; }
 .um-create { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }
 .um-create-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.um-input {
-  width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 6px;
-  border: 1px solid var(--border-soft); background: var(--bg-window); color: var(--text); font-size: 13px;
-}
-.um-input:focus { outline: none; border-color: var(--accent); }
 .um-select { width: 100%; }
 .um-error { font-size: 12px; color: var(--danger-text); }
 

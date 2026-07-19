@@ -7,6 +7,7 @@ import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import ToolbarButton from '../base/ToolbarButton.vue'
 import NewConnection from './NewConnection.vue'
 import ContextMenu from '../base/ContextMenu.vue'
@@ -390,7 +391,7 @@ const CM_TOOLS = [
 
       <!-- Filter -->
       <div class="cm-filter">
-        <input
+        <BaseInput
           class="fbox"
           v-model="filterText"
           placeholder="Click here to filter connections"
@@ -570,17 +571,7 @@ const CM_TOOLS = [
   border-bottom: 1px solid var(--border);
   flex: none;
 }
-.fbox {
-  flex: 1;
-  background: var(--bg-input);
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  padding: 7px 11px;
-  font-size: 12.5px;
-  color: var(--text);
-  outline: none;
-}
-.fbox:focus { border-color: var(--accent); }
+.base-input.fbox { flex: 1; }
 .matches { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; }
 
 /* ---- table ---- */

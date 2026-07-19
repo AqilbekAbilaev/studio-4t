@@ -8,6 +8,7 @@ import { scheduleSummary } from '../../utils/taskSchedule'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import SelectCard from '../base/SelectCard.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -472,7 +473,7 @@ async function save() {
         </div>
 
         <label class="tk-lbl">Name</label>
-        <input v-model="form.name" class="tk-input" placeholder="e.g. Nightly orders export" />
+        <BaseInput v-model="form.name" class="tk-input" placeholder="e.g. Nightly orders export" />
 
         <label class="tk-lbl">Connection</label>
         <BaseSelect :model-value="form.connId" class="tk-select" :options="connOptions"
@@ -481,14 +482,14 @@ async function save() {
         <div class="tk-two">
           <div class="tk-col">
             <label class="tk-lbl">Database</label>
-            <input v-model="form.database" list="tk-dblist" class="tk-input" placeholder="database" />
+            <BaseInput v-model="form.database" list="tk-dblist" class="tk-input" placeholder="database" />
             <datalist id="tk-dblist">
               <option v-for="d in databases" :key="d.name" :value="d.name" />
             </datalist>
           </div>
           <div class="tk-col" v-if="needsCollection">
             <label class="tk-lbl">Collection</label>
-            <input v-model="form.collection" list="tk-colllist" class="tk-input" placeholder="collection" />
+            <BaseInput v-model="form.collection" list="tk-colllist" class="tk-input" placeholder="collection" />
             <datalist id="tk-colllist">
               <option v-for="c in collectionOptions" :key="c" :value="c" />
             </datalist>
@@ -501,7 +502,7 @@ async function save() {
           <BaseSelect v-model="form.format" class="tk-select" :options="formatOptions" />
           <label class="tk-lbl">{{ form.type === 'import' ? 'Source file' : 'Destination file' }}</label>
           <div class="tk-path">
-            <input v-model="form.path" class="tk-input" :placeholder="form.type === 'import' ? '/path/to/input' : '/path/to/output'" />
+            <BaseInput v-model="form.path" class="tk-input" :placeholder="form.type === 'import' ? '/path/to/input' : '/path/to/output'" />
             <BaseButton bordered @click="form.type === 'import' ? browseInput() : browseOutput()">Browse…</BaseButton>
           </div>
         </template>
@@ -515,11 +516,11 @@ async function save() {
             <BaseButton variant="ghost" size="sm" @click="addRule"><BaseIcon name="plus" :size="11" /> Add rule</BaseButton>
           </div>
           <div v-for="(rule, i) in form.rules" :key="i" class="tk-rule">
-            <input v-model="rule.field" class="tk-input" placeholder="field.path" />
+            <BaseInput v-model="rule.field" class="tk-input" placeholder="field.path" />
             <BaseSelect v-model="rule.strategy" class="tk-select narrow" :options="STRATEGY_OPTIONS" size="sm" />
             <template v-if="rule.strategy === 'partial'">
-              <input v-model="rule.keepStart" class="tk-input tiny" placeholder="start" title="Keep first N chars" />
-              <input v-model="rule.keepEnd" class="tk-input tiny" placeholder="end" title="Keep last N chars" />
+              <BaseInput v-model="rule.keepStart" class="tk-input tiny" placeholder="start" title="Keep first N chars" />
+              <BaseInput v-model="rule.keepEnd" class="tk-input tiny" placeholder="end" title="Keep last N chars" />
             </template>
             <BaseButton icon="trash" :icon-size="13" variant="danger" title="Remove rule" @click="removeRule(i)" />
           </div>
@@ -530,12 +531,12 @@ async function save() {
             </div>
             <div class="tk-col">
               <label class="tk-lbl">Limit (optional)</label>
-              <input v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
+              <BaseInput v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
             </div>
           </div>
           <label class="tk-lbl">Destination file</label>
           <div class="tk-path">
-            <input v-model="form.path" class="tk-input" placeholder="/path/to/output" />
+            <BaseInput v-model="form.path" class="tk-input" placeholder="/path/to/output" />
             <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
           </div>
         </template>
@@ -545,16 +546,16 @@ async function save() {
           <div class="tk-two">
             <div class="tk-col">
               <label class="tk-lbl">Table name (optional)</label>
-              <input v-model="form.tableName" class="tk-input" :placeholder="form.collection || 'table'" />
+              <BaseInput v-model="form.tableName" class="tk-input" :placeholder="form.collection || 'table'" />
             </div>
             <div class="tk-col">
               <label class="tk-lbl">Sample limit (optional)</label>
-              <input v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
+              <BaseInput v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
             </div>
           </div>
           <label class="tk-lbl">Destination .sql file</label>
           <div class="tk-path">
-            <input v-model="form.path" class="tk-input" placeholder="/path/to/migration.sql" />
+            <BaseInput v-model="form.path" class="tk-input" placeholder="/path/to/migration.sql" />
             <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
           </div>
         </template>
@@ -570,18 +571,18 @@ async function save() {
         <BaseSelect v-model="form.schedKind" class="tk-select" :options="SCHED_OPTIONS" />
         <div v-if="form.schedKind === 'interval'" class="tk-sched-row">
           <span>Every</span>
-          <input v-model="form.everyMinutes" class="tk-input tiny" />
+          <BaseInput v-model="form.everyMinutes" class="tk-input tiny" />
           <span>minutes</span>
         </div>
         <div v-else-if="form.schedKind === 'daily'" class="tk-sched-row">
           <span>At</span>
-          <input v-model="form.atHHMM" type="time" class="tk-input narrow" />
+          <BaseInput v-model="form.atHHMM" type="time" class="tk-input narrow" />
         </div>
         <div v-else-if="form.schedKind === 'weekly'" class="tk-sched-row">
           <span>On</span>
           <BaseSelect v-model="form.weekday" class="tk-select narrow" :options="WEEKDAY_OPTIONS" size="sm" />
           <span>at</span>
-          <input v-model="form.atHHMM" type="time" class="tk-input narrow" />
+          <BaseInput v-model="form.atHHMM" type="time" class="tk-input narrow" />
         </div>
 
         <div class="tk-form-actions">
@@ -684,7 +685,8 @@ async function save() {
   letter-spacing: .04em;
   margin-top: 4px;
 }
-.tk-input {
+.tk-input,
+.base-input.tk-input {
   width: 100%;
   box-sizing: border-box;
   background: var(--bg-input);
@@ -694,12 +696,15 @@ async function save() {
   padding: 7px 9px;
   font-size: 12.5px;
 }
-.tk-input:focus { outline: none; border-color: var(--accent); }
+.tk-input:focus,
+.base-input.tk-input:focus { outline: none; border-color: var(--accent); }
 .tk-input.mono { font-family: var(--mono); line-height: 1.5; resize: vertical; }
-.tk-input.narrow { width: auto; min-width: 120px; }
+.tk-input.narrow,
+.base-input.tk-input.narrow { width: auto; min-width: 120px; }
 .tk-select { width: 100%; }
 .tk-select.narrow { width: auto; min-width: 120px; }
-.tk-input.tiny { width: 74px; }
+.tk-input.tiny,
+.base-input.tk-input.tiny { width: 74px; }
 
 .tk-two { display: flex; gap: 10px; }
 .tk-col { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }

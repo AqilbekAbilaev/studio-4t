@@ -10,6 +10,7 @@ import { ref, computed, watch } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import { BSON_TYPES, buildTypedValue } from '../../utils/docEdit'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -80,8 +81,8 @@ const shownError = computed(() => localError.value || props.saveError)
 
         <label v-if="showName" class="fe-row">
           <span class="fe-lbl">{{ mode === 'rename' ? 'New name' : 'Field name' }}</span>
-          <input class="fe-input" v-model="name" spellcheck="false" autocomplete="off"
-                 @keydown.enter="onSave" />
+          <BaseInput class="fe-input" v-model="name" spellcheck="false" autocomplete="off"
+                 @enter="onSave" />
         </label>
 
         <p v-if="mode === 'rename'" class="fe-hint">
@@ -98,8 +99,8 @@ const shownError = computed(() => localError.value || props.saveError)
           <span class="fe-lbl">Value</span>
           <textarea v-if="useTextarea" class="fe-input fe-area" v-model="raw" spellcheck="false"
                     autocomplete="off"></textarea>
-          <input v-else class="fe-input" v-model="raw" spellcheck="false" autocomplete="off"
-                 @keydown.enter="onSave" />
+          <BaseInput v-else class="fe-input" v-model="raw" spellcheck="false" autocomplete="off"
+                 @enter="onSave" />
         </label>
 
         <div v-if="shownError" class="fe-error">{{ shownError }}</div>
@@ -119,11 +120,13 @@ const shownError = computed(() => localError.value || props.saveError)
 .fe-field-label code { font-family: var(--mono); color: var(--text); }
 .fe-row { display: flex; flex-direction: column; gap: 5px; }
 .fe-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-faint); }
-.fe-input {
+.fe-input,
+.base-input.fe-input {
   background: var(--bg-input); border: 1px solid var(--border); border-radius: 5px;
   color: var(--text); font-family: var(--mono); font-size: 12.5px; padding: 7px 9px; outline: none;
 }
-.fe-input:focus { border-color: var(--accent); }
+.fe-input:focus,
+.base-input.fe-input:focus { border-color: var(--accent); }
 .fe-select { width: 100%; }
 .fe-area { resize: vertical; min-height: 96px; line-height: 1.5; }
 .fe-hint { margin: -4px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-faint); }

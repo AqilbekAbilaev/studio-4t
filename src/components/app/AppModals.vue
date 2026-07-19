@@ -4,6 +4,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import ServerStatusModal from '../admin/ServerStatusModal.vue'
@@ -375,7 +376,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <!-- Add Collection modal -->
     <BaseModal v-if="addCollectionTarget" title="Add Collection" @close="addCollectionTarget = null">
         <div class="del-body">
-          <input
+          <BaseInput
             v-model="newCollectionName"
             class="prompt-input"
             placeholder="Collection name"
@@ -394,22 +395,22 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
           <div v-if="newCollectionType === 'capped'" class="cc-opts">
             <label class="cc-field">
               <span class="cc-label">Max size (bytes)</span>
-              <input v-model="newCollectionOpts.size" class="prompt-input" type="number" min="1" placeholder="e.g. 1048576" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.size" class="prompt-input" type="number" min="1" placeholder="e.g. 1048576" @keydown.enter="confirmAddCollection" />
             </label>
             <label class="cc-field">
               <span class="cc-label">Max documents <span class="cc-opt">(optional)</span></span>
-              <input v-model="newCollectionOpts.max" class="prompt-input" type="number" min="1" placeholder="e.g. 1000" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.max" class="prompt-input" type="number" min="1" placeholder="e.g. 1000" @keydown.enter="confirmAddCollection" />
             </label>
           </div>
 
           <div v-else-if="newCollectionType === 'timeseries'" class="cc-opts">
             <label class="cc-field">
               <span class="cc-label">Time field</span>
-              <input v-model="newCollectionOpts.timeField" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. timestamp" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.timeField" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. timestamp" @keydown.enter="confirmAddCollection" />
             </label>
             <label class="cc-field">
               <span class="cc-label">Meta field <span class="cc-opt">(optional)</span></span>
-              <input v-model="newCollectionOpts.metaField" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. metadata" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.metaField" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. metadata" @keydown.enter="confirmAddCollection" />
             </label>
             <label class="cc-field">
               <span class="cc-label">Granularity <span class="cc-opt">(optional)</span></span>
@@ -417,7 +418,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             </label>
             <label class="cc-field">
               <span class="cc-label">Expire after (seconds) <span class="cc-opt">(optional)</span></span>
-              <input v-model="newCollectionOpts.expireAfterSeconds" class="prompt-input" type="number" min="1" placeholder="e.g. 86400" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.expireAfterSeconds" class="prompt-input" type="number" min="1" placeholder="e.g. 86400" @keydown.enter="confirmAddCollection" />
             </label>
           </div>
 
@@ -425,7 +426,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             <p class="cc-hint">Documents are stored in <code>_id</code> order (clustered index on <code>{ _id: 1 }</code>).</p>
             <label class="cc-field">
               <span class="cc-label">Index name <span class="cc-opt">(optional)</span></span>
-              <input v-model="newCollectionOpts.clusteredIndexName" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. events_clustered" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.clusteredIndexName" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. events_clustered" @keydown.enter="confirmAddCollection" />
             </label>
           </div>
 
@@ -443,7 +444,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <!-- Add View modal -->
     <BaseModal v-if="addViewTarget" title="Add View" @close="addViewTarget = null">
         <div class="del-body">
-          <input
+          <BaseInput
             v-model="newViewName"
             class="prompt-input"
             placeholder="View name"
@@ -451,7 +452,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             autocorrect="off"
             autocapitalize="off"
           />
-          <input
+          <BaseInput
             v-model="newViewSource"
             class="prompt-input"
             placeholder="Source collection (viewOn)"
@@ -479,7 +480,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <!-- Add GridFS Bucket modal -->
     <BaseModal v-if="addBucketTarget" title="Add GridFS Bucket" @close="addBucketTarget = null">
         <div class="del-body">
-          <input
+          <BaseInput
             v-model="newBucketName"
             class="prompt-input"
             placeholder="Bucket name (e.g. fs)"
@@ -502,7 +503,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <!-- Rename Tab modal -->
     <BaseModal v-if="renameTabTarget" title="Rename Tab" @close="renameTabTarget = null">
         <div class="del-body">
-          <input
+          <BaseInput
             v-model="renameTabValue"
             class="prompt-input"
             placeholder="Tab name"
@@ -553,7 +554,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <!-- Rename Collection modal -->
     <BaseModal v-if="renameCollectionTarget" title="Rename Collection" @close="renameCollectionTarget = null">
         <div class="del-body">
-          <input
+          <BaseInput
             v-model="renameCollectionName"
             class="prompt-input"
             placeholder="New collection name"
@@ -576,7 +577,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <!-- Duplicate Collection prompt -->
     <BaseModal v-if="duplicateCollectionTarget" title="Duplicate Collection" @close="duplicateCollectionTarget = null">
         <div class="del-body">
-          <input
+          <BaseInput
             v-model="duplicateCollectionName"
             class="prompt-input"
             placeholder="New collection name"
@@ -599,7 +600,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <!-- Add Database modal -->
     <BaseModal v-if="addDatabaseTarget" title="Add Database" @close="addDatabaseTarget = null">
         <div class="del-body">
-          <input
+          <BaseInput
             v-model="newDatabaseName"
             class="prompt-input"
             placeholder="Database name"
@@ -607,7 +608,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             autocorrect="off"
             autocapitalize="off"
           />
-          <input
+          <BaseInput
             v-model="newDatabaseCollName"
             class="prompt-input"
             style="margin-top:8px"
@@ -657,7 +658,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             <code>{{ dropIndexTarget.name }}</code>. Queries that relied on it may slow down.
             This cannot be undone.</p>
           <p class="cc-prompt">Type <code>{{ dropIndexTarget.name }}</code> to confirm:</p>
-          <input
+          <BaseInput
             class="prompt-input"
             v-model="dropIndexConfirmText"
             spellcheck="false"

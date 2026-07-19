@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import BaseButton from "../base/BaseButton.vue";
+import BaseInput from "../base/BaseInput.vue";
 import TabStrip from "../base/TabStrip.vue";
 
 const activeTab = ref("server");
@@ -102,41 +103,41 @@ async function cancel() {
       <div v-if="activeTab === 'server'" class="fields">
         <div class="field">
           <label>Connection Name</label>
-          <input v-model="name" type="text" placeholder="My Connection" />
+          <BaseInput v-model="name" type="text" placeholder="My Connection" />
         </div>
         <div class="field-row">
           <div class="field flex-3">
             <label>Host</label>
-            <input v-model="host" type="text" placeholder="localhost" />
+            <BaseInput v-model="host" type="text" placeholder="localhost" />
           </div>
           <div class="field flex-1">
             <label>Port</label>
-            <input v-model.number="port" type="number" placeholder="27017" />
+            <BaseInput v-model="port" type="number" placeholder="27017" />
           </div>
         </div>
         <div class="section-label">Authentication (optional)</div>
         <div class="field">
           <label>Username</label>
-          <input v-model="username" type="text" placeholder="" />
+          <BaseInput v-model="username" type="text" placeholder="" />
         </div>
         <div class="field">
           <label>Password</label>
-          <input v-model="password" type="password" placeholder="" />
+          <BaseInput v-model="password" type="password" placeholder="" />
         </div>
         <div class="field">
           <label>Auth Database</label>
-          <input v-model="authDatabase" type="text" placeholder="admin" />
+          <BaseInput v-model="authDatabase" type="text" placeholder="admin" />
         </div>
       </div>
 
       <div v-if="activeTab === 'uri'" class="fields">
         <div class="field">
           <label>Connection Name</label>
-          <input v-model="name" type="text" placeholder="My Connection" />
+          <BaseInput v-model="name" type="text" placeholder="My Connection" />
         </div>
         <div class="field">
           <label>URI</label>
-          <input
+          <BaseInput
             v-model="manualUri"
             type="text"
             placeholder="mongodb://localhost:27017"
@@ -245,19 +246,6 @@ html {
 label {
   font-size: 12px;
   color: var(--text-dim);
-}
-
-input {
-  background-color: var(--bg-input);
-  border: 1px solid var(--border-soft);
-  color: var(--text);
-  padding: 5px 8px;
-  outline: none;
-  width: 100%;
-}
-
-input:focus {
-  border-color: var(--accent);
 }
 
 .uri-input {

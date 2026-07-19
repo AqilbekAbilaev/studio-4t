@@ -7,6 +7,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 
 // Opened from App.vue for a database node. Reads the database's profiling status,
 // lists the slow ops captured in `system.profile`, and lets the user change the
@@ -163,7 +164,7 @@ function rawFor(op) {
             <BaseSelect v-model="level" class="ctrl-select" :options="LEVEL_OPTIONS" size="sm" />
             <label class="ctrl-inline">
               slowms
-              <input v-model="slowms" type="number" min="0" class="ctrl-num" />
+              <BaseInput v-model="slowms" type="number" min="0" class="ctrl-num" />
             </label>
             <BaseButton bordered :disabled="applying" @click="applyLevel">
               {{ applying ? 'Applying…' : 'Apply' }}
@@ -173,7 +174,7 @@ function rawFor(op) {
           <div class="filter-bar">
             <label class="ctrl-inline">
               slower than
-              <input v-model="slowerThan" type="number" min="0" class="ctrl-num" placeholder="—" />
+              <BaseInput v-model="slowerThan" type="number" min="0" class="ctrl-num" placeholder="—" />
               ms
             </label>
             <BaseButton bordered :disabled="refreshing" @click="refreshList">
@@ -275,15 +276,11 @@ function rawFor(op) {
 .badge.lvl-2 { color: var(--accent); border-color: var(--accent); }
 
 .ctrl-select { min-width: 120px; }
-.ctrl-num {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
+.base-input.ctrl-num {
   font-size: 12.5px;
   padding: 4px 8px;
+  width: 84px;
 }
-.ctrl-num { width: 84px; }
 
 
 .ops-table {

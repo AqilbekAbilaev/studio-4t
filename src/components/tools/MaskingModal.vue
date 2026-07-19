@@ -5,6 +5,7 @@ import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -152,8 +153,8 @@ async function runExport() {
               <span class="mk-opts">
                 <template v-if="f.strategy === 'partial'">
                   keep
-                  <input v-model="f.keepStart" type="number" min="0" class="mk-num" /> start
-                  <input v-model="f.keepEnd" type="number" min="0" class="mk-num" /> end
+                  <BaseInput v-model="f.keepStart" type="number" min="0" class="mk-num" /> start
+                  <BaseInput v-model="f.keepEnd" type="number" min="0" class="mk-num" /> end
                 </template>
               </span>
             </div>
@@ -168,7 +169,7 @@ async function runExport() {
             </label>
             <label class="mk-f">
               Limit
-              <input v-model="limit" type="number" min="1" placeholder="all" class="mk-num wide" />
+              <BaseInput v-model="limit" type="number" min="1" placeholder="all" class="mk-num wide" />
             </label>
             <span class="mk-summary">{{ maskedCount }} field{{ maskedCount === 1 ? '' : 's' }} masked</span>
             <BaseButton variant="primary" :disabled="exporting" @click="runExport">
@@ -222,16 +223,13 @@ async function runExport() {
 }
 .mk-select { min-width: 120px; }
 .mk-opts { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
-.mk-num {
+.base-input.mk-num {
   width: 44px;
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
   border-radius: 5px;
   padding: 3px 5px;
   font-size: 12px;
 }
-.mk-num.wide { width: 64px; }
+.base-input.mk-num.wide { width: 64px; }
 .mk-footer {
   display: flex;
   align-items: center;

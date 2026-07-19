@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import Disclosure from '../base/Disclosure.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -58,12 +59,12 @@ function preview(doc) {
 
       <div class="se-body">
         <div class="se-bar">
-          <input
+          <BaseInput
             v-model="term"
             class="se-input"
             placeholder="Search all collections for a value…"
             spellcheck="false"
-            @keydown.enter="search"
+            @enter="search"
           />
           <BaseButton variant="primary" :disabled="loading || !term.trim()" @click="search">
             {{ loading ? 'Searching…' : 'Search' }}
@@ -107,16 +108,7 @@ function preview(doc) {
   overflow: hidden;
 }
 .se-bar { display: flex; gap: 10px; }
-.se-input {
-  flex: 1;
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 7px 10px;
-  font-size: 13px;
-}
-.se-input:focus { outline: none; border-color: var(--accent); }
+.base-input.se-input { flex: 1; }
 
 .se-results { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .se-group { border: 1px solid var(--border-soft); border-radius: 6px; overflow: hidden; }

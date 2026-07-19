@@ -9,6 +9,7 @@ import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
 // upload / download / delete / rename / edit-metadata files, plus bucket copy/drop.
@@ -361,7 +362,7 @@ function fmtDate(iso) {
   <!-- Rename file -->
   <BaseModal v-if="renameTarget" title="Rename File" width="440px" max-width="92vw" @close="renameTarget = null">
       <div class="sub-body">
-        <input v-model="renameName" class="sub-input" placeholder="New filename" spellcheck="false" @keydown.enter="doRename" />
+        <BaseInput v-model="renameName" placeholder="New filename" spellcheck="false" @enter="doRename" />
         <div v-if="subError" class="sub-error">{{ subError }}</div>
       </div>
       <div class="sub-footer">
@@ -402,7 +403,7 @@ function fmtDate(iso) {
   <!-- Copy bucket -->
   <BaseModal v-if="copyBucketOpen" :title="`Copy Bucket &quot;${selectedBucket}&quot;`" width="440px" max-width="92vw" @close="copyBucketOpen = false">
       <div class="sub-body">
-        <input v-model="copyBucketName" class="sub-input" placeholder="New bucket name" spellcheck="false" @keydown.enter="doCopyBucket" />
+        <BaseInput v-model="copyBucketName" placeholder="New bucket name" spellcheck="false" @enter="doCopyBucket" />
         <div v-if="subError" class="sub-error">{{ subError }}</div>
       </div>
       <div class="sub-footer">

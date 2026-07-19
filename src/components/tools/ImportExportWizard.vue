@@ -8,6 +8,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import ReorderButtons from '../base/ReorderButtons.vue'
 
 const IMPORT_FORMATS = [
@@ -342,7 +343,7 @@ const titleText = computed(
             <div v-for="(f, i) in fields" :key="f.source" class="iew-row">
               <input type="checkbox" v-model="f.include" class="iew-chk" />
               <code class="iew-field" :title="f.source">{{ f.source }}</code>
-              <input v-model="f.target" class="iew-input" :disabled="!f.include" />
+              <BaseInput v-model="f.target" class="iew-input" :disabled="!f.include" />
               <BaseSelect v-model="f.kind" class="iew-select" :options="KINDS" :disabled="!f.include" size="sm" />
               <span v-if="!isImport" class="iew-order">
                 <ReorderButtons
@@ -486,16 +487,12 @@ const titleText = computed(
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.iew-input {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
+.base-input.iew-input {
   border-radius: 5px;
   padding: 3px 6px;
   font-size: 12px;
 }
 .iew-select { min-width: 110px; }
-.iew-input:disabled { opacity: .5; }
 .iew-order { display: flex; gap: 4px; }
 
 .iew-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }

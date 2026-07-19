@@ -5,6 +5,7 @@ import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 
 // Open Map-Reduce for a collection: enter map / reduce / (optional) finalize JS and
 // an output collection (blank = inline), run mapReduce, and show the raw result.
@@ -56,7 +57,7 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
         <label class="mr-label">Finalize (optional)</label>
         <textarea v-model="finalize" class="mr-input mr-code short" spellcheck="false" placeholder="function (key, reducedValue) { … }"></textarea>
         <label class="mr-label">Output collection (blank = inline)</label>
-        <input v-model="outCollection" class="mr-input" placeholder="e.g. mr_results" spellcheck="false" />
+        <BaseInput v-model="outCollection" placeholder="e.g. mr_results" spellcheck="false" />
 
         <div v-if="error" class="mr-error">{{ error }}</div>
         <template v-if="result">
@@ -79,11 +80,6 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 
 .mr-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; max-height: 74vh; overflow-y: auto; }
 .mr-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
-.mr-input {
-  width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px;
-  border: 1px solid var(--border-soft); background: var(--bg-input); color: var(--text); font-size: 13px;
-}
-.mr-input:focus { outline: none; border-color: var(--accent); }
 .mr-code { min-height: 84px; font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; }
 .mr-code.short { min-height: 48px; }
 .mr-error { font-size: 12px; color: var(--danger-text); }

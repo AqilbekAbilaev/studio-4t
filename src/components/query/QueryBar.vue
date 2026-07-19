@@ -5,6 +5,7 @@ import { errText } from '../../utils/errors'
 import { DATE_TAGS } from '../../utils/dateTags'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import SegmentedControl from '../base/SegmentedControl.vue'
 import NumberStepper from '../base/NumberStepper.vue'
 import MenuItem from '../base/MenuItem.vue'
@@ -228,7 +229,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
         </BaseButton>
         <div v-if="showSaveForm" class="save-backdrop" @mousedown.self="showSaveForm = false"></div>
         <div v-if="showSaveForm" class="save-form">
-          <input
+          <BaseInput
             v-model="saveName"
             placeholder="Query name…"
             class="save-input"
@@ -514,18 +515,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   gap: 6px;
   padding: 10px;
 }
-.save-input {
-  flex: 1;
-  background: var(--bg-input);
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
-  color: var(--text);
-  font-size: 12.5px;
-  padding: 6px 9px;
-  outline: none;
-  min-width: 0;
-}
-.save-input:focus { border-color: var(--accent); }
+.base-input.save-input { flex: 1; min-width: 0; }
 
 /* ── query history dropdown ────────────────────────────── */
 .hist-wrap { position: relative; }

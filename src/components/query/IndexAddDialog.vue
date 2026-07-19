@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseInput from '../base/BaseInput.vue'
 import TabStrip from '../base/TabStrip.vue'
 import BaseButton from '../base/BaseButton.vue'
 
@@ -230,7 +231,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
   <BaseModal :title="title" width="660px" max-width="92vw" @close="emit('cancel')">
       <div class="del-body idx-add-body">
         <label class="idx-flabel">Index name</label>
-        <input
+        <BaseInput
           v-model="name"
           class="prompt-input"
           :disabled="mode === 'edit'"
@@ -267,7 +268,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
             <tbody>
               <tr v-for="(row, i) in rows" :key="i">
                 <td class="fc-name">
-                  <input v-model="row.field" class="prompt-input sm" placeholder="e.g. email or address.city" spellcheck="false" autocorrect="off" autocapitalize="off" />
+                  <BaseInput v-model="row.field" class="prompt-input sm" placeholder="e.g. email or address.city" spellcheck="false" autocorrect="off" autocapitalize="off" />
                 </td>
                 <td class="fc-type">
                   <BaseSelect v-model="row.type" class="prompt-select" :options="TYPE_OPTIONS" size="sm" />
@@ -290,39 +291,39 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
           <label class="opt-row"><input type="checkbox" v-model="optSparse" /><span>Sparse</span></label>
           <label class="opt-row"><input type="checkbox" v-model="optHidden" /><span>Hidden (ignored by the query planner)</span></label>
           <label class="opt-row"><input type="checkbox" v-model="optTtlEnabled" /><span>TTL — expire documents after</span>
-            <input v-model="optTtlSeconds" class="prompt-input sm ttl" :disabled="!optTtlEnabled" placeholder="seconds" /></label>
+            <BaseInput v-model="optTtlSeconds" class="prompt-input sm ttl" :disabled="!optTtlEnabled" placeholder="seconds" /></label>
           <label class="idx-flabel">Partial filter expression (JSON)</label>
-          <input v-model="optPartial" class="prompt-input" placeholder='e.g. {"status": "active"}' spellcheck="false" autocorrect="off" autocapitalize="off" />
+          <BaseInput v-model="optPartial" class="prompt-input" placeholder='e.g. {"status": "active"}' spellcheck="false" autocorrect="off" autocapitalize="off" />
         </div>
 
         <!-- Text options tab -->
         <div v-else-if="subtab === 'text'" class="tab-pane">
           <p class="pane-note">Applies to <code>text</code> indexes.</p>
           <label class="idx-flabel">Default language</label>
-          <input v-model="txtDefaultLang" class="prompt-input" placeholder="english" spellcheck="false" autocorrect="off" autocapitalize="off" />
+          <BaseInput v-model="txtDefaultLang" class="prompt-input" placeholder="english" spellcheck="false" autocorrect="off" autocapitalize="off" />
           <label class="idx-flabel">Language override field</label>
-          <input v-model="txtLangOverride" class="prompt-input" placeholder="language" spellcheck="false" autocorrect="off" autocapitalize="off" />
+          <BaseInput v-model="txtLangOverride" class="prompt-input" placeholder="language" spellcheck="false" autocorrect="off" autocapitalize="off" />
           <label class="idx-flabel">Field weights (JSON)</label>
-          <input v-model="txtWeights" class="prompt-input" placeholder='e.g. {"title": 10, "body": 1}' spellcheck="false" autocorrect="off" autocapitalize="off" />
+          <BaseInput v-model="txtWeights" class="prompt-input" placeholder='e.g. {"title": 10, "body": 1}' spellcheck="false" autocorrect="off" autocapitalize="off" />
         </div>
 
         <!-- Geo options tab -->
         <div v-else-if="subtab === 'geo'" class="tab-pane">
           <p class="pane-note">Applies to <code>2dsphere</code> / <code>2d</code> indexes.</p>
           <label class="idx-flabel">2dsphere index version</label>
-          <input v-model="geoSphereVersion" class="prompt-input" placeholder="3" spellcheck="false" autocorrect="off" autocapitalize="off" />
+          <BaseInput v-model="geoSphereVersion" class="prompt-input" placeholder="3" spellcheck="false" autocorrect="off" autocapitalize="off" />
           <div class="geo-grid">
             <div>
               <label class="idx-flabel">Bits (2d)</label>
-              <input v-model="geoBits" class="prompt-input" placeholder="26" spellcheck="false" autocorrect="off" autocapitalize="off" />
+              <BaseInput v-model="geoBits" class="prompt-input" placeholder="26" spellcheck="false" autocorrect="off" autocapitalize="off" />
             </div>
             <div>
               <label class="idx-flabel">Min (2d)</label>
-              <input v-model="geoMin" class="prompt-input" placeholder="-180" spellcheck="false" autocorrect="off" autocapitalize="off" />
+              <BaseInput v-model="geoMin" class="prompt-input" placeholder="-180" spellcheck="false" autocorrect="off" autocapitalize="off" />
             </div>
             <div>
               <label class="idx-flabel">Max (2d)</label>
-              <input v-model="geoMax" class="prompt-input" placeholder="180" spellcheck="false" autocorrect="off" autocapitalize="off" />
+              <BaseInput v-model="geoMax" class="prompt-input" placeholder="180" spellcheck="false" autocorrect="off" autocapitalize="off" />
             </div>
           </div>
         </div>
@@ -331,7 +332,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
         <div v-else class="tab-pane options-pane">
           <p class="pane-note">Set a locale to attach a collation; leave blank for none.</p>
           <label class="idx-flabel">Locale</label>
-          <input v-model="colLocale" class="prompt-input" placeholder='e.g. en or "simple"' spellcheck="false" autocorrect="off" autocapitalize="off" />
+          <BaseInput v-model="colLocale" class="prompt-input" placeholder='e.g. en or "simple"' spellcheck="false" autocorrect="off" autocapitalize="off" />
           <div class="geo-grid">
             <div>
               <label class="idx-flabel">Strength</label>
@@ -389,8 +390,10 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 .fields-table td { padding: 6px 8px; vertical-align: middle; }
 .fc-type { width: 176px; }
 .fc-x { width: 40px; text-align: center; }
-.prompt-input.sm { padding: 5px 9px; font-size: 12.5px; width: 100%; }
-.prompt-input.ttl { width: 120px; margin-left: 10px; }
+.prompt-input.sm,
+.base-input.prompt-input.sm { padding: 5px 9px; font-size: 12.5px; width: 100%; }
+.prompt-input.ttl,
+.base-input.prompt-input.ttl { width: 120px; margin-left: 10px; }
 
 .fields-foot { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
 .kind-label { font-size: 12px; color: var(--text-faint); }

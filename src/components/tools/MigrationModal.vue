@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -66,11 +67,11 @@ async function copy() {
         <div class="mg-controls">
           <label class="mg-f">
             Table name
-            <input v-model="tableName" class="mg-input" spellcheck="false" />
+            <BaseInput v-model="tableName" spellcheck="false" />
           </label>
           <label class="mg-f">
             Limit
-            <input v-model="limit" type="number" min="1" class="mg-input num" />
+            <BaseInput v-model="limit" type="number" min="1" class="mg-num" />
           </label>
           <BaseButton variant="primary" :disabled="loading" @click="generate">
             {{ loading ? 'Generating…' : 'Generate' }}
@@ -110,16 +111,7 @@ async function copy() {
   flex-direction: column;
   gap: 4px;
 }
-.mg-input {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 5px 8px;
-  font-size: 12.5px;
-}
-.mg-input.num { width: 90px; }
-.mg-input:focus { outline: none; border-color: var(--accent); }
+.base-input.mg-num { width: 90px; }
 .mg-copy { margin-left: auto; }
 .mg-sql {
   margin: 0;

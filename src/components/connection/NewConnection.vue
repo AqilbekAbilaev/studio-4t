@@ -8,6 +8,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import SegmentedControl from '../base/SegmentedControl.vue'
 import TabStrip from '../base/TabStrip.vue'
 import Disclosure from '../base/Disclosure.vue'
@@ -633,7 +634,7 @@ async function save() {
       <!-- Name row -->
       <div class="nc-top">
         <label class="nc-namelbl">Connection name</label>
-        <input class="nc-name" v-model="connName" />
+        <BaseInput class="nc-name" v-model="connName" />
         <BaseButton bordered @click="step = 'intro'">
           <BaseIcon name="uri" :size="15" /> From URI
         </BaseButton>
@@ -663,12 +664,12 @@ async function save() {
           </div>
           <div class="nc-field">
             <label>{{ connType === 'srv' ? 'Server (SRV hostname)' : (isMultiHost ? 'Server(s)' : 'Server') }}</label>
-            <input v-if="connType === 'srv'" class="nc-input" v-model="hosts[0].host" placeholder="cluster.example.com" />
+            <BaseInput v-if="connType === 'srv'" class="nc-input" v-model="hosts[0].host" placeholder="cluster.example.com" />
             <template v-else>
               <div v-for="(h, i) in hosts" :key="i" class="nc-inline nc-host-row">
-                <input class="nc-input" v-model="h.host" style="flex:3" placeholder="localhost" />
+                <BaseInput class="nc-input" v-model="h.host" style="flex:3" placeholder="localhost" />
                 <span class="nc-colon">:</span>
-                <input class="nc-input" v-model.number="h.port" type="number" style="flex:1" />
+                <BaseInput class="nc-input" v-model="h.port" type="number" style="flex:1" />
                 <BaseButton v-if="isMultiHost && hosts.length > 1" icon="close" :icon-size="12" title="Remove host" @click="removeHost(i)" />
               </div>
               <BaseButton v-if="isMultiHost" variant="ghost" size="sm" class="nc-host-add" @click="addHost">
@@ -678,7 +679,7 @@ async function save() {
           </div>
           <div v-if="connType === 'replica'" class="nc-field">
             <label>Replica set name</label>
-            <input class="nc-input" v-model="replicaSetName" placeholder="myReplicaSet" />
+            <BaseInput class="nc-input" v-model="replicaSetName" placeholder="myReplicaSet" />
           </div>
           <div v-if="connType !== 'standalone'" class="nc-field">
             <label>Read preference</label>
@@ -705,11 +706,11 @@ async function save() {
           <template v-if="authMode !== 'none' && authMode !== 'OIDC'">
             <div class="nc-field">
               <label>User name</label>
-              <input class="nc-input" v-model="username" />
+              <BaseInput class="nc-input" v-model="username" />
             </div>
             <div class="nc-field">
               <label>Password</label>
-              <input
+              <BaseInput
                 class="nc-input"
                 type="password"
                 v-model="password"
@@ -718,7 +719,7 @@ async function save() {
             </div>
             <div class="nc-field">
               <label>Authentication DB</label>
-              <input class="nc-input" v-model="authDb" :placeholder="authMode === 'PLAIN' ? '$external' : 'admin'" />
+              <BaseInput class="nc-input" v-model="authDb" :placeholder="authMode === 'PLAIN' ? '$external' : 'admin'" />
             </div>
             <div v-if="authMode === 'PLAIN'" class="nc-hint">
               LDAP (PLAIN) requires SSL/TLS. Enable SSL in the SSL tab.
@@ -732,7 +733,7 @@ async function save() {
             </div>
             <div v-if="oidcNeedsResource" class="nc-field">
               <label>Token resource</label>
-              <input class="nc-input" v-model="oidcTokenResource" spellcheck="false" placeholder="e.g. api://&lt;app-id&gt;" />
+              <BaseInput class="nc-input" v-model="oidcTokenResource" spellcheck="false" placeholder="e.g. api://&lt;app-id&gt;" />
             </div>
             <div class="nc-hint">
               Workload-identity OIDC: the token is obtained from the {{ oidcEnvironment }} environment — no username or password.
@@ -752,16 +753,16 @@ async function save() {
             <div class="nc-inline2">
               <div class="nc-field" style="flex:1">
                 <label>SSH host</label>
-                <input class="nc-input" v-model="sshHost" placeholder="bastion.example.com" spellcheck="false" />
+                <BaseInput class="nc-input" v-model="sshHost" placeholder="bastion.example.com" spellcheck="false" />
               </div>
               <div class="nc-field" style="width:92px">
                 <label>Port</label>
-                <input class="nc-input" type="number" v-model.number="sshPort" />
+                <BaseInput class="nc-input" type="number" v-model="sshPort" />
               </div>
             </div>
             <div class="nc-field">
               <label>SSH user</label>
-              <input class="nc-input" v-model="sshUser" spellcheck="false" />
+              <BaseInput class="nc-input" v-model="sshUser" spellcheck="false" />
             </div>
             <div class="nc-field">
               <label>Authentication</label>
@@ -774,19 +775,19 @@ async function save() {
 
             <div v-if="sshAuth === 'password'" class="nc-field">
               <label>SSH password</label>
-              <input class="nc-input" type="password" v-model="sshPassword" :placeholder="isEditMode ? 'Leave blank to keep existing' : ''" />
+              <BaseInput class="nc-input" type="password" v-model="sshPassword" :placeholder="isEditMode ? 'Leave blank to keep existing' : ''" />
             </div>
             <template v-else>
               <div class="nc-field">
                 <label>Private key file</label>
                 <div class="nc-file-row">
-                  <input class="nc-input" v-model="sshKeyFile" placeholder="~/.ssh/id_ed25519" spellcheck="false" />
+                  <BaseInput class="nc-input" v-model="sshKeyFile" placeholder="~/.ssh/id_ed25519" spellcheck="false" />
                   <BaseButton bordered type="button" @click="pickSshKey">Browse…</BaseButton>
                 </div>
               </div>
               <div class="nc-field">
                 <label>Key passphrase (optional)</label>
-                <input class="nc-input" type="password" v-model="sshKeyPassphrase" :placeholder="isEditMode ? 'Leave blank to keep existing' : ''" />
+                <BaseInput class="nc-input" type="password" v-model="sshKeyPassphrase" :placeholder="isEditMode ? 'Leave blank to keep existing' : ''" />
               </div>
             </template>
 
@@ -805,7 +806,7 @@ async function save() {
             <div class="nc-field">
               <label>Certificate Authority (.pem)</label>
               <div class="nc-file-row">
-                <input class="nc-input" v-model="tlsCaFile" placeholder="Path to CA certificate" spellcheck="false" />
+                <BaseInput class="nc-input" v-model="tlsCaFile" placeholder="Path to CA certificate" spellcheck="false" />
                 <BaseButton bordered type="button" @click="pickTlsFile('ca')">Browse…</BaseButton>
               </div>
             </div>
@@ -813,7 +814,7 @@ async function save() {
             <div class="nc-field">
               <label>Client Certificate + Key (.pem)</label>
               <div class="nc-file-row">
-                <input class="nc-input" v-model="tlsCertKeyFile" placeholder="Path to client certificate (optional)" spellcheck="false" />
+                <BaseInput class="nc-input" v-model="tlsCertKeyFile" placeholder="Path to client certificate (optional)" spellcheck="false" />
                 <BaseButton bordered type="button" @click="pickTlsFile('cert')">Browse…</BaseButton>
               </div>
             </div>
@@ -865,7 +866,7 @@ async function save() {
                   :disabled="optionDisabled(opt)"
                 />
 
-                <input
+                <BaseInput
                   v-else
                   class="nc-input"
                   :type="opt.type === 'int' ? 'number' : 'text'"
@@ -972,12 +973,7 @@ async function save() {
   padding: 14px 18px 10px; flex: none;
 }
 .nc-namelbl { font-size: 12.5px; color: var(--text-dim); flex: none; }
-.nc-name {
-  flex: 1; background: var(--bg-input);
-  border: 1px solid var(--border-soft); border-radius: 6px;
-  padding: 8px 11px; color: var(--text); font-size: 13px; outline: none;
-}
-.nc-name:focus { border-color: var(--accent); }
+.nc-name { flex: 1; }
 
 /* ── Tabs ── */
 .nc-tabs {
@@ -990,12 +986,6 @@ async function save() {
 .nc-form { display: flex; flex-direction: column; gap: 15px; max-width: 560px; }
 .nc-field { display: flex; flex-direction: column; gap: 6px; }
 .nc-field > label { font-size: 12px; color: var(--text-dim); }
-.nc-input {
-  background: var(--bg-input); border: 1px solid var(--border-soft);
-  border-radius: 6px; padding: 8px 11px;
-  color: var(--text); font-size: 13px; outline: none; width: 100%;
-}
-.nc-input:focus { border-color: var(--accent); }
 .nc-file-row { display: flex; gap: 8px; align-items: center; }
 .nc-inline  { display: flex; align-items: center; gap: 8px; }
 .nc-inline2 { display: flex; gap: 14px; }
@@ -1037,7 +1027,6 @@ async function save() {
 }
 .nc-opt-hint { font-size: 11.5px; color: var(--text-faint); line-height: 1.45; }
 .nc-sel { width: 100%; }
-.nc-input:disabled { opacity: .5; cursor: not-allowed; }
 
 /* segmented control */
 

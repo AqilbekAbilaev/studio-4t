@@ -16,6 +16,7 @@ import ExplainResultView from './ExplainResultView.vue'
 import QueryCodeView from './QueryCodeView.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import TabStrip from '../base/TabStrip.vue'
 import Resizer from '../base/Resizer.vue'
 import { useDocumentActions } from '../../composables/useDocumentActions'
@@ -440,8 +441,8 @@ function toggleReadOnly() {
         <code>{{ activeTab.collectionName }}</code>. The collection and its indexes remain.
         This cannot be undone.</p>
       <p class="cc-prompt">Type <code>{{ activeTab.collectionName }}</code> to confirm:</p>
-      <input class="cc-input" v-model="clearConfirmText" spellcheck="false" autocomplete="off"
-             @keydown.enter="onClearConfirm" />
+      <BaseInput class="cc-input" v-model="clearConfirmText" spellcheck="false" autocomplete="off"
+             @enter="onClearConfirm" />
       <div v-if="clearError" class="del-error">{{ clearError }}</div>
     </div>
     <div class="del-footer">
@@ -603,20 +604,13 @@ function toggleReadOnly() {
 }
 .del-body code { font-family: var(--mono); color: var(--text); }
 .cc-prompt { margin-top: 12px; }
-.cc-input {
-  width: 100%;
+.base-input.cc-input {
   margin-top: 8px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
   border-radius: 5px;
-  color: var(--text);
   font-family: var(--mono);
   font-size: 12.5px;
   padding: 7px 9px;
-  outline: none;
-  box-sizing: border-box;
 }
-.cc-input:focus { border-color: var(--accent); }
 
 /* Read-only document JSON viewer body (sized via BaseModal's width/height props). */
 
