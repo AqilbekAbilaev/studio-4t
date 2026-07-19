@@ -11,6 +11,7 @@ import { parseField } from '../../utils/queryParser'
 import { predefinedQuery, hasSelectedDocs } from '../../utils/predefinedQuery'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import TabStrip from '../base/TabStrip.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import CodeEditor from '../base/CodeEditor.vue'
@@ -130,8 +131,11 @@ async function onRun() {
 <template>
   <BaseModal title="Update Documents" width="560px" max-width="94vw" @close="$emit('close')">
       <div class="uw-tabs">
-        <button class="uw-tab" :class="{ active: pane === 'query' }" @click="pane = 'query'">Query</button>
-        <button class="uw-tab" :class="{ active: pane === 'update' }" @click="pane = 'update'">Update</button>
+        <TabStrip
+          :model-value="pane"
+          :options="[{ value: 'query', label: 'Query' }, { value: 'update', label: 'Update' }]"
+          @update:model-value="pane = $event"
+        />
       </div>
 
       <div class="uw-body">
@@ -194,11 +198,6 @@ async function onRun() {
 
 <style scoped>
 .uw-tabs { display: flex; align-items: stretch; padding: 0 14px; border-bottom: 1px solid var(--border); flex: none; }
-.uw-tab {
-  padding: 8px 16px; font-size: 12.5px; color: var(--text-dim);
-  background: none; border: none; border-bottom: 2px solid transparent;
-}
-.uw-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .uw-body { padding: 14px 18px 8px; display: flex; flex-direction: column; gap: 12px; }
 .uw-hint { font-size: 12.5px; color: var(--text-dim); }
 .uw-hint code { font-family: var(--mono); color: var(--text); }

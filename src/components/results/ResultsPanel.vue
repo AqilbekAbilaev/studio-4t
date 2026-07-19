@@ -16,6 +16,7 @@ import ExplainResultView from './ExplainResultView.vue'
 import QueryCodeView from './QueryCodeView.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import TabStrip from '../base/TabStrip.vue'
 import Resizer from '../base/Resizer.vue'
 import { useDocumentActions } from '../../composables/useDocumentActions'
 
@@ -197,21 +198,19 @@ function toggleReadOnly() {
     <div class="result-content">
     <!-- Result sub-tabs -->
     <div class="rtabs">
-      <button
-        v-for="t in ['Result', 'Query Code', 'Explain']"
-        :key="t"
-        class="rtab"
-        :class="{ active: rtab === t }"
-        @click="emit('select-rtab', t)"
-      >{{ t }}</button>
+      <TabStrip
+        :model-value="rtab"
+        :options="[{ value: 'Result', label: 'Result' }, { value: 'Query Code', label: 'Query Code' }, { value: 'Explain', label: 'Explain' }]"
+        @update:model-value="emit('select-rtab', $event)"
+      />
     </div>
 
     <!-- Result toolbar -->
     <div class="rtoolbar" v-if="rtab === 'Result'">
       <BaseButton icon="refresh" :icon-size="18" @click="emit('run')" :disabled="activeTab.isRunning || !runValid" />
-      <button v-if="activeTab.isRunning" class="cancel-btn" @click="emit('cancel')" title="Cancel the running query">
+      <BaseButton v-if="activeTab.isRunning" size="sm" bordered @click="emit('cancel')" title="Cancel the running query">
         <BaseIcon name="close" :size="13" /> Cancel
-      </button>
+      </BaseButton>
       <BaseButton icon="first" :icon-size="18"
         :disabled="isAggregate || !activeTab.hasRun || (activeTab.skip || 0) === 0 || activeTab.isRunning"
         @click="goFirst" />
@@ -466,15 +465,6 @@ function toggleReadOnly() {
 
 .result-content { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .rtabs { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); flex: none; }
-.rtab {
-  padding: 6px 16px;
-  font-size: 12.5px;
-  color: var(--text-dim);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-}
-.rtab.active { color: var(--text); border-bottom-color: var(--accent); }
 
 .rtoolbar {
   display: flex;
@@ -484,20 +474,6 @@ function toggleReadOnly() {
   border-bottom: 1px solid var(--border);
   flex: none;
 }
-.cancel-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--bg-toolbar);
-  color: var(--danger-text);
-  font-size: 12px;
-  cursor: pointer;
-}
-.cancel-btn:hover { background: var(--bg-hover); }
 .page-size {
   display: flex;
   align-items: center;

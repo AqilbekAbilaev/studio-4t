@@ -7,6 +7,8 @@ import { errText } from '../../utils/errors'
 import { scheduleSummary } from '../../utils/taskSchedule'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseButton from '../base/BaseButton.vue'
+import SelectCard from '../base/SelectCard.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -403,9 +405,9 @@ async function save() {
       <!-- LIST VIEW -->
       <div v-if="view === 'list'" class="tk-body">
         <div class="tk-toolbar">
-          <button class="tk-new" @click="startCreate">
+          <BaseButton variant="primary" size="sm" @click="startCreate">
             <BaseIcon name="plus" :size="13" /> New Task
-          </button>
+          </BaseButton>
         </div>
 
         <StateMessage v-if="error" mode="error" :message="error" />
@@ -434,21 +436,18 @@ async function save() {
               <span class="tk-lastrun">{{ lastRunLabel(task) }}</span>
             </div>
             <div class="tk-actions">
-              <button
-                class="tk-btn run"
+              <BaseButton
+                variant="primary"
+                size="sm"
                 :disabled="running.has(task.id)"
                 :title="running.has(task.id) ? 'Running…' : 'Run now'"
                 @click="runNow(task)"
               >
                 <BaseIcon name="run" :size="13" />
                 {{ running.has(task.id) ? 'Running…' : 'Run now' }}
-              </button>
-              <button class="tk-icon-btn" title="Edit" @click="startEdit(task)">
-                <BaseIcon name="edit" :size="14" />
-              </button>
-              <button class="tk-icon-btn danger" title="Delete" @click="remove(task)">
-                <BaseIcon name="trash" :size="14" />
-              </button>
+              </BaseButton>
+              <BaseButton icon="edit" :icon-size="14" title="Edit" @click="startEdit(task)" />
+              <BaseButton icon="trash" :icon-size="14" variant="danger" title="Delete" @click="remove(task)" />
             </div>
           </li>
         </ul>
@@ -459,18 +458,17 @@ async function save() {
         <!-- Type picker -->
         <label class="tk-lbl">Task type</label>
         <div class="tk-types">
-          <button
+          <SelectCard
             v-for="t in TYPES"
             :key="t.value"
-            :class="['tk-type-card', { active: form.type === t.value, disabled: !t.enabled }]"
+            :icon="t.icon"
+            :label="t.label"
+            :active="form.type === t.value"
             :disabled="!t.enabled"
+            :soon="!t.enabled"
             :title="t.enabled ? '' : 'Coming soon'"
             @click="pickType(t.value)"
-          >
-            <BaseIcon :name="t.icon" :size="16" />
-            <span>{{ t.label }}</span>
-            <span v-if="!t.enabled" class="tk-soon">soon</span>
-          </button>
+          />
         </div>
 
         <label class="tk-lbl">Name</label>
@@ -504,7 +502,7 @@ async function save() {
           <label class="tk-lbl">{{ form.type === 'import' ? 'Source file' : 'Destination file' }}</label>
           <div class="tk-path">
             <input v-model="form.path" class="tk-input" :placeholder="form.type === 'import' ? '/path/to/input' : '/path/to/output'" />
-            <button class="tk-browse" @click="form.type === 'import' ? browseInput() : browseOutput()">Browse…</button>
+            <BaseButton bordered @click="form.type === 'import' ? browseInput() : browseOutput()">Browse…</BaseButton>
           </div>
         </template>
 
@@ -514,7 +512,7 @@ async function save() {
           <textarea v-model="form.filter" class="tk-input mono" rows="2" spellcheck="false" placeholder="{}"></textarea>
           <div class="tk-rules-head">
             <label class="tk-lbl">Masking rules</label>
-            <button class="tk-addrule" @click="addRule"><BaseIcon name="plus" :size="11" /> Add rule</button>
+            <BaseButton variant="ghost" size="sm" @click="addRule"><BaseIcon name="plus" :size="11" /> Add rule</BaseButton>
           </div>
           <div v-for="(rule, i) in form.rules" :key="i" class="tk-rule">
             <input v-model="rule.field" class="tk-input" placeholder="field.path" />
@@ -523,7 +521,7 @@ async function save() {
               <input v-model="rule.keepStart" class="tk-input tiny" placeholder="start" title="Keep first N chars" />
               <input v-model="rule.keepEnd" class="tk-input tiny" placeholder="end" title="Keep last N chars" />
             </template>
-            <button class="tk-icon-btn danger" title="Remove rule" @click="removeRule(i)"><BaseIcon name="trash" :size="13" /></button>
+            <BaseButton icon="trash" :icon-size="13" variant="danger" title="Remove rule" @click="removeRule(i)" />
           </div>
           <div class="tk-two">
             <div class="tk-col">
@@ -538,7 +536,7 @@ async function save() {
           <label class="tk-lbl">Destination file</label>
           <div class="tk-path">
             <input v-model="form.path" class="tk-input" placeholder="/path/to/output" />
-            <button class="tk-browse" @click="browseOutput">Browse…</button>
+            <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
           </div>
         </template>
 
@@ -557,7 +555,7 @@ async function save() {
           <label class="tk-lbl">Destination .sql file</label>
           <div class="tk-path">
             <input v-model="form.path" class="tk-input" placeholder="/path/to/migration.sql" />
-            <button class="tk-browse" @click="browseOutput">Browse…</button>
+            <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
           </div>
         </template>
 
@@ -587,10 +585,10 @@ async function save() {
         </div>
 
         <div class="tk-form-actions">
-          <button class="tk-cancel" @click="cancelForm">Cancel</button>
-          <button class="tk-save" :disabled="saving" @click="save">
+          <BaseButton bordered @click="cancelForm">Cancel</BaseButton>
+          <BaseButton variant="primary" size="sm" :disabled="saving" @click="save">
             <BaseIcon name="save" :size="13" /> {{ saving ? 'Saving…' : (form.id ? 'Save changes' : 'Create task') }}
-          </button>
+          </BaseButton>
         </div>
       </div>
     </BaseModal>
@@ -608,19 +606,6 @@ async function save() {
 }
 
 .tk-toolbar { display: flex; justify-content: flex-end; }
-.tk-new {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.tk-new:hover { background: var(--accent-soft); }
 
 .tk-empty {
   display: flex;
@@ -690,32 +675,6 @@ async function save() {
 .tk-lastrun { font-size: 11px; color: var(--text-faint); }
 
 .tk-actions { display: flex; align-items: center; gap: 6px; flex: none; }
-.tk-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 5px 11px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.tk-btn:hover:not(:disabled) { background: var(--accent-soft); }
-.tk-btn:disabled { opacity: .6; cursor: default; }
-.tk-icon-btn {
-  background: none;
-  border: 1px solid var(--border-soft);
-  color: var(--text-faint);
-  border-radius: 6px;
-  padding: 5px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-.tk-icon-btn:hover { background: var(--bg-hover); color: var(--text); }
-.tk-icon-btn.danger:hover { color: var(--err, #e06060); }
 
 /* Form */
 .tk-lbl {
@@ -750,64 +709,10 @@ async function save() {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 6px;
 }
-.tk-type-card {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: var(--bg-panel-2);
-  border: 1px solid var(--border-soft);
-  color: var(--text-dim);
-  border-radius: 7px;
-  padding: 8px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  position: relative;
-}
-.tk-type-card:hover:not(.disabled) { background: var(--bg-hover); }
-.tk-type-card.active {
-  border-color: var(--accent);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-.tk-type-card.disabled { opacity: .5; cursor: not-allowed; }
-.tk-soon {
-  margin-left: auto;
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  color: var(--text-faint);
-  border: 1px solid var(--border-soft);
-  border-radius: 4px;
-  padding: 0 4px;
-}
 
 .tk-path { display: flex; gap: 8px; }
-.tk-browse {
-  flex: none;
-  background: none;
-  border: 1px solid var(--border-soft);
-  color: var(--text-dim);
-  border-radius: 6px;
-  padding: 0 12px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.tk-browse:hover { background: var(--bg-hover); color: var(--text); }
 
 .tk-rules-head { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
-.tk-addrule {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: 1px solid var(--border-soft);
-  color: var(--text-dim);
-  border-radius: 5px;
-  padding: 3px 8px;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.tk-addrule:hover { background: var(--bg-hover); color: var(--text); }
 .tk-rule { display: flex; gap: 6px; align-items: center; }
 
 .tk-sched-row {
@@ -826,28 +731,4 @@ async function save() {
   padding-top: 12px;
   border-top: 1px solid var(--border-soft);
 }
-.tk-cancel {
-  background: none;
-  border: 1px solid var(--border-soft);
-  color: var(--text-dim);
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.tk-cancel:hover { background: var(--bg-hover); color: var(--text); }
-.tk-save {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.tk-save:hover:not(:disabled) { background: var(--accent-soft); }
-.tk-save:disabled { opacity: .6; cursor: default; }
 </style>

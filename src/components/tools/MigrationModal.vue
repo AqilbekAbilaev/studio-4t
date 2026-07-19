@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -71,13 +72,13 @@ async function copy() {
             Limit
             <input v-model="limit" type="number" min="1" class="mg-input num" />
           </label>
-          <button class="mg-run" :disabled="loading" @click="generate">
+          <BaseButton variant="primary" :disabled="loading" @click="generate">
             {{ loading ? 'Generating…' : 'Generate' }}
-          </button>
-          <button v-if="sql" class="mg-copy" @click="copy">
+          </BaseButton>
+          <BaseButton v-if="sql" size="sm" bordered class="mg-copy" @click="copy">
             <BaseIcon :name="copied ? 'check' : 'copy'" :size="12" />
             {{ copied ? 'Copied' : 'Copy' }}
-          </button>
+          </BaseButton>
         </div>
 
         <StateMessage v-if="loading" mode="loading" label="Generating SQL…" />
@@ -119,31 +120,7 @@ async function copy() {
 }
 .mg-input.num { width: 90px; }
 .mg-input:focus { outline: none; border-color: var(--accent); }
-.mg-run {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.mg-run:hover { background: var(--accent-soft); }
-.mg-run:disabled { opacity: .6; cursor: default; }
-.mg-copy {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: 1px solid var(--border-soft);
-  color: var(--text-dim);
-  border-radius: 5px;
-  padding: 5px 8px;
-  font-size: 11.5px;
-  cursor: pointer;
-  margin-left: auto;
-}
-.mg-copy:hover { background: var(--bg-hover); color: var(--text); }
+.mg-copy { margin-left: auto; }
 .mg-sql {
   margin: 0;
   font-family: var(--mono);

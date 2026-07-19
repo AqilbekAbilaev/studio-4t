@@ -4,6 +4,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import { SHORTCUT_COMMANDS, defaultAccel, accelToTokens, accelFromEvent } from '../../utils/keybindings'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import KeybindButton from '../base/KeybindButton.vue'
 
 // Keyboard shortcuts: the top section is customizable (the menu actions the app
 // can rebind); the reference groups below list the fixed shortcuts the editors
@@ -128,24 +129,17 @@ const REFERENCE = computed(() => [
         <section class="sc-group">
           <div class="sc-group-head">
             <h3 class="sc-group-title">Menu shortcuts</h3>
-            <button class="sc-reset-all" @click="resetAll">Reset all</button>
+            <BaseButton variant="ghost" size="sm" @click="resetAll">Reset all</BaseButton>
           </div>
 
           <div v-for="cmd in SHORTCUT_COMMANDS" :key="cmd.id" class="sc-edit-row">
             <span class="sc-desc">{{ cmd.label }}</span>
 
-            <button
+            <KeybindButton
               v-if="capturingId !== cmd.id"
-              class="sc-binding"
-              title="Click, then press the new shortcut"
+              :keys="tokens(working[cmd.id])"
               @click="startCapture(cmd.id)"
-            >
-              <span class="sc-keys">
-                <template v-for="(k, i) in tokens(working[cmd.id])" :key="i">
-                  <kbd>{{ k }}</kbd><span v-if="i < tokens(working[cmd.id]).length - 1" class="sc-plus">+</span>
-                </template>
-              </span>
-            </button>
+            />
 
             <span
               v-else
@@ -156,12 +150,13 @@ const REFERENCE = computed(() => [
               @blur="cancelCapture"
             >Press a shortcut… <span class="sc-esc">Esc to cancel</span></span>
 
-            <button
-              class="sc-row-reset"
+            <BaseButton
+              variant="ghost"
+              size="sm"
               :disabled="working[cmd.id] === cmd.default"
               title="Reset to default"
               @click="resetOne(cmd.id)"
-            >Reset</button>
+            >Reset</BaseButton>
           </div>
 
           <p v-if="conflict" class="sc-conflict">
@@ -215,16 +210,6 @@ const REFERENCE = computed(() => [
   color: var(--text-faint);
 }
 .sc-group-head .sc-group-title { margin: 0; }
-.sc-reset-all {
-  background: none;
-  border: none;
-  color: var(--link);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 4px;
-}
-.sc-reset-all:hover { text-decoration: underline; }
 
 .sc-row {
   display: flex;
@@ -273,18 +258,6 @@ const REFERENCE = computed(() => [
 }
 .sc-esc { color: var(--text-faint); margin-left: 6px; font-size: 11px; }
 
-.sc-row-reset {
-  flex: none;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px 6px;
-  border-radius: 4px;
-}
-.sc-row-reset:hover:not(:disabled) { color: var(--text); background: var(--bg-hover); }
-.sc-row-reset:disabled { opacity: .35; cursor: default; }
 
 .sc-conflict {
   margin: 6px 0 0;

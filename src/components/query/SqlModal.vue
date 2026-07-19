@@ -5,6 +5,7 @@ import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Top-bar "SQL" tool. Translates a simple SQL SELECT into the equivalent MongoDB
 // find query (filter / projection / sort / limit / skip) and the shell command,
@@ -86,7 +87,7 @@ function onKeydown(e) {
         ></textarea>
 
         <div class="sq-actions">
-          <button class="sq-run" @click="translate">Translate</button>
+          <BaseButton variant="primary" @click="translate">Translate</BaseButton>
           <span class="sq-hint">⌘/Ctrl + Enter</span>
         </div>
 
@@ -95,10 +96,10 @@ function onKeydown(e) {
         <template v-if="result && !error">
           <div class="sq-out-head">
             <span class="sq-lbl">MongoDB query</span>
-            <button class="sq-copy" @click="copyShell">
+            <BaseButton size="sm" bordered @click="copyShell">
               <BaseIcon :name="copied ? 'check' : 'copy'" :size="12" />
               {{ copied ? 'Copied' : 'Copy' }}
-            </button>
+            </BaseButton>
           </div>
           <pre class="sq-shell">{{ shellCommand }}</pre>
 
@@ -168,16 +169,6 @@ function onKeydown(e) {
   gap: 10px;
   margin: 2px 0 4px;
 }
-.sq-run {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 5px 14px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.sq-run:hover { background: var(--accent-soft); }
 .sq-hint { font-size: 11.5px; color: var(--text-faint); }
 
 .sq-out-head {
@@ -186,19 +177,6 @@ function onKeydown(e) {
   justify-content: space-between;
   margin-top: 6px;
 }
-.sq-copy {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: 1px solid var(--border-soft);
-  color: var(--text-dim);
-  border-radius: 5px;
-  padding: 3px 8px;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.sq-copy:hover { background: var(--bg-hover); color: var(--text); }
 .sq-shell {
   margin: 0;
   font-family: var(--mono);

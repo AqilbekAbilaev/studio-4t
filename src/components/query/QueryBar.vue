@@ -7,6 +7,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
 import SegmentedControl from '../base/SegmentedControl.vue'
 import NumberStepper from '../base/NumberStepper.vue'
+import MenuItem from '../base/MenuItem.vue'
 
 const props = defineProps({
   activeTab:      { type: Object,  required: true },
@@ -274,12 +275,12 @@ watch(() => props.activeTab && props.activeTab.id, () => {
         </BaseButton>
         <div v-if="showDefaultMenu" class="default-backdrop" @mousedown.self="showDefaultMenu = false"></div>
         <div v-if="showDefaultMenu" class="default-menu">
-          <button class="default-item" @click="setDefaultQuery">
+          <MenuItem @click="setDefaultQuery">
             <BaseIcon name="anchor" :size="13" class="ic" /> Set as default for this collection
-          </button>
-          <button class="default-item" @click="clearDefaultQuery">
+          </MenuItem>
+          <MenuItem @click="clearDefaultQuery">
             <BaseIcon name="trash" :size="13" class="ic" /> Clear default
-          </button>
+          </MenuItem>
         </div>
       </div>
       <BaseButton variant="ghost" size="sm" @click="emit('copy-query')">
@@ -316,10 +317,10 @@ watch(() => props.activeTab && props.activeTab.id, () => {
             <div v-if="showDateTags" class="datetag-backdrop" @mousedown.self="showDateTags = false"></div>
             <div v-if="showDateTags" class="datetag-menu">
               <div class="datetag-head">Date tags — expand to a date when the query runs</div>
-              <button v-for="tag in DATE_TAGS" :key="tag.token" class="datetag-item" @click="insertDateTag(tag.token)">
+              <MenuItem v-for="tag in DATE_TAGS" :key="tag.token" @click="insertDateTag(tag.token)">
                 <code class="datetag-code">{{ tag.label }}</code>
                 <span class="datetag-hint">{{ tag.hint }}</span>
-              </button>
+              </MenuItem>
             </div>
           </span>
           <BaseIcon name="brush" :size="15" @click="activeTab.filter = ''" style="cursor:pointer" />
@@ -452,22 +453,6 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   display: flex;
   flex-direction: column;
 }
-.default-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 5px;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 12.5px;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-}
-.default-item:hover { background: var(--bg-hover); color: var(--text); }
-.default-item .ic { color: var(--text-faint); flex: none; }
 
 /* Date-tags helper (Query field) */
 .datetag-wrap { position: relative; display: inline-flex; }
@@ -509,19 +494,6 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   border-bottom: 1px solid var(--border-soft);
   margin-bottom: 4px;
 }
-.datetag-item {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 6px 10px;
-  border-radius: 5px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-}
-.datetag-item:hover { background: var(--bg-hover); }
 .datetag-code { font-family: var(--mono); font-size: 12px; color: var(--accent); flex: none; }
 .datetag-hint { font-size: 11.5px; color: var(--text-dim); }
 

@@ -5,6 +5,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
+import TabStrip from '../base/TabStrip.vue'
 import ResultTable from '../results/ResultTable.vue'
 import TreeView from '../base/TreeView.vue'
 import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
@@ -275,10 +276,11 @@ function formatScalar(value) {
     <!-- Results -->
     <div class="shell-results">
       <div class="rtabs">
-        <button class="rtab" :class="{ active: activeTab.resultTab === 'Result' }"
-          @click="activeTab.resultTab = 'Result'">Result</button>
-        <button class="rtab" :class="{ active: activeTab.resultTab === 'Console' }"
-          @click="activeTab.resultTab = 'Console'">Console</button>
+        <TabStrip
+          :model-value="activeTab.resultTab"
+          :options="[{ value: 'Result', label: 'Result' }, { value: 'Console', label: 'Console' }]"
+          @update:model-value="activeTab.resultTab = $event"
+        />
 
         <span class="rtabs-spacer"></span>
 
@@ -402,12 +404,6 @@ function formatScalar(value) {
   display: flex; align-items: center;
   border-bottom: 1px solid var(--border); padding: 0 8px; flex: none;
 }
-.rtab {
-  padding: 8px 16px; background: none; border: none; cursor: pointer;
-  color: var(--text-dim); font-size: 12.5px; border-bottom: 2px solid transparent;
-}
-.rtab:hover { color: var(--text); }
-.rtab.active { color: var(--text); border-bottom-color: var(--accent); }
 .rtabs-spacer { flex: 1; }
 
 .view-select-wrap { position: relative; }

@@ -69,7 +69,7 @@ async function save() {
             <div class="pf-label">Keyboard shortcuts</div>
             <div class="pf-hint">View the full list of shortcuts the app handles.</div>
           </div>
-          <button class="pf-link" @click="$emit('open-shortcuts')">Open reference</button>
+          <BaseButton variant="ghost" size="sm" @click="$emit('open-shortcuts')">Open reference</BaseButton>
         </div>
 
         <div v-if="error" class="pf-error">{{ error }}</div>
@@ -101,18 +101,6 @@ async function save() {
 .pf-hint { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
 
 .pf-select { flex: none; min-width: 120px; }
-.pf-link {
-  flex: none;
-  height: 30px;
-  padding: 0 12px;
-  background: var(--bg-toolbar);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--text);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.pf-link:hover { background: var(--bg-hover); }
 
 .pf-error { font-size: 12.5px; color: var(--danger-text); }
 

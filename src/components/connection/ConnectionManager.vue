@@ -7,6 +7,7 @@ import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import ToolbarButton from '../base/ToolbarButton.vue'
 import NewConnection from './NewConnection.vue'
 import ContextMenu from '../base/ContextMenu.vue'
 
@@ -376,16 +377,14 @@ const CM_TOOLS = [
       <div class="cm-toolbar">
         <template v-for="(t, i) in CM_TOOLS" :key="i">
           <div v-if="t.sep" class="tb-sep"></div>
-          <button
+          <ToolbarButton
             v-else
-            class="tbtn"
-            :class="{ 'tbtn-off': !t.action || (t.needsSel && !selectedId) }"
+            :icon="t.name"
+            :label="t.label"
+            :off="!t.action || (t.needsSel && !selectedId)"
             :title="t.label"
             @click="t.action && (!t.needsSel || selectedId) && t.action()"
-          >
-            <span class="ic"><BaseIcon :name="t.name" :size="22" /></span>
-            <span class="lbl">{{ t.label }}</span>
-          </button>
+          />
         </template>
       </div>
 
@@ -442,17 +441,14 @@ const CM_TOOLS = [
                     >{{ row.folder.name }}</span>
                     <span class="folder-count">{{ row.count }}</span>
                     <span class="folder-actions" @click.stop>
-                      <button class="fbtn" title="Rename" @click="startRenameFolder(row.folder)">
-                        <BaseIcon name="edit" :size="14" />
-                      </button>
-                      <button
-                        class="fbtn"
-                        :class="{ 'fbtn-danger': pendingDeleteId === row.folder.id }"
+                      <BaseButton icon="edit" :icon-size="14" title="Rename" @click="startRenameFolder(row.folder)" />
+                      <BaseButton
+                        icon="trash"
+                        :icon-size="14"
+                        :variant="pendingDeleteId === row.folder.id ? 'danger' : 'default'"
                         :title="pendingDeleteId === row.folder.id ? 'Click again to delete' : 'Delete folder'"
                         @click="deleteFolder(row.folder)"
-                      >
-                        <BaseIcon name="trash" :size="14" />
-                      </button>
+                      />
                     </span>
                   </div>
                 </td>
@@ -559,24 +555,6 @@ const CM_TOOLS = [
   border-bottom: 1px solid var(--border);
   flex: none;
 }
-.tbtn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 9px;
-  border: none;
-  background: none;
-  border-radius: 6px;
-  color: var(--text);
-  min-width: 54px;
-}
-.tbtn:hover { background: var(--bg-hover); }
-.tbtn .ic { color: var(--text-dim); }
-.tbtn:hover .ic { color: var(--text); }
-.tbtn .lbl { font-size: 10.5px; color: var(--text-dim); white-space: nowrap; }
-.tbtn-off { opacity: .38; cursor: default; }
-.tbtn-off:hover { background: none; }
 .tb-sep {
   width: 1px;
   background: var(--border-soft);
@@ -701,18 +679,7 @@ table.cmt tr.sel .cm-key { color: rgba(255,255,255,.85); }
   opacity: 0;
 }
 .folder-row:hover .folder-actions { opacity: 1; }
-.fbtn {
-  display: grid;
-  place-items: center;
-  width: 26px; height: 24px;
-  border: none;
-  background: none;
-  border-radius: 5px;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-.fbtn:hover { background: var(--bg-window); color: var(--text); }
-.fbtn-danger, .fbtn-danger:hover { color: #fff; background: #e05a4d; }
+.fbtn-danger, 
 
 .cm-indent { padding-left: 22px; }
 

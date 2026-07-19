@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import TabStrip from '../base/TabStrip.vue'
 import BaseButton from '../base/BaseButton.vue'
 
 // The Add / Edit index dialog (Screenshot A). It owns all of its form state and
@@ -239,11 +240,12 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 
         <!-- Sub-tabs -->
         <div class="sub-tabs">
-          <button class="sub-tab" :class="{ active: subtab === 'fields' }" :disabled="jsonMode" @click="subtab = 'fields'">Fields</button>
-          <button class="sub-tab" :class="{ active: subtab === 'options' }" :disabled="jsonMode" @click="subtab = 'options'">Options</button>
-          <button class="sub-tab" :class="{ active: subtab === 'text' }" :disabled="jsonMode" @click="subtab = 'text'">Text options</button>
-          <button class="sub-tab" :class="{ active: subtab === 'geo' }" :disabled="jsonMode" @click="subtab = 'geo'">Geo options</button>
-          <button class="sub-tab" :class="{ active: subtab === 'collation' }" :disabled="jsonMode" @click="subtab = 'collation'">Collation</button>
+          <TabStrip
+            :model-value="subtab"
+            :disabled="jsonMode"
+            :options="[{ value: 'fields', label: 'Fields' }, { value: 'options', label: 'Options' }, { value: 'text', label: 'Text options' }, { value: 'geo', label: 'Geo options' }, { value: 'collation', label: 'Collation' }]"
+            @update:model-value="subtab = $event"
+          />
           <span v-if="jsonMode" class="json-badge">Editing raw JSON</span>
         </div>
 
@@ -375,14 +377,6 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 .idx-flabel:first-child { margin-top: 0; }
 
 .sub-tabs { display: flex; align-items: center; gap: 4px; margin: 20px 0 16px; border-bottom: 1px solid var(--border); }
-.sub-tab {
-  border: none; background: transparent; color: var(--text-dim);
-  padding: 9px 15px; font-size: 12.5px; cursor: pointer;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-}
-.sub-tab:hover:not(:disabled) { color: var(--text); }
-.sub-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-.sub-tab:disabled { color: var(--text-faint); cursor: default; }
 .json-badge { margin-left: auto; font-size: 11.5px; color: var(--text-faint); padding-bottom: 8px; }
 
 .tab-pane { min-height: 264px; }

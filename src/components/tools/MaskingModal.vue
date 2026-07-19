@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -170,9 +171,9 @@ async function runExport() {
               <input v-model="limit" type="number" min="1" placeholder="all" class="mk-num wide" />
             </label>
             <span class="mk-summary">{{ maskedCount }} field{{ maskedCount === 1 ? '' : 's' }} masked</span>
-            <button class="mk-export" :disabled="exporting" @click="runExport">
+            <BaseButton variant="primary" :disabled="exporting" @click="runExport">
               {{ exporting ? 'Exporting…' : 'Export masked copy' }}
-            </button>
+            </BaseButton>
           </div>
         </template>
       </div>
@@ -240,15 +241,4 @@ async function runExport() {
 }
 .mk-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
 .mk-summary { font-size: 12px; color: var(--text-faint); margin-left: auto; }
-.mk-export {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.mk-export:hover { background: var(--accent-soft); }
-.mk-export:disabled { opacity: .6; cursor: default; }
 </style>

@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
+import Disclosure from '../base/Disclosure.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -63,9 +65,9 @@ function preview(doc) {
             spellcheck="false"
             @keydown.enter="search"
           />
-          <button class="se-run" :disabled="loading || !term.trim()" @click="search">
+          <BaseButton variant="primary" :disabled="loading || !term.trim()" @click="search">
             {{ loading ? 'Searching…' : 'Search' }}
-          </button>
+          </BaseButton>
         </div>
 
         <StateMessage v-if="loading" mode="loading" label="Scanning collections…" />
@@ -77,11 +79,10 @@ function preview(doc) {
         />
         <div v-else-if="results" class="se-results">
           <div v-for="r in results" :key="r.collection" class="se-group">
-            <button class="se-grp-head" @click="toggle(r.collection)">
-              <BaseIcon :name="expanded[r.collection] ? 'caretDown' : 'caret'" :size="11" />
+            <Disclosure :model-value="expanded[r.collection]" @update:model-value="toggle(r.collection)">
               <span class="se-coll">{{ r.collection }}</span>
               <span class="se-count">{{ r.matched }} match{{ r.matched === 1 ? '' : 'es' }} (scanned {{ r.scanned }})</span>
-            </button>
+            </Disclosure>
             <div v-if="expanded[r.collection]" class="se-hits">
               <pre v-for="(doc, i) in r.hits" :key="i" class="se-doc">{{ preview(doc) }}</pre>
               <div v-if="r.matched > r.hits.length" class="se-more">
@@ -116,34 +117,9 @@ function preview(doc) {
   font-size: 13px;
 }
 .se-input:focus { outline: none; border-color: var(--accent); }
-.se-run {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.se-run:hover { background: var(--accent-soft); }
-.se-run:disabled { opacity: .6; cursor: default; }
 
 .se-results { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .se-group { border: 1px solid var(--border-soft); border-radius: 6px; overflow: hidden; }
-.se-grp-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-panel);
-  border: none;
-  color: var(--text);
-  padding: 8px 10px;
-  cursor: pointer;
-  font-size: 12.5px;
-  text-align: left;
-}
-.se-grp-head:hover { background: var(--bg-hover); }
 .se-coll { font-family: var(--mono); }
 .se-count { margin-left: auto; color: var(--text-faint); font-size: 12px; }
 .se-hits {

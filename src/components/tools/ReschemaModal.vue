@@ -4,6 +4,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
+import ReorderButtons from '../base/ReorderButtons.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -223,17 +225,19 @@ async function runApply() {
               </template>
 
               <span class="rs-row-actions">
-                <button class="rs-icon" title="Move up" :disabled="i === 0" @click="moveOp(i, -1)">↑</button>
-                <button class="rs-icon" title="Move down" :disabled="i === ops.length - 1" @click="moveOp(i, 1)">↓</button>
-                <button class="rs-icon" title="Remove op" @click="removeOp(i)">
-                  <BaseIcon name="close" :size="12" />
-                </button>
+                <ReorderButtons
+                  :up-disabled="i === 0"
+                  :down-disabled="i === ops.length - 1"
+                  @up="moveOp(i, -1)"
+                  @down="moveOp(i, 1)"
+                />
+                <BaseButton icon="close" :icon-size="12" title="Remove op" @click="removeOp(i)" />
               </span>
             </div>
 
-            <button class="rs-add" @click="addOp">
+            <BaseButton bordered @click="addOp">
               <BaseIcon name="plus" :size="12" /> Add operation
-            </button>
+            </BaseButton>
           </div>
 
           <StateMessage v-if="error" mode="error" :message="error" :code="errorCode" />
@@ -269,12 +273,12 @@ async function runApply() {
               placeholder="new collection name"
             />
             <span class="rs-spacer" />
-            <button class="rs-btn" :disabled="!canRun || previewing" @click="runPreview">
+            <BaseButton bordered :disabled="!canRun || previewing" @click="runPreview">
               {{ previewing ? 'Previewing…' : 'Preview' }}
-            </button>
-            <button class="rs-btn primary" :disabled="!canRun || applying" @click="runApply">
+            </BaseButton>
+            <BaseButton variant="primary" :disabled="!canRun || applying" @click="runApply">
               {{ applying ? 'Applying…' : 'Apply' }}
-            </button>
+            </BaseButton>
           </div>
         </template>
       </div>
@@ -316,34 +320,6 @@ async function runApply() {
 .rs-input.wide { flex: 2; }
 .rs-arrow { color: var(--text-faint); flex: none; }
 .rs-row-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
-.rs-icon {
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 3px 5px;
-  border-radius: 4px;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-}
-.rs-icon:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-.rs-icon:disabled { opacity: .35; cursor: default; }
-.rs-add {
-  align-self: flex-start;
-  background: none;
-  border: 1px dashed var(--border);
-  color: var(--text-dim);
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 2px;
-}
-.rs-add:hover { background: var(--bg-hover); color: var(--text); }
 
 .rs-preview {
   display: grid;
@@ -387,17 +363,4 @@ async function runApply() {
 }
 .rs-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; cursor: pointer; }
 .rs-spacer { margin-left: auto; }
-.rs-btn {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.rs-btn:hover:not(:disabled) { background: var(--bg-hover); }
-.rs-btn.primary { background: var(--accent); color: #fff; border-color: transparent; }
-.rs-btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
-.rs-btn:disabled { opacity: .55; cursor: default; }
 </style>

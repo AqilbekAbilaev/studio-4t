@@ -189,7 +189,7 @@ function removeSortField(id) {
             {{ logic === '$and' ? 'Match all of ($and)' : 'Match any of ($or)' }}
             <BaseIcon name="caretDown" :size="12" />
           </div>
-          <button class="vqb-clear" @click="clearAll">Clear</button>
+          <BaseButton bordered @click="clearAll">Clear</BaseButton>
         </div>
 
         <div class="cond" v-for="c in conditions" :key="c.id">
@@ -243,11 +243,13 @@ function removeSortField(id) {
       <div class="vqb-body" v-if="projEnabled">
         <div class="sp-row" v-for="f in projFields" :key="f.id">
           <span class="pill sp-field">{{ f.field }}</span>
-          <button
+          <BaseButton
+            size="sm"
+            bordered
             class="dir-toggle"
             :class="f.include ? 'inc' : 'exc'"
             @click="f.include = !f.include; applyAndRun()"
-          >{{ f.include ? 'Include' : 'Exclude' }}</button>
+          >{{ f.include ? 'Include' : 'Exclude' }}</BaseButton>
           <BaseButton icon="trash" size="sm" :icon-size="18" @click="removeProjField(f.id)" />
         </div>
         <div class="add-field-row">
@@ -258,7 +260,7 @@ function removeSortField(id) {
             @keydown.enter.prevent="addProjField"
             spellcheck="false"
           />
-          <button class="add-field-btn" @click="addProjField">Add</button>
+          <BaseButton variant="primary" size="sm" @click="addProjField">Add</BaseButton>
         </div>
       </div>
       <div class="vqb-body" v-else>
@@ -282,11 +284,13 @@ function removeSortField(id) {
       <div class="vqb-body" v-if="sortEnabled">
         <div class="sp-row" v-for="f in sortFields" :key="f.id">
           <span class="pill sp-field">{{ f.field }}</span>
-          <button
+          <BaseButton
+            size="sm"
+            bordered
             class="dir-toggle"
             :class="f.dir === 1 ? 'asc' : 'desc'"
             @click="f.dir = f.dir === 1 ? -1 : 1; applyAndRun()"
-          >{{ f.dir === 1 ? '↑ ASC' : '↓ DESC' }}</button>
+          >{{ f.dir === 1 ? '↑ ASC' : '↓ DESC' }}</BaseButton>
           <BaseButton icon="trash" size="sm" :icon-size="18" @click="removeSortField(f.id)" />
         </div>
         <div class="add-field-row">
@@ -297,7 +301,7 @@ function removeSortField(id) {
             @keydown.enter.prevent="addSortField"
             spellcheck="false"
           />
-          <button class="add-field-btn" @click="addSortField">Add</button>
+          <BaseButton variant="primary" size="sm" @click="addSortField">Add</BaseButton>
         </div>
       </div>
       <div class="vqb-body" v-else>
@@ -374,16 +378,6 @@ function removeSortField(id) {
 }
 .vqb-select:hover { border-color: var(--accent); }
 
-.vqb-clear {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-toolbar);
-  color: var(--text);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.vqb-clear:hover { background: var(--bg-hover); }
 
 /* checkbox */
 .cb {
@@ -467,13 +461,8 @@ function removeSortField(id) {
 .sp-field {
   flex: 1; font-family: var(--mono); font-size: 11.5px; cursor: default;
 }
-.dir-toggle {
-  font-size: 11px; padding: 4px 8px; border-radius: 5px;
-  cursor: pointer; border: 1px solid var(--border-soft);
-  background: var(--bg-input); color: var(--text-dim); white-space: nowrap; flex: none;
-}
-.dir-toggle.asc  { color: var(--accent); border-color: var(--accent); }
-.dir-toggle.desc { color: var(--link);   border-color: var(--link);   }
+.base-btn.dir-toggle.asc  { color: var(--accent); border-color: var(--accent); }
+.base-btn.dir-toggle.desc { color: var(--link);   border-color: var(--link);   }
 .dir-toggle.inc  { color: var(--green);  border-color: var(--green);  }
 .dir-toggle.exc  { color: var(--prod);   border-color: var(--prod);   }
 
@@ -485,10 +474,4 @@ function removeSortField(id) {
   padding: 5px 8px; outline: none; min-width: 0;
 }
 .add-field-input:focus { border-color: var(--accent); }
-.add-field-btn {
-  padding: 5px 12px; border-radius: 5px;
-  background: var(--accent); border: none;
-  color: #fff; font-size: 12px; cursor: pointer; white-space: nowrap;
-}
-.add-field-btn:hover { background: var(--accent-soft); }
 </style>

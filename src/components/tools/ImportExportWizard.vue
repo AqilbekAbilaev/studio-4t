@@ -7,6 +7,8 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
+import ReorderButtons from '../base/ReorderButtons.vue'
 
 const IMPORT_FORMATS = [
   { value: 'json', label: 'JSON' },
@@ -313,7 +315,7 @@ const titleText = computed(
         <template v-else-if="isImport && step === 0">
           <p class="iew-note">Choose a JSON or CSV file to import.</p>
           <div class="iew-source">
-            <button class="iew-pick" @click="pickFile">Choose file…</button>
+            <BaseButton bordered @click="pickFile">Choose file…</BaseButton>
             <code class="iew-path" :title="filePath">{{ filePath || 'No file selected' }}</code>
           </div>
           <label class="iew-f">
@@ -343,8 +345,12 @@ const titleText = computed(
               <input v-model="f.target" class="iew-input" :disabled="!f.include" />
               <BaseSelect v-model="f.kind" class="iew-select" :options="KINDS" :disabled="!f.include" size="sm" />
               <span v-if="!isImport" class="iew-order">
-                <button class="iew-move" :disabled="i === 0" @click="moveField(i, -1)">↑</button>
-                <button class="iew-move" :disabled="i === fields.length - 1" @click="moveField(i, 1)">↓</button>
+                <ReorderButtons
+                  :up-disabled="i === 0"
+                  :down-disabled="i === fields.length - 1"
+                  @up="moveField(i, -1)"
+                  @down="moveField(i, 1)"
+                />
               </span>
             </div>
           </div>
@@ -386,22 +392,22 @@ const titleText = computed(
       </div>
 
       <div class="iew-footer">
-        <button v-if="step > 0" class="iew-btn" :disabled="running" @click="back">Back</button>
+        <BaseButton v-if="step > 0" bordered :disabled="running" @click="back">Back</BaseButton>
         <span class="iew-spacer"></span>
-        <button
+        <BaseButton
           v-if="!isLastStep"
-          class="iew-btn primary"
+          variant="primary"
           :disabled="!canGoNext || loading"
           @click="next"
-        >Next</button>
-        <button
+        >Next</BaseButton>
+        <BaseButton
           v-else
-          class="iew-btn primary"
+          variant="primary"
           :disabled="running || !includedFields.length"
           @click="run"
         >
           {{ running ? (isImport ? 'Importing…' : 'Exporting…') : (isImport ? 'Run import' : 'Run export') }}
-        </button>
+        </BaseButton>
       </div>
     </BaseModal>
 </template>
@@ -442,16 +448,6 @@ const titleText = computed(
 .iew-note { margin: 0; font-size: 12px; color: var(--text-dim); }
 
 .iew-source { display: flex; align-items: center; gap: 10px; }
-.iew-pick {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.iew-pick:hover { background: var(--bg-hover); }
 .iew-path {
   font-family: var(--mono);
   font-size: 12px;
@@ -501,16 +497,6 @@ const titleText = computed(
 .iew-select { min-width: 110px; }
 .iew-input:disabled { opacity: .5; }
 .iew-order { display: flex; gap: 4px; }
-.iew-move {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  width: 22px; height: 22px;
-  cursor: pointer;
-  line-height: 1;
-}
-.iew-move:disabled { opacity: .35; cursor: default; }
 
 .iew-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
 .iew-export-opts { display: flex; align-items: center; gap: 16px; flex: none; }
@@ -547,17 +533,4 @@ const titleText = computed(
   border-top: 1px solid var(--border-soft);
 }
 .iew-spacer { flex: 1; }
-.iew-btn {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.iew-btn:hover:not(:disabled) { background: var(--bg-hover); }
-.iew-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-.iew-btn.primary:hover:not(:disabled) { background: var(--accent-soft); }
-.iew-btn:disabled { opacity: .5; cursor: default; }
 </style>

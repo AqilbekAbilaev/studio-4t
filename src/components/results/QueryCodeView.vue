@@ -4,6 +4,7 @@ import { keymap } from '@codemirror/view'
 import { defaultKeymap } from '@codemirror/commands'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
+import BaseButton from '../base/BaseButton.vue'
 import CodeEditor from '../base/CodeEditor.vue'
 import { generateCode, LANGUAGES } from '../../utils/queryCodegen'
 
@@ -59,9 +60,9 @@ function copyQueryCode() {
         <BaseSelect class="qc-select" v-model="queryCodeLang" :options="languageOptions" size="sm" />
       </label>
       <span class="qc-spacer"></span>
-      <button class="qcode-copy" type="button" @click="copyQueryCode">
+      <BaseButton size="sm" bordered type="button" @click="copyQueryCode">
         <BaseIcon name="copy" :size="14" /> Copy
-      </button>
+      </BaseButton>
     </div>
     <div class="qcode-view">
       <CodeEditor
@@ -86,20 +87,6 @@ function copyQueryCode() {
 /* language dropdown — strip native chrome, overlay a caret so the pill reads as selectable */
 .qc-select { min-width: 130px; }
 
-.qcode-copy {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  appearance: none;
-  background: transparent;
-  padding: 5px 12px;
-  font-size: 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-.qcode-copy:hover { background: var(--bg-hover); color: var(--text); }
 
 .qcode-view { flex: 1; min-height: 0; display: flex; overflow: hidden; }
 .qcode-view :deep(.code-editor) { flex: 1; min-width: 0; }

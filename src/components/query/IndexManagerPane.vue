@@ -307,9 +307,7 @@ function fmtBytes(bytes) {
             >
               <td class="col-name">
                 <span class="name-inner">
-                  <button class="caret" :class="{ open: localExpanded[index.name] }" @click.stop="toggleExpand(index.name)">
-                    <BaseIcon name="caret" :size="11" />
-                  </button>
+                  <BaseButton icon="caret" :icon-size="11" class="caret" :class="{ open: localExpanded[index.name] }" @click.stop="toggleExpand(index.name)" />
                   {{ index.name }}
                 </span>
               </td>
@@ -393,12 +391,12 @@ function fmtBytes(bytes) {
   margin-left: 4px; color: var(--danger-text); cursor: help;
 }
 .name-inner { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
-.caret {
+.base-btn.caret {
   border: none; background: transparent; padding: 0; cursor: pointer;
   color: var(--text-faint); display: inline-flex; transition: transform .12s;
 }
-.caret.open { transform: rotate(90deg); }
-.idx-row.selected .caret { color: #fff; }
+.base-btn.caret.open { transform: rotate(90deg); }
+.idx-row.selected .base-btn.caret { color: #fff; }
 .idx-detail td {
   padding: 4px 10px 6px 30px; font-size: 12px; color: var(--text-dim);
   background: var(--bg-row-alt); border-bottom: 1px solid var(--grid-line);

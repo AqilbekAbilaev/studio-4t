@@ -8,6 +8,9 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
+import SegmentedControl from '../base/SegmentedControl.vue'
+import TabStrip from '../base/TabStrip.vue'
+import Disclosure from '../base/Disclosure.vue'
 import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../../data/connectionOptions.js'
 import { partitionUriOptions } from '../../utils/connectionUri.js'
 
@@ -631,20 +634,18 @@ async function save() {
       <div class="nc-top">
         <label class="nc-namelbl">Connection name</label>
         <input class="nc-name" v-model="connName" />
-        <button class="nc-uri-btn" @click="step = 'intro'">
+        <BaseButton bordered @click="step = 'intro'">
           <BaseIcon name="uri" :size="15" /> From URI
-        </button>
+        </BaseButton>
       </div>
 
       <!-- Tabs -->
       <div class="nc-tabs">
-        <button
-          v-for="[k, l] in TABS"
-          :key="k"
-          class="nc-tab"
-          :class="{ active: activeTab === k }"
-          @click="activeTab = k"
-        >{{ l }}</button>
+        <TabStrip
+          :model-value="activeTab"
+          :options="TABS.map(([value, label]) => ({ value, label }))"
+          @update:model-value="activeTab = $event"
+        />
       </div>
 
       <!-- Tab body -->
@@ -654,10 +655,11 @@ async function save() {
         <div v-if="activeTab === 'server'" class="nc-form">
           <div class="nc-field">
             <label>Connection type</label>
-            <div class="seg">
-              <button v-for="[v, l] in [['standalone','Standalone'],['replica','Replica Set'],['sharded','Sharded'],['srv','DNS Seedlist (SRV)']]"
-                :key="v" class="seg-b" :class="{ on: connType === v }" @click="connType = v">{{ l }}</button>
-            </div>
+            <SegmentedControl
+              :model-value="connType"
+              :options="[{ value: 'standalone', label: 'Standalone' }, { value: 'replica', label: 'Replica Set' }, { value: 'sharded', label: 'Sharded' }, { value: 'srv', label: 'DNS Seedlist (SRV)' }]"
+              @update:model-value="connType = $event"
+            />
           </div>
           <div class="nc-field">
             <label>{{ connType === 'srv' ? 'Server (SRV hostname)' : (isMultiHost ? 'Server(s)' : 'Server') }}</label>
@@ -667,13 +669,11 @@ async function save() {
                 <input class="nc-input" v-model="h.host" style="flex:3" placeholder="localhost" />
                 <span class="nc-colon">:</span>
                 <input class="nc-input" v-model.number="h.port" type="number" style="flex:1" />
-                <button v-if="isMultiHost && hosts.length > 1" class="nc-host-rm" title="Remove host" @click="removeHost(i)">
-                  <BaseIcon name="close" :size="12" />
-                </button>
+                <BaseButton v-if="isMultiHost && hosts.length > 1" icon="close" :icon-size="12" title="Remove host" @click="removeHost(i)" />
               </div>
-              <button v-if="isMultiHost" class="nc-host-add" @click="addHost">
+              <BaseButton v-if="isMultiHost" variant="ghost" size="sm" class="nc-host-add" @click="addHost">
                 <BaseIcon name="plus" :size="12" /> Add host
-              </button>
+              </BaseButton>
             </template>
           </div>
           <div v-if="connType === 'replica'" class="nc-field">
@@ -765,10 +765,11 @@ async function save() {
             </div>
             <div class="nc-field">
               <label>Authentication</label>
-              <div class="seg">
-                <button type="button" class="seg-b" :class="{ on: sshAuth === 'password' }" @click="sshAuth = 'password'">Password</button>
-                <button type="button" class="seg-b" :class="{ on: sshAuth === 'key' }" @click="sshAuth = 'key'">Private key</button>
-              </div>
+              <SegmentedControl
+                :model-value="sshAuth"
+                :options="[{ value: 'password', label: 'Password' }, { value: 'key', label: 'Private key' }]"
+                @update:model-value="sshAuth = $event"
+              />
             </div>
 
             <div v-if="sshAuth === 'password'" class="nc-field">
@@ -780,7 +781,7 @@ async function save() {
                 <label>Private key file</label>
                 <div class="nc-file-row">
                   <input class="nc-input" v-model="sshKeyFile" placeholder="~/.ssh/id_ed25519" spellcheck="false" />
-                  <button type="button" class="nc-browse" @click="pickSshKey">Browse…</button>
+                  <BaseButton bordered type="button" @click="pickSshKey">Browse…</BaseButton>
                 </div>
               </div>
               <div class="nc-field">
@@ -805,7 +806,7 @@ async function save() {
               <label>Certificate Authority (.pem)</label>
               <div class="nc-file-row">
                 <input class="nc-input" v-model="tlsCaFile" placeholder="Path to CA certificate" spellcheck="false" />
-                <button type="button" class="nc-browse" @click="pickTlsFile('ca')">Browse…</button>
+                <BaseButton bordered type="button" @click="pickTlsFile('ca')">Browse…</BaseButton>
               </div>
             </div>
 
@@ -813,7 +814,7 @@ async function save() {
               <label>Client Certificate + Key (.pem)</label>
               <div class="nc-file-row">
                 <input class="nc-input" v-model="tlsCertKeyFile" placeholder="Path to client certificate (optional)" spellcheck="false" />
-                <button type="button" class="nc-browse" @click="pickTlsFile('cert')">Browse…</button>
+                <BaseButton bordered type="button" @click="pickTlsFile('cert')">Browse…</BaseButton>
               </div>
             </div>
 
@@ -832,16 +833,14 @@ async function save() {
           </div>
 
           <template v-for="group in OPTION_GROUPS" :key="group.title">
-            <button
-              type="button"
+            <Disclosure
               class="nc-adv-group"
-              :class="{ open: openGroups[group.title] }"
-              @click="toggleGroup(group.title)"
+              :model-value="openGroups[group.title]"
+              @update:model-value="toggleGroup(group.title)"
             >
-              <BaseIcon :name="openGroups[group.title] ? 'caretDown' : 'caret'" :size="12" />
               <span class="nc-adv-group-t">{{ group.title }}</span>
               <span v-if="groupSetCount(group)" class="nc-adv-badge">{{ groupSetCount(group) }} set</span>
-            </button>
+            </Disclosure>
             <template v-if="openGroups[group.title]">
               <template v-for="opt in group.options" :key="opt.key">
               <div v-if="optionVisible(opt)" class="nc-field">
@@ -881,16 +880,14 @@ async function save() {
             </template>
           </template>
 
-          <button
-            type="button"
+          <Disclosure
             class="nc-adv-group"
-            :class="{ open: openGroups.Appearance }"
-            @click="toggleGroup('Appearance')"
+            :model-value="openGroups.Appearance"
+            @update:model-value="toggleGroup('Appearance')"
           >
-            <BaseIcon :name="openGroups.Appearance ? 'caretDown' : 'caret'" :size="12" />
             <span class="nc-adv-group-t">Appearance</span>
             <span v-if="selectedTag !== 'none'" class="nc-adv-badge">1 set</span>
-          </button>
+          </Disclosure>
           <div v-if="openGroups.Appearance" class="nc-field">
             <label>Color tag</label>
             <div class="tag-row">
@@ -981,26 +978,12 @@ async function save() {
   padding: 8px 11px; color: var(--text); font-size: 13px; outline: none;
 }
 .nc-name:focus { border-color: var(--accent); }
-.nc-uri-btn {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--bg-toolbar); border: 1px solid var(--border-soft);
-  border-radius: 6px; padding: 8px 12px; color: var(--text); font-size: 12.5px;
-  white-space: nowrap;
-}
-.nc-uri-btn:hover { background: var(--bg-hover); }
 
 /* ── Tabs ── */
 .nc-tabs {
   display: flex; gap: 2px; padding: 0 18px;
   border-bottom: 1px solid var(--border); flex: none;
 }
-.nc-tab {
-  padding: 9px 14px; font-size: 12.5px;
-  color: var(--text-dim); background: none;
-  border: none; border-bottom: 2px solid transparent;
-}
-.nc-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-.nc-tab:hover  { color: var(--text); }
 
 /* ── Tab body ── */
 .nc-body { flex: 1; overflow-y: auto; padding: 18px; }
@@ -1014,30 +997,17 @@ async function save() {
 }
 .nc-input:focus { border-color: var(--accent); }
 .nc-file-row { display: flex; gap: 8px; align-items: center; }
-.nc-browse {
-  flex: none; padding: 8px 12px; border-radius: 6px;
-  border: 1px solid var(--border-soft); background: var(--bg-toolbar);
-  color: var(--text); font-size: 12.5px; cursor: pointer; white-space: nowrap;
-}
-.nc-browse:hover { background: var(--bg-hover); }
 .nc-inline  { display: flex; align-items: center; gap: 8px; }
 .nc-inline2 { display: flex; gap: 14px; }
 .nc-inline2 .nc-field { flex: 1; }
 .nc-colon { color: var(--text-faint); }
 .nc-host-row { margin-bottom: 8px; }
-.nc-host-rm {
-  display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; flex: none;
-  background: none; border: 1px solid var(--border-soft); border-radius: 6px;
-  color: var(--text-dim);
-}
-.nc-host-rm:hover { background: var(--bg-hover); color: var(--text); }
-.nc-host-add {
+.base-btn.nc-host-add {
   display: inline-flex; align-items: center; gap: 5px;
   background: none; border: none; padding: 2px 0;
   color: var(--accent); font-size: 12.5px; cursor: pointer;
 }
-.nc-host-add:hover { text-decoration: underline; }
+.base-btn.nc-host-add:hover { text-decoration: underline; }
 .nc-hint {
   font-size: 12px; color: var(--text-faint); line-height: 1.5;
   background: var(--bg-panel-2); border: 1px solid var(--border-soft);
@@ -1046,15 +1016,15 @@ async function save() {
 
 /* Advanced tab — option groups rendered from the catalog */
 .nc-adv-intro { margin-bottom: 4px; }
-.nc-adv-group {
+.disclosure.nc-adv-group {
   display: flex; align-items: center; gap: 7px; width: 100%;
   background: none; border: none; border-top: 1px solid var(--border-soft);
   padding: 11px 0 10px; cursor: pointer; text-align: left;
   font-size: 11px; font-weight: 600; letter-spacing: .04em;
   text-transform: uppercase; color: var(--text-dim);
 }
-.nc-adv-group:first-of-type { border-top: none; }
-.nc-adv-group:hover { color: var(--text); }
+.disclosure.nc-adv-group:first-of-type { border-top: none; }
+.disclosure.nc-adv-group:hover { color: var(--text); }
 .nc-adv-group-t { flex: 1; }
 .nc-adv-badge {
   text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 10.5px;
@@ -1070,17 +1040,6 @@ async function save() {
 .nc-input:disabled { opacity: .5; cursor: not-allowed; }
 
 /* segmented control */
-.seg {
-  display: flex; background: var(--bg-input);
-  border: 1px solid var(--border-soft); border-radius: 7px;
-  padding: 2px; gap: 2px; width: fit-content;
-}
-.seg-b {
-  padding: 6px 13px; border-radius: 5px; background: none;
-  border: none; color: var(--text-dim); font-size: 12.5px;
-}
-.seg-b.on { background: var(--accent); color: #fff; }
-.seg-b:hover:not(.on) { color: var(--text); }
 
 /* checkbox */
 .chk-line {

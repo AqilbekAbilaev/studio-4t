@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -101,9 +102,9 @@ async function clearAll() {
             <span v-if="notice" class="ch-ok">· {{ notice }}</span>
           </div>
           <span class="ch-spacer"></span>
-          <button class="ch-clear" :disabled="loading || !entries.length" @click="clearAll">
+          <BaseButton size="sm" bordered :disabled="loading || !entries.length" @click="clearAll">
             <BaseIcon name="trash" :size="13" /> Clear history
-          </button>
+          </BaseButton>
         </div>
 
         <StateMessage v-if="loading" mode="loading" label="Loading history…" />
@@ -120,11 +121,12 @@ async function clearAll() {
               <code class="ch-id">{{ idText(entry.doc_id) }}</code>
               <span class="ch-when">{{ whenText(entry.at) }}</span>
             </div>
-            <button
-              class="ch-restore"
+            <BaseButton
+              size="sm"
+              bordered
               :disabled="busyId === entry.id"
               @click="restore(entry)"
-            >{{ busyId === entry.id ? 'Restoring…' : (RESTORE_LABEL[entry.op] || 'Restore') }}</button>
+            >{{ busyId === entry.id ? 'Restoring…' : (RESTORE_LABEL[entry.op] || 'Restore') }}</BaseButton>
           </div>
         </div>
       </div>
@@ -138,14 +140,6 @@ async function clearAll() {
 .ch-note { font-size: 12px; color: var(--text-dim); }
 .ch-ok { color: var(--green, #2f9e63); }
 .ch-spacer { flex: 1; }
-.ch-clear {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--bg-input); color: var(--text-dim);
-  border: 1px solid var(--border); border-radius: 5px;
-  padding: 4px 10px; font-size: 12px; cursor: pointer;
-}
-.ch-clear:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-.ch-clear:disabled { opacity: .5; cursor: default; }
 
 .ch-list { display: flex; flex-direction: column; gap: 6px; }
 .ch-item {
@@ -164,10 +158,4 @@ async function clearAll() {
 .ch-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ch-id { font-family: var(--mono); font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-when { font-size: 11px; color: var(--text-faint); }
-.ch-restore {
-  flex: none; background: var(--accent); color: #fff; border: none;
-  border-radius: 5px; padding: 5px 12px; font-size: 12px; cursor: pointer;
-}
-.ch-restore:hover:not(:disabled) { filter: brightness(1.06); }
-.ch-restore:disabled { opacity: .6; cursor: default; }
 </style>

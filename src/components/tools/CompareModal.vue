@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
+import Disclosure from '../base/Disclosure.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -85,9 +87,9 @@ function j(v) {
               Target
               <BaseSelect v-model="targetColl" class="cm-select" :options="collectionOptions" />
             </label>
-            <button class="cm-run" :disabled="loading || !source || !targetColl" @click="compare">
+            <BaseButton variant="primary" :disabled="loading || !source || !targetColl" @click="compare">
               {{ loading ? 'Comparing…' : 'Compare' }}
-            </button>
+            </BaseButton>
           </div>
 
           <StateMessage v-if="loading" mode="loading" label="Comparing collections…" />
@@ -103,10 +105,9 @@ function j(v) {
 
             <div class="cm-sections">
               <div class="cm-sec" v-if="result.differing.length">
-                <button class="cm-sec-head" @click="toggle('diff')">
-                  <BaseIcon :name="expanded.diff ? 'caretDown' : 'caret'" :size="11" />
+                <Disclosure :model-value="expanded.diff" @update:model-value="toggle('diff')">
                   Differing ({{ result.differing_count }})
-                </button>
+                </Disclosure>
                 <div v-if="expanded.diff" class="cm-sec-body">
                   <div v-for="p in result.differing" :key="p.id" class="cm-pair">
                     <div class="cm-pair-id">_id: {{ p.id }}</div>
@@ -120,10 +121,9 @@ function j(v) {
               </div>
 
               <div class="cm-sec" v-if="result.only_in_source.length">
-                <button class="cm-sec-head" @click="toggle('src')">
-                  <BaseIcon :name="expanded.src ? 'caretDown' : 'caret'" :size="11" />
+                <Disclosure :model-value="expanded.src" @update:model-value="toggle('src')">
                   Only in source ({{ result.only_in_source_count }})
-                </button>
+                </Disclosure>
                 <div v-if="expanded.src" class="cm-sec-body">
                   <pre v-for="(d, i) in result.only_in_source" :key="i" class="cm-doc">{{ j(d) }}</pre>
                   <div v-if="result.only_in_source_count > result.only_in_source.length" class="cm-more">+{{ result.only_in_source_count - result.only_in_source.length }} more not shown</div>
@@ -131,10 +131,9 @@ function j(v) {
               </div>
 
               <div class="cm-sec" v-if="result.only_in_target.length">
-                <button class="cm-sec-head" @click="toggle('tgt')">
-                  <BaseIcon :name="expanded.tgt ? 'caretDown' : 'caret'" :size="11" />
+                <Disclosure :model-value="expanded.tgt" @update:model-value="toggle('tgt')">
                   Only in target ({{ result.only_in_target_count }})
-                </button>
+                </Disclosure>
                 <div v-if="expanded.tgt" class="cm-sec-body">
                   <pre v-for="(d, i) in result.only_in_target" :key="i" class="cm-doc">{{ j(d) }}</pre>
                   <div v-if="result.only_in_target_count > result.only_in_target.length" class="cm-more">+{{ result.only_in_target_count - result.only_in_target.length }} more not shown</div>
@@ -162,17 +161,6 @@ function j(v) {
 .cm-f { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .cm-select { width: 100%; }
 .cm-vs { color: var(--text-faint); margin-bottom: 6px; }
-.cm-run {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.cm-run:hover { background: var(--accent-soft); }
-.cm-run:disabled { opacity: .6; cursor: default; }
 
 .cm-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .cm-card {
@@ -190,20 +178,6 @@ function j(v) {
 
 .cm-sections { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
 .cm-sec { border: 1px solid var(--border-soft); border-radius: 6px; overflow: hidden; }
-.cm-sec-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-panel);
-  border: none;
-  color: var(--text);
-  padding: 8px 10px;
-  cursor: pointer;
-  font-size: 12.5px;
-  text-align: left;
-}
-.cm-sec-head:hover { background: var(--bg-hover); }
 .cm-sec-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; background: var(--bg-panel-2); }
 .cm-pair { display: flex; flex-direction: column; gap: 4px; }
 .cm-pair-id { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }

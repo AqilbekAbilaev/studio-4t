@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import BaseButton from "../base/BaseButton.vue";
+import TabStrip from "../base/TabStrip.vue";
 
 const activeTab = ref("server");
 
@@ -90,20 +91,11 @@ async function cancel() {
 <template>
   <div class="dialog">
     <div class="tabs">
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'server' }"
-        @click="activeTab = 'server'"
-      >
-        Server
-      </button>
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'uri' }"
-        @click="onSwitchToUri"
-      >
-        URI
-      </button>
+      <TabStrip
+        :model-value="activeTab"
+        :options="[{ value: 'server', label: 'Server' }, { value: 'uri', label: 'URI' }]"
+        @update:model-value="v => v === 'uri' ? onSwitchToUri() : (activeTab = 'server')"
+      />
     </div>
 
     <div class="tab-content">
@@ -209,25 +201,7 @@ html {
   border-bottom: 1px solid var(--border-soft);
 }
 
-.tab-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  padding: 8px 20px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  font-size: 13px;
-}
 
-.tab-btn.active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
-}
-
-.tab-btn:hover:not(.active) {
-  color: var(--text);
-  background-color: var(--bg-active);
-}
 
 .tab-content {
   flex: 1;

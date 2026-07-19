@@ -177,9 +177,9 @@ function copyText(text) {
                   {{ r.status === 'created' ? 'Created' : (r.message || 'Failed') }}
                 </td>
                 <td>
-                  <button v-if="r.temp_password" class="um-pw" :title="'Click to copy'" @click="copyText(r.temp_password)">
+                  <BaseButton v-if="r.temp_password" size="sm" class="um-pw" title="Click to copy" @click="copyText(r.temp_password)">
                     {{ r.temp_password }} <BaseIcon name="copy" :size="11" />
-                  </button>
+                  </BaseButton>
                   <span v-else>—</span>
                 </td>
               </tr>
@@ -256,10 +256,10 @@ function copyText(text) {
 .um-copy-results { margin-top: 6px; }
 .um-ok { color: var(--cell-str-green, var(--text)); }
 .um-fail { color: var(--danger-text); }
-.um-pw {
+.base-btn.um-pw {
   font-family: var(--mono); font-size: 11.5px; color: var(--text);
   background: var(--bg-window); border: 1px solid var(--border-soft); border-radius: 5px;
   padding: 3px 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
-.um-pw:hover { border-color: var(--accent); }
+.base-btn.um-pw:hover { border-color: var(--accent); }
 </style>

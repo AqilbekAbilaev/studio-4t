@@ -315,9 +315,9 @@ function fmtDate(iso) {
             <BaseSelect :model-value="selectedBucket" class="gf-select" :options="bucketSelectOptions"
               :disabled="busy" size="sm" @update:model-value="onBucket" />
           </label>
-          <button class="gf-upload" :disabled="busy" @click="upload">
+          <BaseButton variant="primary" size="sm" :disabled="busy" @click="upload">
             <BaseIcon name="import" :size="13" /> Upload file
-          </button>
+          </BaseButton>
         </div>
 
         <StateMessage v-if="loading" mode="loading" label="Loading files…" />
@@ -342,18 +342,15 @@ function fmtDate(iso) {
               <span class="gf-size">{{ fmtBytes(f.length) }}</span>
               <span class="gf-date">{{ fmtDate(f.upload_date) }}</span>
               <span class="gf-actions">
-                <button class="gf-act" :disabled="busy" @click="download(f)" title="Download">
-                  <BaseIcon name="export" :size="13" />
-                </button>
-                <button
-                  class="gf-act"
-                  :class="{ danger: pendingDelete === f.id }"
+                <BaseButton icon="export" :icon-size="13" :disabled="busy" @click="download(f)" title="Download" />
+                <BaseButton
+                  icon="trash"
+                  :icon-size="13"
+                  :variant="pendingDelete === f.id ? 'danger' : 'default'"
                   :disabled="busy"
                   @click="confirmDelete(f)"
                   :title="pendingDelete === f.id ? 'Click again to confirm' : 'Delete'"
-                >
-                  <BaseIcon name="trash" :size="13" />
-                </button>
+                />
               </span>
             </div>
           </div>
@@ -429,21 +426,6 @@ function fmtDate(iso) {
 .gf-controls { display: flex; align-items: flex-end; gap: 14px; }
 .gf-f { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
 .gf-select { min-width: 160px; }
-.gf-upload {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.gf-upload:hover { background: var(--accent-soft); }
-.gf-upload:disabled { opacity: .6; cursor: default; }
 
 .gf-head, .gf-row {
   display: grid;
@@ -475,19 +457,6 @@ function fmtDate(iso) {
 }
 .gf-size, .gf-date { color: var(--text-dim); }
 .gf-actions { display: flex; gap: 4px; justify-content: flex-end; }
-.gf-act {
-  background: none;
-  border: 1px solid var(--border-soft);
-  color: var(--text-dim);
-  border-radius: 5px;
-  padding: 3px 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-.gf-act:hover { background: var(--bg-hover); color: var(--text); }
-.gf-act.danger { color: var(--danger-text); border-color: var(--danger-text); }
-.gf-act:disabled { opacity: .5; cursor: default; }
 
 .gf-row.selected { background: var(--bg-active); box-shadow: inset 2px 0 0 var(--accent); }
 

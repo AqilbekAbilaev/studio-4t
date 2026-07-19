@@ -7,6 +7,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // Opened from App.vue for a collection node. Samples documents server-side and
 // infers the field/type shape, the way Studio-3T's Schema Explorer does.
@@ -157,14 +158,15 @@ const fields = computed(() => (report.value ? report.value.fields : []))
             :disabled="loading || exporting || !fields.length"
             size="sm"
           />
-          <button
-            class="sc-export"
+          <BaseButton
+            size="sm"
+            bordered
             type="button"
             :disabled="loading || exporting || !fields.length"
             @click="exportSchema"
           >
             <BaseIcon name="export" :size="13" /> {{ exporting ? 'Exporting…' : 'Export' }}
-          </button>
+          </BaseButton>
         </div>
 
         <StateMessage v-if="loading" mode="loading" label="Analyzing schema…" />
@@ -241,22 +243,8 @@ const fields = computed(() => (report.value ? report.value.fields : []))
 .sc-select { min-width: 96px; }
 .sc-count { font-size: 12px; color: var(--text-faint); margin-left: auto; }
 .sc-export-msg { font-size: 12px; color: var(--text-dim); }
-.sc-export {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
 .sc-export-fmt.no-count { margin-left: auto; }
 .sc-export-fmt { margin-left: 0; }
-.sc-export:hover:not(:disabled) { background: var(--bg-hover); }
-.sc-export:disabled { opacity: 0.5; cursor: default; }
 
 .sc-head {
   display: grid;

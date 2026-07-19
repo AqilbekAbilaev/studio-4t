@@ -1,5 +1,6 @@
 <script setup>
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseButton from '../base/BaseButton.vue'
 
 // The Operations pane: a bottom-docked, read-only log of every long-running operation
 // the app has run (fed from the backend registry via useOperations). Purely display +
@@ -49,17 +50,16 @@ const hasFinished = () => props.operations.some((op) => op.status !== 'running')
       <span class="ops-title">Operations</span>
       <span class="ops-count" v-if="operations.length">{{ operations.length }}</span>
       <span class="ops-spacer"></span>
-      <button
-        class="ops-btn"
+      <BaseButton
+        variant="ghost"
+        size="sm"
         type="button"
         :disabled="!hasFinished()"
         @click="emit('clear')"
       >
         <BaseIcon name="trash" :size="13" /> Clear finished
-      </button>
-      <button class="ops-btn icon-only" type="button" title="Hide operations" @click="emit('close')">
-        <BaseIcon name="close" :size="14" />
-      </button>
+      </BaseButton>
+      <BaseButton icon="close" :icon-size="14" type="button" title="Hide operations" @click="emit('close')" />
     </div>
 
     <div class="ops-body">
@@ -120,22 +120,6 @@ const hasFinished = () => props.operations.some((op) => op.status !== 'running')
   padding: 1px 7px;
 }
 .ops-spacer { flex: 1; }
-.ops-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  appearance: none;
-  background: transparent;
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
-  color: var(--text-dim);
-  font-size: 11.5px;
-  padding: 3px 9px;
-  cursor: pointer;
-}
-.ops-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-.ops-btn:disabled { opacity: .45; cursor: default; }
-.ops-btn.icon-only { padding: 3px 6px; }
 
 .ops-body { flex: 1; min-height: 0; overflow-y: auto; }
 .ops-empty { padding: 18px 12px; font-size: 12px; color: var(--text-faint); text-align: center; }
