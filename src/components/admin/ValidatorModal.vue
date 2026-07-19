@@ -9,6 +9,7 @@ import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
+import FieldError from '../base/FieldError.vue'
 
 // Add / Edit Validator for a collection. Fetches the current validator on open so an
 // existing rule is never silently overwritten, then writes changes via collMod.
@@ -98,7 +99,7 @@ async function save() {
             </div>
           </div>
 
-          <div v-if="error" class="vd-error">{{ error }}</div>
+          <FieldError :text="error" />
         </template>
       </div>
 
@@ -133,7 +134,6 @@ async function save() {
 .vd-row { display: flex; gap: 12px; }
 .vd-field { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .vd-select { width: 100%; }
-.vd-error { font-size: 12px; color: var(--danger-text); }
 
 .vd-footer {
   display: flex;

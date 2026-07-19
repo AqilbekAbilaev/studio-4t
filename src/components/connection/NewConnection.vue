@@ -13,6 +13,8 @@ import BaseTextarea from '../base/BaseTextarea.vue'
 import SegmentedControl from '../base/SegmentedControl.vue'
 import TabStrip from '../base/TabStrip.vue'
 import Disclosure from '../base/Disclosure.vue'
+import FieldError from '../base/FieldError.vue'
+import HintText from '../base/HintText.vue'
 import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../../data/connectionOptions.js'
 import { partitionUriOptions } from '../../utils/connectionUri.js'
 
@@ -614,7 +616,7 @@ async function save() {
           />
         </div>
 
-        <p v-if="uriError" class="nci-error">{{ uriError }}</p>
+        <FieldError :text="uriError" class="nci-error" />
 
         <label class="nci-radio" @click="mode = 'manual'; uriError = ''">
           <span class="radio" :class="{ on: mode === 'manual' }"></span>
@@ -876,7 +878,7 @@ async function save() {
                   :disabled="optionDisabled(opt)"
                 />
 
-                <div v-if="opt.hint" class="nc-opt-hint">{{ opt.hint }}</div>
+                <HintText v-if="opt.hint">{{ opt.hint }}</HintText>
               </div>
               </template>
             </template>
@@ -959,7 +961,7 @@ async function save() {
 .nci-uri-lbl { font-size: 13px; color: var(--text-dim); padding-top: 8px; flex: none; }
 .base-textarea.nci-uri { flex: 1; min-height: 90px; }
 .nci-uri:disabled { opacity: .5; }
-.nci-error { margin: 12px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--danger-text); }
+.nci-error { margin: 12px 0 0; line-height: 1.5; }
 
 /* ── Form top ── */
 .nc-top {
@@ -1019,7 +1021,6 @@ async function save() {
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 11px; font-weight: 400; color: var(--text-faint); margin-left: 6px;
 }
-.nc-opt-hint { font-size: 11.5px; color: var(--text-faint); line-height: 1.45; }
 .nc-sel { width: 100%; }
 
 /* segmented control */

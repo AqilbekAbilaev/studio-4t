@@ -7,6 +7,7 @@ import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
+import FieldError from '../base/FieldError.vue'
 
 // Open Map-Reduce for a collection: enter map / reduce / (optional) finalize JS and
 // an output collection (blank = inline), run mapReduce, and show the raw result.
@@ -60,7 +61,7 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
         <label class="mr-label">Output collection (blank = inline)</label>
         <BaseInput v-model="outCollection" placeholder="e.g. mr_results" spellcheck="false" />
 
-        <div v-if="error" class="mr-error">{{ error }}</div>
+        <FieldError :text="error" />
         <template v-if="result">
           <label class="mr-label">Result</label>
           <pre class="mr-result">{{ resultJson() }}</pre>
@@ -83,7 +84,6 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 .mr-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
 .base-textarea.mr-code { min-height: 84px; }
 .base-textarea.mr-code.short { min-height: 48px; }
-.mr-error { font-size: 12px; color: var(--danger-text); }
 .mr-result {
   margin: 0; font-family: var(--mono); font-size: 12px; line-height: 1.5;
   background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;

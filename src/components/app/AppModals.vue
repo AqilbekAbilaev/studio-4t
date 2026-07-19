@@ -7,6 +7,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseRadio from '../base/BaseRadio.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
+import FieldError from '../base/FieldError.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import ServerStatusModal from '../admin/ServerStatusModal.vue'
@@ -432,7 +433,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             </label>
           </div>
 
-          <div v-if="addCollectionError" class="del-error">{{ addCollectionError }}</div>
+          <FieldError :text="addCollectionError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
@@ -468,7 +469,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             placeholder="Aggregation pipeline (optional), e.g. [ { &quot;$match&quot;: { &quot;active&quot;: true } } ]"
             spellcheck="false"
           ></BaseTextarea>
-          <div v-if="addViewError" class="del-error">{{ addViewError }}</div>
+          <FieldError :text="addViewError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
@@ -491,7 +492,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             autocapitalize="off"
             @keydown.enter="confirmAddBucket"
           />
-          <div v-if="addBucketError" class="del-error">{{ addBucketError }}</div>
+          <FieldError :text="addBucketError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
@@ -527,7 +528,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <BaseModal v-if="dropDatabaseTarget" title="Drop Database" @close="dropDatabaseTarget = null">
         <div class="del-body">
           <p>Are you sure you want to drop "<strong>{{ dropDatabaseTarget.dbName }}</strong>"? This deletes all of its collections and cannot be undone.</p>
-          <div v-if="dropDatabaseError" class="del-error">{{ dropDatabaseError }}</div>
+          <FieldError :text="dropDatabaseError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
@@ -542,7 +543,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <BaseModal v-if="dropCollectionTarget" title="Drop Collection" @close="dropCollectionTarget = null">
         <div class="del-body">
           <p>Are you sure you want to drop "<strong>{{ dropCollectionTarget.collName }}</strong>"? This deletes all of its documents and cannot be undone.</p>
-          <div v-if="dropCollectionError" class="del-error">{{ dropCollectionError }}</div>
+          <FieldError :text="dropCollectionError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
@@ -565,7 +566,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             autocapitalize="off"
             @keydown.enter="confirmRenameCollection"
           />
-          <div v-if="renameCollectionError" class="del-error">{{ renameCollectionError }}</div>
+          <FieldError :text="renameCollectionError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
@@ -588,7 +589,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             autocapitalize="off"
             @keydown.enter="confirmDuplicateCollection"
           />
-          <div v-if="duplicateCollectionError" class="del-error">{{ duplicateCollectionError }}</div>
+          <FieldError :text="duplicateCollectionError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
@@ -621,7 +622,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             @keydown.enter="confirmAddDatabase"
           />
           <p style="margin-top:8px;color:var(--text-faint);font-size:12px">MongoDB only creates a database once it holds a collection, so a first collection is required.</p>
-          <div v-if="addDatabaseError" class="del-error">{{ addDatabaseError }}</div>
+          <FieldError :text="addDatabaseError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>
@@ -669,7 +670,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             autocapitalize="off"
             @keydown.enter="confirmDropIndex"
           />
-          <div v-if="dropIndexError" class="del-error">{{ dropIndexError }}</div>
+          <FieldError :text="dropIndexError" spaced />
         </div>
         <div class="del-footer">
           <span class="spacer"></span>

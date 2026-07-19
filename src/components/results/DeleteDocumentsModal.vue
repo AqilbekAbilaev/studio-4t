@@ -14,6 +14,7 @@ import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import CodeEditor from '../base/CodeEditor.vue'
+import FieldError from '../base/FieldError.vue'
 
 const props = defineProps({
   activeTab: { type: Object, required: true },
@@ -125,7 +126,7 @@ async function onDelete() {
           {{ validation.text }}
         </div>
 
-        <div v-if="error" class="dw-error">{{ error }}</div>
+        <FieldError :text="error" />
       </div>
 
       <div class="dw-footer">
@@ -162,7 +163,6 @@ async function onDelete() {
 .dw-msg { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .dw-msg.ok { color: var(--success-text); }
 .dw-msg.bad { color: var(--danger-text); }
-.dw-error { font-size: 12px; color: var(--danger-text); }
 .dw-footer {
   height: 48px; flex: none; border-top: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-top: 8px;

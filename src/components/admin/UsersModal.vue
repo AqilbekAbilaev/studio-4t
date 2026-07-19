@@ -8,6 +8,8 @@ import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import FieldError from '../base/FieldError.vue'
+import HintText from '../base/HintText.vue'
 
 // Manage Users for a database: list, create, and drop users (via usersInfo /
 // createUser / dropUser).
@@ -155,17 +157,17 @@ function copyText(text) {
             <label class="um-copy-lbl">Target database</label>
             <BaseInput v-model="copyTargetDb" spellcheck="false" placeholder="database" />
           </div>
-          <p class="um-copy-note">
+          <HintText dim class="um-copy-note">
             Roles are copied as-is. Passwords can't be transferred — each user is created with a
             <strong>temporary password</strong> that must be reset.
-          </p>
+          </HintText>
           <div class="um-create-actions">
             <BaseButton bordered @click="showCopy = false">Close</BaseButton>
             <BaseButton variant="primary" :disabled="!copyTargetConn || !copyTargetDb.trim() || copying" @click="runCopyUsers">
               {{ copying ? 'Copying…' : 'Copy Users' }}
             </BaseButton>
           </div>
-          <div v-if="copyError" class="um-error">{{ copyError }}</div>
+          <FieldError :text="copyError" />
 
           <table v-if="copyResults" class="um-table um-copy-results">
             <thead>
@@ -186,7 +188,7 @@ function copyText(text) {
               </tr>
             </tbody>
           </table>
-          <p v-if="copyResults && !copyResults.length" class="um-copy-note">No users to copy.</p>
+          <HintText dim v-if="copyResults && !copyResults.length" class="um-copy-note">No users to copy.</HintText>
         </div>
 
         <div v-if="showCreate" class="um-create">
@@ -197,7 +199,7 @@ function copyText(text) {
             <BaseButton bordered @click="showCreate = false">Cancel</BaseButton>
             <BaseButton variant="primary" :disabled="!newName.trim() || !newPassword || busy" @click="createUser">Create</BaseButton>
           </div>
-          <div v-if="createError" class="um-error">{{ createError }}</div>
+          <FieldError :text="createError" />
         </div>
 
         <StateMessage v-if="loading" mode="loading" label="Loading users…" />
@@ -234,7 +236,6 @@ function copyText(text) {
 .um-create { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }
 .um-create-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .um-select { width: 100%; }
-.um-error { font-size: 12px; color: var(--danger-text); }
 
 .um-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .um-table th { text-align: left; font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
@@ -247,7 +248,7 @@ function copyText(text) {
 .um-copy { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }
 .um-copy-row { display: flex; align-items: center; gap: 10px; }
 .um-copy-lbl { width: 140px; flex: none; font-size: 12px; color: var(--text-dim); }
-.um-copy-note { margin: 2px 0 0; font-size: 12px; color: var(--text-dim); }
+.um-copy-note { margin: 2px 0 0; }
 .um-copy-note strong { color: var(--text); }
 .um-copy-results { margin-top: 6px; }
 .um-ok { color: var(--cell-str-green, var(--text)); }

@@ -11,6 +11,8 @@ import StateMessage from '../base/StateMessage.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
+import FieldError from '../base/FieldError.vue'
+import HintText from '../base/HintText.vue'
 
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
 // upload / download / delete / rename / edit-metadata files, plus bucket copy/drop.
@@ -364,7 +366,7 @@ function fmtDate(iso) {
   <BaseModal v-if="renameTarget" title="Rename File" width="440px" max-width="92vw" @close="renameTarget = null">
       <div class="sub-body">
         <BaseInput v-model="renameName" placeholder="New filename" spellcheck="false" @enter="doRename" />
-        <div v-if="subError" class="sub-error">{{ subError }}</div>
+        <FieldError :text="subError" />
       </div>
       <div class="sub-footer">
         <BaseButton @click="renameTarget = null">Cancel</BaseButton>
@@ -376,8 +378,8 @@ function fmtDate(iso) {
   <BaseModal v-if="metaTarget" :title="`Edit Metadata — ${metaTarget.filename}`" width="440px" max-width="92vw" @close="metaTarget = null">
       <div class="sub-body">
         <BaseTextarea v-model="metaText" class="sub-area" spellcheck="false" placeholder='{ "author": "…", "tags": [ … ] }'></BaseTextarea>
-        <div class="sub-hint">Sets the file's <code>metadata</code> document. Leave empty to clear.</div>
-        <div v-if="subError" class="sub-error">{{ subError }}</div>
+        <HintText>Sets the file's <code>metadata</code> document. Leave empty to clear.</HintText>
+        <FieldError :text="subError" />
       </div>
       <div class="sub-footer">
         <BaseButton @click="metaTarget = null">Cancel</BaseButton>
@@ -405,7 +407,7 @@ function fmtDate(iso) {
   <BaseModal v-if="copyBucketOpen" :title="`Copy Bucket &quot;${selectedBucket}&quot;`" width="440px" max-width="92vw" @close="copyBucketOpen = false">
       <div class="sub-body">
         <BaseInput v-model="copyBucketName" placeholder="New bucket name" spellcheck="false" @enter="doCopyBucket" />
-        <div v-if="subError" class="sub-error">{{ subError }}</div>
+        <FieldError :text="subError" />
       </div>
       <div class="sub-footer">
         <BaseButton @click="copyBucketOpen = false">Cancel</BaseButton>
@@ -465,9 +467,6 @@ function fmtDate(iso) {
 /* Sub-form overlays (rename / metadata / view / copy bucket) sit above the modal. */
 .sub-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .base-textarea.sub-area { min-height: 120px; }
-.sub-hint { font-size: 11.5px; color: var(--text-faint); }
-.sub-hint code { font-family: var(--mono); }
-.sub-error { font-size: 12px; color: var(--danger-text); }
 .sub-footer {
   display: flex;
   justify-content: flex-end;

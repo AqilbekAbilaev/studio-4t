@@ -5,6 +5,7 @@ import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import HintText from '../base/HintText.vue'
 
 // Live server metrics: polls serverStatus on an interval and draws simple SVG
 // sparklines. Reuses the existing server_status command (no new backend).
@@ -90,7 +91,7 @@ const charts = computed(() => [
         <StateMessage v-if="loading" mode="loading" label="Sampling server status…" />
         <StateMessage v-else-if="error" mode="error" :message="error" />
         <template v-else>
-          <div class="sc-hint">Live — sampled every {{ INTERVAL / 1000 }}s</div>
+          <HintText>Live — sampled every {{ INTERVAL / 1000 }}s</HintText>
           <div class="sc-grid">
             <div v-for="c in charts" :key="c.label" class="sc-card">
               <div class="sc-head"><span class="sc-label">{{ c.label }}</span><span class="sc-value">{{ c.value }}</span></div>
@@ -106,7 +107,6 @@ const charts = computed(() => [
 
 <style scoped>
 .sc-body { padding: 16px; min-height: 200px; display: flex; flex-direction: column; gap: 12px; }
-.sc-hint { font-size: 11.5px; color: var(--text-faint); }
 .sc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .sc-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
 .sc-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }

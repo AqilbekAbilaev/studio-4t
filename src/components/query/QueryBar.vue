@@ -9,6 +9,7 @@ import BaseInput from '../base/BaseInput.vue'
 import SegmentedControl from '../base/SegmentedControl.vue'
 import NumberStepper from '../base/NumberStepper.vue'
 import MenuItem from '../base/MenuItem.vue'
+import FieldError from '../base/FieldError.vue'
 
 const props = defineProps({
   activeTab:      { type: Object,  required: true },
@@ -350,7 +351,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
           @update:model-value="activeTab.skip = $event" @enter="emit('run')" />
       </div>
     </div>
-    <div v-if="queryErrorText" class="qparse-error">{{ queryErrorText }}</div>
+    <FieldError :text="queryErrorText" class="qparse-error" />
   </template>
 </template>
 
@@ -378,7 +379,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
 
 .mode-toggle { margin-right: 6px; }
 
-.qparse-error { color: var(--danger-text); font-size: 12px; padding: 4px 12px 6px; flex: none; }
+.qparse-error { padding: 4px 12px 6px; flex: none; }
 
 /* Query fields */
 .qfields {

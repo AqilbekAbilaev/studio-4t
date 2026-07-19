@@ -4,6 +4,7 @@ import ExplainGraph from './ExplainGraph.vue'
 import JsonDoc from './JsonDoc.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import SegmentedControl from '../base/SegmentedControl.vue'
+import FieldError from '../base/FieldError.vue'
 import { buildExplainTree } from '../../utils/explainTree'
 
 const VERBOSITY_OPTIONS = [
@@ -36,7 +37,7 @@ const explainView = ref('graph')
 <template>
   <div class="explain-view">
     <div v-if="activeTab.explainRunning" class="explain-msg">Running explain…</div>
-    <div v-else-if="activeTab.explainError" class="run-error">{{ activeTab.explainError }}</div>
+    <FieldError v-else-if="activeTab.explainError" :text="activeTab.explainError" class="run-error" />
     <template v-else-if="activeTab.explainResult">
       <div class="explain-toolbar">
         <SegmentedControl
@@ -67,7 +68,7 @@ const explainView = ref('graph')
 .explain-view { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .explain-view > .json-doc { flex: 1; overflow: auto; padding: 12px 16px; }
 .explain-msg { padding: 32px; color: var(--text-faint); font-size: 12px; display: flex; align-items: center; justify-content: center; }
-.run-error { padding: 10px 14px; color: var(--danger-text); font-size: 12px; }
+.run-error { padding: 10px 14px; }
 
 /* Graph / View JSON toggle + verbosity select */
 .explain-toolbar { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border-soft); flex: 0 0 auto; }

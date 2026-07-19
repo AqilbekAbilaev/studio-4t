@@ -19,6 +19,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import TabStrip from '../base/TabStrip.vue'
 import Resizer from '../base/Resizer.vue'
+import FieldError from '../base/FieldError.vue'
 import { useDocumentActions } from '../../composables/useDocumentActions'
 
 const props = defineProps({
@@ -385,7 +386,7 @@ function toggleReadOnly() {
     <div class="del-body">
       <p v-if="selectedCount > 1">Are you sure you want to delete these {{ selectedCount }} documents? This cannot be undone.</p>
       <p v-else>Are you sure you want to delete this document? This cannot be undone.</p>
-      <div v-if="crudError" class="del-error">{{ crudError }}</div>
+      <FieldError :text="crudError" spaced />
     </div>
     <div class="del-footer">
       <span class="spacer"></span>
@@ -410,7 +411,7 @@ function toggleReadOnly() {
   <BaseModal v-if="removeFieldName" title="Remove Field" @close="removeFieldName = null">
     <div class="del-body">
       <p>Remove the field <code>{{ removeFieldName }}</code> from this document?</p>
-      <div v-if="removeFieldError" class="del-error">{{ removeFieldError }}</div>
+      <FieldError :text="removeFieldError" spaced />
     </div>
     <div class="del-footer">
       <span class="spacer"></span>
@@ -443,7 +444,7 @@ function toggleReadOnly() {
       <p class="cc-prompt">Type <code>{{ activeTab.collectionName }}</code> to confirm:</p>
       <BaseInput class="cc-input" v-model="clearConfirmText" spellcheck="false" autocomplete="off"
              @enter="onClearConfirm" />
-      <div v-if="clearError" class="del-error">{{ clearError }}</div>
+      <FieldError :text="clearError" spaced />
     </div>
     <div class="del-footer">
       <span class="spacer"></span>
@@ -592,7 +593,6 @@ function toggleReadOnly() {
   line-height: 1.5;
 }
 .del-body p { margin: 0 0 8px; }
-.del-error { font-size: 12px; color: var(--danger-text); margin-top: 6px; }
 .del-footer {
   height: 48px;
   flex: none;

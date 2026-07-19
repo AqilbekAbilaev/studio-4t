@@ -9,6 +9,7 @@ import BaseInput from '../base/BaseInput.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import HintText from '../base/HintText.vue'
 
 // Top-bar "Data Masking" tool for the active collection. Lists the collection's
 // fields (from a sample document) and lets the user pick a masking strategy per
@@ -136,10 +137,10 @@ async function runExport() {
           label="No documents to sample fields from"
         />
         <template v-else>
-          <p class="mk-note">
+          <HintText dim>
             Choose how each field is obfuscated in the exported copy. The source
             collection is never modified.
-          </p>
+          </HintText>
 
           <div class="mk-head">
             <span>Field</span>
@@ -192,7 +193,6 @@ async function runExport() {
   max-height: 74vh;
   overflow: hidden;
 }
-.mk-note { margin: 0; font-size: 12px; color: var(--text-dim); }
 .mk-head {
   display: grid;
   grid-template-columns: 1fr 130px 1.2fr;

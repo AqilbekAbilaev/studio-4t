@@ -11,6 +11,7 @@ import ReorderButtons from '../base/ReorderButtons.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import HintText from '../base/HintText.vue'
 
 // Top-bar "Reschema" tool for the active collection. Builds an ordered list of
 // transform ops (rename / remove / change type / move nested) and runs them as a
@@ -198,10 +199,10 @@ async function runApply() {
       <div class="rs-body">
         <StateMessage v-if="loading" mode="loading" label="Reading fields…" />
         <template v-else>
-          <p class="rs-note">
+          <HintText dim>
             Define an ordered list of transforms. They run as a server-side
             aggregation — nothing is written until you apply.
-          </p>
+          </HintText>
 
           <datalist id="rs-fields">
             <option v-for="p in fieldPaths" :key="p" :value="p" />
@@ -298,7 +299,6 @@ async function runApply() {
   max-height: 80vh;
   overflow-y: auto;
 }
-.rs-note { margin: 0; font-size: 12px; color: var(--text-dim); }
 
 .rs-ops { display: flex; flex-direction: column; gap: 6px; }
 .rs-op {

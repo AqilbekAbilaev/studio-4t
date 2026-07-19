@@ -2,6 +2,7 @@
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import HintText from '../base/HintText.vue'
 
 // Driven entirely by App.vue: `prompt` is set for a first-contact trust request,
 // `changed` for a refused connection whose host key no longer matches. At most
@@ -26,11 +27,11 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
           </div>
         </div>
         <div class="hk-fp">{{ prompt.fingerprint }}</div>
-        <div class="hk-note">
+        <HintText dim>
           Only trust this host if the fingerprint matches the one your server
           administrator gave you. The key is saved and checked on every future
           connection.
-        </div>
+        </HintText>
       </div>
 
       <div class="hk-footer">
@@ -58,11 +59,11 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
           <div class="hk-fp">{{ changed.storedFingerprint }}</div></div>
         <div class="hk-fp-row"><span class="hk-fp-label">Now presented</span>
           <div class="hk-fp">{{ changed.presentedFingerprint }}</div></div>
-        <div class="hk-note">
+        <HintText dim>
           If you are certain the key changed for a legitimate reason, forget the
           saved key — the next connection will ask you to verify and trust the
           new one.
-        </div>
+        </HintText>
       </div>
 
       <div class="hk-footer">
@@ -108,7 +109,6 @@ const emit = defineEmits(['trust', 'cancel', 'forget', 'dismiss'])
 .hk-fp-row { display: flex; flex-direction: column; gap: 4px; }
 .hk-fp-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
 
-.hk-note { font-size: 12px; color: var(--text-dim); }
 
 .hk-footer {
   height: 48px;

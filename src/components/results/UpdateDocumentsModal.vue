@@ -16,6 +16,8 @@ import TabStrip from '../base/TabStrip.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import CodeEditor from '../base/CodeEditor.vue'
+import FieldError from '../base/FieldError.vue'
+import HintText from '../base/HintText.vue'
 
 const props = defineProps({
   activeTab: { type: Object, required: true },
@@ -140,11 +142,11 @@ async function onRun() {
       </div>
 
       <div class="uw-body">
-        <div class="uw-hint">
+        <HintText dim>
           <template v-if="pane === 'query'">Update the document(s) in
             <code>{{ activeTab.collectionName }}</code> matching the query below:</template>
           <template v-else>Update operators to apply, e.g. <code>{ "$set": { "field": 1 } }</code></template>
-        </div>
+        </HintText>
 
         <CodeEditor v-if="pane === 'query'" class="uw-editor" v-model="filter" />
         <CodeEditor v-else class="uw-editor" v-model="update" />
@@ -180,7 +182,7 @@ async function onRun() {
           {{ validation.text }}
         </div>
 
-        <div v-if="error" class="uw-error">{{ error }}</div>
+        <FieldError :text="error" />
       </div>
 
       <div class="uw-footer">
@@ -200,7 +202,6 @@ async function onRun() {
 <style scoped>
 .uw-tabs { display: flex; align-items: stretch; padding: 0 14px; border-bottom: 1px solid var(--border); flex: none; }
 .uw-body { padding: 14px 18px 8px; display: flex; flex-direction: column; gap: 12px; }
-.uw-hint { font-size: 12.5px; color: var(--text-dim); }
 .uw-hint code { font-family: var(--mono); color: var(--text); }
 .uw-editor {
   /* ~10 rows: 13px font × 1.7 line-height + CodeMirror's content padding. */
@@ -218,7 +219,6 @@ async function onRun() {
 .uw-msg { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .uw-msg.ok { color: var(--success-text); }
 .uw-msg.bad { color: var(--danger-text); }
-.uw-error { font-size: 12px; color: var(--danger-text); }
 .uw-footer {
   height: 48px; flex: none; border-top: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-top: 8px;

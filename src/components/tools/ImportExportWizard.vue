@@ -11,6 +11,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseCheckbox from '../base/BaseCheckbox.vue'
 import ReorderButtons from '../base/ReorderButtons.vue'
+import HintText from '../base/HintText.vue'
 
 const IMPORT_FORMATS = [
   { value: 'json', label: 'JSON' },
@@ -315,7 +316,7 @@ const titleText = computed(
 
         <!-- IMPORT step 0: source -->
         <template v-else-if="isImport && step === 0">
-          <p class="iew-note">Choose a JSON or CSV file to import.</p>
+          <HintText dim>Choose a JSON or CSV file to import.</HintText>
           <div class="iew-source">
             <BaseButton bordered @click="pickFile">Choose file…</BaseButton>
             <code class="iew-path" :title="filePath">{{ filePath || 'No file selected' }}</code>
@@ -328,11 +329,11 @@ const titleText = computed(
 
         <!-- Field mapping (import step 1 / export step 0) -->
         <template v-else-if="(isImport && step === 1) || (!isImport && step === 0)">
-          <p class="iew-note">
+          <HintText dim>
             {{ isImport
               ? 'Map each detected column to a target field and pick its type.'
               : 'Choose which fields to export, rename or reorder them, and optionally coerce a type.' }}
-          </p>
+          </HintText>
           <div class="iew-head">
             <span></span>
             <span>{{ isImport ? 'Source column' : 'Field' }}</span>
@@ -361,10 +362,10 @@ const titleText = computed(
         <!-- Preview & run (last step) -->
         <template v-else-if="isLastStep">
           <div class="iew-preview-top">
-            <p class="iew-note">
+            <HintText dim>
               Preview of the first {{ previewRows.length }} row{{ previewRows.length === 1 ? '' : 's' }}.
               <template v-if="isImport"> Types are applied on import.</template>
-            </p>
+            </HintText>
             <div v-if="!isImport" class="iew-export-opts">
               <label class="iew-f">
                 Format
@@ -447,7 +448,6 @@ const titleText = computed(
   max-height: 66vh;
   overflow: hidden;
 }
-.iew-note { margin: 0; font-size: 12px; color: var(--text-dim); }
 
 .iew-source { display: flex; align-items: center; gap: 10px; }
 .iew-path {

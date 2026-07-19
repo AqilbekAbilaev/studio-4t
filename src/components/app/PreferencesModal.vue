@@ -6,6 +6,8 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import FieldError from '../base/FieldError.vue'
+import HintText from '../base/HintText.vue'
 
 // App preferences. Persisted via update_settings; on save the parent adopts the
 // new default so newly opened collection tabs use it.
@@ -51,7 +53,7 @@ async function save() {
         <div class="pf-row">
           <div class="pf-meta">
             <div class="pf-label">Theme</div>
-            <div class="pf-hint">Overall color scheme for the app.</div>
+            <HintText class="pf-hint">Overall color scheme for the app.</HintText>
           </div>
           <BaseSelect v-model="theme" class="pf-select" :options="THEME_OPTIONS" />
         </div>
@@ -59,7 +61,7 @@ async function save() {
         <div class="pf-row">
           <div class="pf-meta">
             <div class="pf-label">Default query limit</div>
-            <div class="pf-hint">Page size used when a collection is first opened.</div>
+            <HintText class="pf-hint">Page size used when a collection is first opened.</HintText>
           </div>
           <BaseSelect v-model="limit" class="pf-select" :options="pageSizeOptions" />
         </div>
@@ -67,12 +69,12 @@ async function save() {
         <div class="pf-row">
           <div class="pf-meta">
             <div class="pf-label">Keyboard shortcuts</div>
-            <div class="pf-hint">View the full list of shortcuts the app handles.</div>
+            <HintText class="pf-hint">View the full list of shortcuts the app handles.</HintText>
           </div>
           <BaseButton variant="ghost" size="sm" @click="$emit('open-shortcuts')">Open reference</BaseButton>
         </div>
 
-        <div v-if="error" class="pf-error">{{ error }}</div>
+        <FieldError :text="error" />
       </div>
 
       <div class="pf-footer">
@@ -98,11 +100,10 @@ async function save() {
 }
 .pf-meta { flex: 1; min-width: 0; }
 .pf-label { font-size: 13px; color: var(--text); }
-.pf-hint { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+.pf-hint { margin-top: 2px; }
 
 .pf-select { flex: none; min-width: 120px; }
 
-.pf-error { font-size: 12.5px; color: var(--danger-text); }
 
 .pf-footer {
   height: 48px;

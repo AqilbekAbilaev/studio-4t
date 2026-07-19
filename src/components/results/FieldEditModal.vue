@@ -14,6 +14,8 @@ import BaseInput from '../base/BaseInput.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import { BSON_TYPES, buildTypedValue } from '../../utils/docEdit'
 import BaseModal from '../base/BaseModal.vue'
+import FieldError from '../base/FieldError.vue'
+import HintText from '../base/HintText.vue'
 
 const typeOptions = BSON_TYPES.map((t) => ({ value: t, label: t }))
 
@@ -86,10 +88,10 @@ const shownError = computed(() => localError.value || props.saveError)
                  @enter="onSave" />
         </label>
 
-        <p v-if="mode === 'rename'" class="fe-hint">
+        <HintText v-if="mode === 'rename'" class="fe-hint">
           Renames this field on the selected document only. To rename it across every
           document, use the Reschema tool.
-        </p>
+        </HintText>
 
         <label v-if="showValue" class="fe-row">
           <span class="fe-lbl">Type</span>
@@ -104,7 +106,7 @@ const shownError = computed(() => localError.value || props.saveError)
                  @enter="onSave" />
         </label>
 
-        <div v-if="shownError" class="fe-error">{{ shownError }}</div>
+        <FieldError :text="shownError" />
       </div>
 
       <div class="fe-footer">
@@ -130,8 +132,7 @@ const shownError = computed(() => localError.value || props.saveError)
 .base-input.fe-input:focus { border-color: var(--accent); }
 .fe-select { width: 100%; }
 .base-textarea.fe-area { min-height: 96px; }
-.fe-hint { margin: -4px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-faint); }
-.fe-error { font-size: 12px; color: var(--danger-text); }
+.fe-hint { margin: -4px 0 0; }
 .fe-footer {
   height: 48px; flex: none; border-top: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-top: 8px;

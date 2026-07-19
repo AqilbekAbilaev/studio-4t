@@ -1,5 +1,6 @@
 <script setup>
 import BaseTextarea from '../base/BaseTextarea.vue'
+import FieldError from '../base/FieldError.vue'
 const props = defineProps({
   activeTab:         { type: Object, required: true },
   pipelineErrorText: { type: String, default: null },
@@ -20,11 +21,11 @@ const emit = defineEmits(['run'])
       autocorrect="off"
       autocapitalize="off"
     ></BaseTextarea>
-    <div v-if="pipelineErrorText" class="qparse-error">{{ pipelineErrorText }}</div>
+    <FieldError :text="pipelineErrorText" class="qparse-error" />
   </div>
 </template>
 
 <style scoped>
 .agg-editor { padding: 8px 10px; border-bottom: 1px solid var(--border); flex: none; }
-.qparse-error { color: var(--danger-text); font-size: 12px; padding: 4px 12px 6px; flex: none; }
+.qparse-error { padding: 4px 12px 6px; flex: none; }
 </style>

@@ -8,6 +8,8 @@ import BaseCheckbox from '../base/BaseCheckbox.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import TabStrip from '../base/TabStrip.vue'
 import BaseButton from '../base/BaseButton.vue'
+import FieldError from '../base/FieldError.vue'
+import HintText from '../base/HintText.vue'
 
 // The Add / Edit index dialog (Screenshot A). It owns all of its form state and
 // emits an assembled { keys, options } pair — two JSON strings the backend merges
@@ -300,7 +302,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 
         <!-- Text options tab -->
         <div v-else-if="subtab === 'text'" class="tab-pane">
-          <p class="pane-note">Applies to <code>text</code> indexes.</p>
+          <HintText class="pane-note">Applies to <code>text</code> indexes.</HintText>
           <label class="idx-flabel">Default language</label>
           <BaseInput v-model="txtDefaultLang" class="prompt-input" placeholder="english" spellcheck="false" autocorrect="off" autocapitalize="off" />
           <label class="idx-flabel">Language override field</label>
@@ -311,7 +313,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 
         <!-- Geo options tab -->
         <div v-else-if="subtab === 'geo'" class="tab-pane">
-          <p class="pane-note">Applies to <code>2dsphere</code> / <code>2d</code> indexes.</p>
+          <HintText class="pane-note">Applies to <code>2dsphere</code> / <code>2d</code> indexes.</HintText>
           <label class="idx-flabel">2dsphere index version</label>
           <BaseInput v-model="geoSphereVersion" class="prompt-input" placeholder="3" spellcheck="false" autocorrect="off" autocapitalize="off" />
           <div class="geo-grid">
@@ -332,7 +334,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 
         <!-- Collation tab -->
         <div v-else class="tab-pane options-pane">
-          <p class="pane-note">Set a locale to attach a collation; leave blank for none.</p>
+          <HintText class="pane-note">Set a locale to attach a collation; leave blank for none.</HintText>
           <label class="idx-flabel">Locale</label>
           <BaseInput v-model="colLocale" class="prompt-input" placeholder='e.g. en or "simple"' spellcheck="false" autocorrect="off" autocapitalize="off" />
           <div class="geo-grid">
@@ -354,7 +356,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
           <label class="opt-row"><BaseCheckbox v-model="colBackwards" /><span>Backwards (French accent sort)</span></label>
         </div>
 
-        <div v-if="shownError" class="del-error">{{ shownError }}</div>
+        <FieldError :text="shownError" spaced />
       </div>
 
       <div class="del-footer idx-add-footer">
@@ -402,7 +404,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 
 .options-pane { display: flex; flex-direction: column; gap: 6px; }
 .opt-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text); padding: 7px 0; }
-.pane-note { font-size: 12px; color: var(--text-faint); margin: 0 0 12px; }
+.pane-note { margin: 0 0 12px; }
 .pane-note code { font-family: var(--mono); font-size: 11.5px; }
 .geo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 16px; margin-top: 6px; }
 
