@@ -5,6 +5,7 @@ import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseCheckbox from '../base/BaseCheckbox.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 import TabStrip from '../base/TabStrip.vue'
 import BaseButton from '../base/BaseButton.vue'
 
@@ -253,11 +254,11 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 
         <!-- JSON mode -->
         <div v-if="jsonMode" class="json-pane">
-          <textarea
+          <BaseTextarea
             v-model="jsonText"
             class="json-area"
             spellcheck="false" autocorrect="off" autocapitalize="off"
-          ></textarea>
+          ></BaseTextarea>
         </div>
 
         <!-- Fields tab -->
@@ -406,12 +407,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
 .geo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 16px; margin-top: 6px; }
 
 .json-pane { min-height: 264px; }
-.json-area {
-  width: 100%; min-height: 280px; resize: vertical;
-  font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
-  padding: 10px 12px; border-radius: var(--radius);
-  background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
-}
+.base-textarea.json-area { min-height: 280px; }
 
 .idx-add-footer { display: flex; align-items: center; gap: 14px; }
 .bg-check { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text); }

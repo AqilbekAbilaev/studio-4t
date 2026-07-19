@@ -6,6 +6,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 
 // Top-bar "SQL" tool. Translates a simple SQL SELECT into the equivalent MongoDB
 // find query (filter / projection / sort / limit / skip) and the shell command,
@@ -77,14 +78,14 @@ function onKeydown(e) {
 
       <div class="sq-body">
         <label class="sq-lbl">SQL query</label>
-        <textarea
+        <BaseTextarea
           v-model="sql"
           class="sq-input"
           spellcheck="false"
           rows="5"
           placeholder="SELECT * FROM collection WHERE field = value ORDER BY field LIMIT n"
           @keydown="onKeydown"
-        ></textarea>
+        ></BaseTextarea>
 
         <div class="sq-actions">
           <BaseButton variant="primary" @click="translate">Translate</BaseButton>
@@ -149,20 +150,6 @@ function onKeydown(e) {
   text-transform: uppercase;
   letter-spacing: .04em;
 }
-.sq-input {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  line-height: 1.5;
-  resize: vertical;
-}
-.sq-input:focus { outline: none; border-color: var(--accent); }
 .sq-actions {
   display: flex;
   align-items: center;

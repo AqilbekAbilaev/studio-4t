@@ -9,6 +9,7 @@ import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 import SegmentedControl from '../base/SegmentedControl.vue'
 import TabStrip from '../base/TabStrip.vue'
 import Disclosure from '../base/Disclosure.vue'
@@ -605,7 +606,7 @@ async function save() {
         </label>
         <div class="nci-uri-wrap">
           <span class="nci-uri-lbl">URI:</span>
-          <textarea
+          <BaseTextarea
             class="nci-uri"
             :disabled="mode !== 'uri'"
             v-model="pastedUri"
@@ -956,14 +957,7 @@ async function save() {
   display: flex; gap: 12px; margin: 14px 0 22px; padding-left: 28px;
 }
 .nci-uri-lbl { font-size: 13px; color: var(--text-dim); padding-top: 8px; flex: none; }
-.nci-uri {
-  flex: 1; min-height: 90px; resize: vertical;
-  background: var(--bg-input); border: 1px solid var(--border-soft);
-  border-radius: 6px; padding: 9px 11px;
-  color: var(--text); font-family: var(--mono); font-size: 13px;
-  outline: none;
-}
-.nci-uri:focus   { border-color: var(--accent); }
+.base-textarea.nci-uri { flex: 1; min-height: 90px; }
 .nci-uri:disabled { opacity: .5; }
 .nci-error { margin: 12px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--danger-text); }
 

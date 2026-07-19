@@ -6,6 +6,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 
 // Open Map-Reduce for a collection: enter map / reduce / (optional) finalize JS and
 // an output collection (blank = inline), run mapReduce, and show the raw result.
@@ -51,11 +52,11 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 
       <div class="mr-body">
         <label class="mr-label">Map</label>
-        <textarea v-model="map" class="mr-input mr-code" spellcheck="false"></textarea>
+        <BaseTextarea v-model="map" class="mr-code" spellcheck="false"></BaseTextarea>
         <label class="mr-label">Reduce</label>
-        <textarea v-model="reduce" class="mr-input mr-code" spellcheck="false"></textarea>
+        <BaseTextarea v-model="reduce" class="mr-code" spellcheck="false"></BaseTextarea>
         <label class="mr-label">Finalize (optional)</label>
-        <textarea v-model="finalize" class="mr-input mr-code short" spellcheck="false" placeholder="function (key, reducedValue) { … }"></textarea>
+        <BaseTextarea v-model="finalize" class="mr-code short" spellcheck="false" placeholder="function (key, reducedValue) { … }"></BaseTextarea>
         <label class="mr-label">Output collection (blank = inline)</label>
         <BaseInput v-model="outCollection" placeholder="e.g. mr_results" spellcheck="false" />
 
@@ -80,8 +81,8 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 
 .mr-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; max-height: 74vh; overflow-y: auto; }
 .mr-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
-.mr-code { min-height: 84px; font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; }
-.mr-code.short { min-height: 48px; }
+.base-textarea.mr-code { min-height: 84px; }
+.base-textarea.mr-code.short { min-height: 48px; }
 .mr-error { font-size: 12px; color: var(--danger-text); }
 .mr-result {
   margin: 0; font-family: var(--mono); font-size: 12px; line-height: 1.5;

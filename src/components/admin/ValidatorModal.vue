@@ -8,6 +8,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 
 // Add / Edit Validator for a collection. Fetches the current validator on open so an
 // existing rule is never silently overwritten, then writes changes via collMod.
@@ -79,12 +80,12 @@ async function save() {
         <StateMessage v-if="loading" mode="loading" label="Loading validator…" />
         <template v-else>
           <label class="vd-label">Validator (JSON schema document — leave empty to clear)</label>
-          <textarea
+          <BaseTextarea
             v-model="validatorText"
             class="vd-editor"
             spellcheck="false"
             placeholder='{ "$jsonSchema": { "bsonType": "object", "required": ["name"] } }'
-          ></textarea>
+          ></BaseTextarea>
 
           <div class="vd-row">
             <div class="vd-field">
@@ -128,21 +129,7 @@ async function save() {
   text-transform: uppercase;
   letter-spacing: .04em;
 }
-.vd-editor {
-  width: 100%;
-  min-height: 160px;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-input);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.5;
-  resize: vertical;
-}
-.vd-editor:focus { outline: none; border-color: var(--accent); }
+.base-textarea.vd-editor { min-height: 160px; }
 .vd-row { display: flex; gap: 12px; }
 .vd-field { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .vd-select { width: 100%; }

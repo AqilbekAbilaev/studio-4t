@@ -6,6 +6,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseRadio from '../base/BaseRadio.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import ServerStatusModal from '../admin/ServerStatusModal.vue'
@@ -461,12 +462,12 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             autocorrect="off"
             autocapitalize="off"
           />
-          <textarea
+          <BaseTextarea
             v-model="newViewPipeline"
-            class="prompt-input pipeline-input"
+            class="pipeline-input"
             placeholder="Aggregation pipeline (optional), e.g. [ { &quot;$match&quot;: { &quot;active&quot;: true } } ]"
             spellcheck="false"
-          ></textarea>
+          ></BaseTextarea>
           <div v-if="addViewError" class="del-error">{{ addViewError }}</div>
         </div>
         <div class="del-footer">

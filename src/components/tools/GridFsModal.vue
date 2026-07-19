@@ -10,6 +10,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
 // upload / download / delete / rename / edit-metadata files, plus bucket copy/drop.
@@ -374,7 +375,7 @@ function fmtDate(iso) {
   <!-- Edit metadata -->
   <BaseModal v-if="metaTarget" :title="`Edit Metadata — ${metaTarget.filename}`" width="440px" max-width="92vw" @close="metaTarget = null">
       <div class="sub-body">
-        <textarea v-model="metaText" class="sub-input sub-area" spellcheck="false" placeholder='{ "author": "…", "tags": [ … ] }'></textarea>
+        <BaseTextarea v-model="metaText" class="sub-area" spellcheck="false" placeholder='{ "author": "…", "tags": [ … ] }'></BaseTextarea>
         <div class="sub-hint">Sets the file's <code>metadata</code> document. Leave empty to clear.</div>
         <div v-if="subError" class="sub-error">{{ subError }}</div>
       </div>
@@ -463,18 +464,7 @@ function fmtDate(iso) {
 
 /* Sub-form overlays (rename / metadata / view / copy bucket) sit above the modal. */
 .sub-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
-.sub-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 7px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-input);
-  color: var(--text);
-  font-size: 13px;
-}
-.sub-input:focus { outline: none; border-color: var(--accent); }
-.sub-area { min-height: 120px; font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; }
+.base-textarea.sub-area { min-height: 120px; }
 .sub-hint { font-size: 11.5px; color: var(--text-faint); }
 .sub-hint code { font-family: var(--mono); }
 .sub-error { font-size: 12px; color: var(--danger-text); }

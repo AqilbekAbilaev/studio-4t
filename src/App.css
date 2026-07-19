@@ -130,15 +130,7 @@
 .base-input.prompt-input:focus { outline: none; border-color: var(--accent); }
 /* BaseSelect used where a .prompt-input would go — it self-styles, so this is width only. */
 .prompt-select { width: 100%; }
-.pipeline-input {
-  height: auto;
-  min-height: 76px;
-  padding: 8px 10px;
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.5;
-  resize: vertical;
-}
+.base-textarea.pipeline-input { min-height: 76px; margin-top: 10px; }
 /* Space stacked inputs in multi-field dialogs (e.g. Add View); single-input
    dialogs like Add Collection are unaffected. */
 .del-body .prompt-input + .prompt-input { margin-top: 10px; }

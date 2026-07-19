@@ -11,6 +11,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 import { BSON_TYPES, buildTypedValue } from '../../utils/docEdit'
 import BaseModal from '../base/BaseModal.vue'
 
@@ -97,8 +98,8 @@ const shownError = computed(() => localError.value || props.saveError)
 
         <label v-if="showValueInput" class="fe-row">
           <span class="fe-lbl">Value</span>
-          <textarea v-if="useTextarea" class="fe-input fe-area" v-model="raw" spellcheck="false"
-                    autocomplete="off"></textarea>
+          <BaseTextarea v-if="useTextarea" class="fe-area" v-model="raw" spellcheck="false"
+                    autocomplete="off"></BaseTextarea>
           <BaseInput v-else class="fe-input" v-model="raw" spellcheck="false" autocomplete="off"
                  @enter="onSave" />
         </label>
@@ -128,7 +129,7 @@ const shownError = computed(() => localError.value || props.saveError)
 .fe-input:focus,
 .base-input.fe-input:focus { border-color: var(--accent); }
 .fe-select { width: 100%; }
-.fe-area { resize: vertical; min-height: 96px; line-height: 1.5; }
+.base-textarea.fe-area { min-height: 96px; }
 .fe-hint { margin: -4px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-faint); }
 .fe-error { font-size: 12px; color: var(--danger-text); }
 .fe-footer {

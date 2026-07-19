@@ -7,6 +7,7 @@ import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 
 // Add / Edit Stored Functions for a database (its system.js documents).
 const props = defineProps({
@@ -91,7 +92,7 @@ async function dropFunction(fn) {
         <!-- Editor -->
         <template v-if="editing">
           <BaseInput v-model="editing.name" placeholder="Function name" spellcheck="false" :disabled="busy" />
-          <textarea v-model="editing.body" class="fn-input fn-code" spellcheck="false" placeholder="function () { … }"></textarea>
+          <BaseTextarea v-model="editing.body" class="fn-code" spellcheck="false" placeholder="function () { … }"></BaseTextarea>
           <div v-if="editError" class="fn-error">{{ editError }}</div>
           <div class="fn-actions">
             <BaseButton bordered @click="editing = null">Back</BaseButton>
@@ -127,7 +128,7 @@ async function dropFunction(fn) {
 
 .fn-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 74vh; overflow-y: auto; }
 .fn-bar { display: flex; }
-.fn-code { min-height: 220px; font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; }
+.base-textarea.fn-code { min-height: 220px; }
 .fn-error { font-size: 12px; color: var(--danger-text); }
 .fn-actions { display: flex; justify-content: flex-end; gap: 8px; }
 

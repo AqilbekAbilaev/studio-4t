@@ -9,6 +9,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseTextarea from '../base/BaseTextarea.vue'
 import SelectCard from '../base/SelectCard.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -510,7 +511,7 @@ async function save() {
         <!-- Masking: filter, limit, rules, format, path -->
         <template v-else-if="form.type === 'masking'">
           <label class="tk-lbl">Filter (EJSON)</label>
-          <textarea v-model="form.filter" class="tk-input mono" rows="2" spellcheck="false" placeholder="{}"></textarea>
+          <BaseTextarea v-model="form.filter" class="tk-area" rows="2" spellcheck="false" placeholder="{}"></BaseTextarea>
           <div class="tk-rules-head">
             <label class="tk-lbl">Masking rules</label>
             <BaseButton variant="ghost" size="sm" @click="addRule"><BaseIcon name="plus" :size="11" /> Add rule</BaseButton>
@@ -563,7 +564,7 @@ async function save() {
         <!-- Shell: code -->
         <template v-else-if="form.type === 'shell'">
           <label class="tk-lbl">Script</label>
-          <textarea v-model="form.code" class="tk-input mono" rows="5" spellcheck="false" placeholder="db.collection.find({}).count()"></textarea>
+          <BaseTextarea v-model="form.code" class="tk-area" rows="5" spellcheck="false" placeholder="db.collection.find({}).count()"></BaseTextarea>
         </template>
 
         <!-- Schedule -->
@@ -698,7 +699,7 @@ async function save() {
 }
 .tk-input:focus,
 .base-input.tk-input:focus { outline: none; border-color: var(--accent); }
-.tk-input.mono { font-family: var(--mono); line-height: 1.5; resize: vertical; }
+.base-textarea.tk-area { min-height: 0; }
 .tk-input.narrow,
 .base-input.tk-input.narrow { width: auto; min-width: 120px; }
 .tk-select { width: 100%; }
