@@ -7,6 +7,7 @@ import { valueToClipboard } from '../../utils/clipboardCopy'
 import { dbRefOf, idFilterString } from '../../utils/dbRef'
 import { useResultSearch } from '../../composables/useResultSearch'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseInput from '../base/BaseInput.vue'
 import SearchBar from '../base/SearchBar.vue'
 
 const props = defineProps({
@@ -944,7 +945,7 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
               @contextmenu="openCellCtx($event, vrow.index, cell.col)"
             >
               <template v-if="inlineEdit && inlineEdit.rowIdx === vrow.index && inlineEdit.col === cell.col">
-                <input
+                <BaseInput
                   class="cell-edit-input"
                   v-model="inlineEdit.raw"
                   v-focus
@@ -1192,15 +1193,12 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
 }
 
 /* Inline cell editor */
-.cell-edit-input {
-  width: 100%;
+.base-input.cell-edit-input {
   background: transparent;
   border: none;
-  color: var(--text);
   font-family: var(--mono);
   font-size: 12px;
   padding: 0;
-  outline: none;
 }
 
 /* Search match highlighting */

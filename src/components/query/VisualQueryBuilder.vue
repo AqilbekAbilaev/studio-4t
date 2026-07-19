@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseInput from '../base/BaseInput.vue'
 import {
   OPERATORS,
   detectType,
@@ -194,11 +195,11 @@ function removeSortField(id) {
 
         <div class="cond" v-for="c in conditions" :key="c.id">
           <div class="cond-line">
-            <input
+            <BaseInput
               class="pill cond-field"
               v-model="c.field"
               placeholder="field"
-              @input="applyAndRun"
+              @update:model-value="applyAndRun"
               @keydown.enter.prevent="applyAndExecute"
               spellcheck="false"
             />
@@ -208,11 +209,11 @@ function removeSortField(id) {
           </div>
           <div class="cond-line" v-if="!opNoValue(c.op)">
             <span class="pill type-pill">{{ detectType(c.value) }}</span>
-            <input
+            <BaseInput
               class="pill grow cond-val"
               v-model="c.value"
               :placeholder="c.op === 'in' || c.op === 'nin' ? 'val1, val2, …' : 'value'"
-              @input="applyAndRun"
+              @update:model-value="applyAndRun"
               @keydown.enter.prevent="applyAndExecute"
               spellcheck="false"
             />
@@ -253,7 +254,7 @@ function removeSortField(id) {
           <BaseButton icon="trash" size="sm" :icon-size="18" @click="removeProjField(f.id)" />
         </div>
         <div class="add-field-row">
-          <input
+          <BaseInput
             class="add-field-input"
             v-model="projInput"
             placeholder="field name"
@@ -294,7 +295,7 @@ function removeSortField(id) {
           <BaseButton icon="trash" size="sm" :icon-size="18" @click="removeSortField(f.id)" />
         </div>
         <div class="add-field-row">
-          <input
+          <BaseInput
             class="add-field-input"
             v-model="sortInput"
             placeholder="field name"
@@ -425,7 +426,8 @@ function removeSortField(id) {
 .cond-line:last-child { margin-bottom: 0; }
 
 /* pills */
-.pill {
+.pill,
+.base-input.pill {
   border: 1px solid var(--border-soft);
   border-radius: 5px;
   background: var(--bg-input);
@@ -435,9 +437,12 @@ function removeSortField(id) {
   outline: none;
   min-width: 0;
 }
-.pill:focus { border-color: var(--accent); }
-.pill.grow  { flex: 1; }
-.cond-field { width: 90px; flex: none; }
+.pill:focus,
+.base-input.pill:focus { border-color: var(--accent); }
+.pill.grow,
+.base-input.pill.grow  { flex: 1; }
+.cond-field,
+.base-input.cond-field { width: 90px; flex: none; }
 .type-pill  {
   flex: none;
   font-size: 11px;
@@ -446,7 +451,8 @@ function removeSortField(id) {
   white-space: nowrap;
   cursor: default;
 }
-.cond-val   { font-family: var(--mono); }
+.cond-val,
+.base-input.cond-val   { font-family: var(--mono); }
 
 /* operator dropdown (BaseSelect) — width only; grows to fill the condition line */
 .op-select { min-width: 0; }
@@ -468,10 +474,8 @@ function removeSortField(id) {
 
 /* add-field row */
 .add-field-row { display: flex; gap: 6px; margin-top: 4px; }
-.add-field-input {
-  flex: 1; background: var(--bg-input); border: 1px solid var(--border-soft);
-  border-radius: 5px; color: var(--text); font-size: 12px;
-  padding: 5px 8px; outline: none; min-width: 0;
+.base-input.add-field-input {
+  flex: 1; border-radius: 5px; font-size: 12px;
+  padding: 5px 8px; min-width: 0;
 }
-.add-field-input:focus { border-color: var(--accent); }
 </style>

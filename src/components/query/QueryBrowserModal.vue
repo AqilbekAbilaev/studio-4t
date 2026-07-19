@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseInput from '../base/BaseInput.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 
@@ -71,7 +72,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
       <!-- Search -->
       <div class="qb-search">
         <BaseIcon name="search" :size="14" class="search-ic" />
-        <input
+        <BaseInput
           v-model="search"
           class="search-input"
           placeholder="Search queries…"
@@ -155,15 +156,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
   flex: none;
 }
 .search-ic { color: var(--text-faint); flex: none; }
-.search-input {
+.base-input.search-input {
   flex: 1;
   background: transparent;
   border: none;
-  outline: none;
-  color: var(--text);
+  padding: 0;
   font-size: 13px;
 }
-.search-input::placeholder { color: var(--text-faint); }
 
 /* List */
 .qb-list {

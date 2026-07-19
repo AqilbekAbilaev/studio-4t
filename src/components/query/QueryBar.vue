@@ -302,10 +302,10 @@ watch(() => props.activeTab && props.activeTab.id, () => {
     <div class="qfields">
       <span class="qlabel">Query</span>
       <div class="qinput">
-        <input
+        <BaseInput
           class="qval"
-          :value="activeTab.filter"
-          @input="activeTab.filter = $event.target.value"
+          :model-value="activeTab.filter"
+          @update:model-value="activeTab.filter = $event"
           placeholder="{}"
           spellcheck="false"
           autocorrect="off"
@@ -329,7 +329,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
       </div>
       <span class="qlabel">Sort</span>
       <div class="qinput">
-        <input class="qval" :value="activeTab.sort" @input="activeTab.sort = $event.target.value" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="emit('run')" />
+        <BaseInput class="qval" :model-value="activeTab.sort" @update:model-value="activeTab.sort = $event" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="emit('run')" />
         <span class="qicon-col">
           <BaseIcon name="caret" :size="11" style="transform: rotate(-90deg)" title="Sort by _id ascending (oldest first)" @click="sortById(1)" />
           <BaseIcon name="caret" :size="11" style="transform: rotate(90deg)" title="Sort by _id descending (newest first)" @click="sortById(-1)" />
@@ -339,7 +339,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
 
       <span class="qlabel">Projection</span>
       <div class="qinput">
-        <input class="qval" :value="activeTab.projection" @input="activeTab.projection = $event.target.value" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="emit('run')" />
+        <BaseInput class="qval" :model-value="activeTab.projection" @update:model-value="activeTab.projection = $event" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="emit('run')" />
       </div>
       <div class="num-cluster">
         <span class="qlabel">Limit</span>
@@ -404,17 +404,15 @@ watch(() => props.activeTab && props.activeTab.id, () => {
   min-width: 0;
 }
 .qinput:focus-within { border-color: var(--accent); }
-.qval {
+.base-input.qval {
   flex: 1;
   background: none;
   border: none;
-  outline: none;
-  color: var(--text);
+  padding: 0;
   font-family: var(--mono);
   font-size: 12.5px;
   min-width: 0;
 }
-.qval::placeholder { color: var(--text-faint); }
 .qicons { display: flex; gap: 4px; color: var(--text-faint); flex: none; }
 
 /* Sort spinner: stacked up/down carets that set an _id sort and run. */

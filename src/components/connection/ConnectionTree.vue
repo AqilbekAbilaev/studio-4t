@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errMessage, errCode, errTitle } from '../../utils/errors'
 import { listen } from '@tauri-apps/api/event'
 import BaseIcon from '../base/BaseIcon.vue'
+import BaseInput from '../base/BaseInput.vue'
 import BaseButton from '../base/BaseButton.vue'
 
 const props = defineProps({
@@ -323,7 +324,7 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
     <div class="side-search">
       <div class="search-box">
         <BaseIcon name="search" :size="14" style="color:var(--text-faint);flex:none" />
-        <input v-model="searchText" placeholder="Search open connections (⌘F)" />
+        <BaseInput v-model="searchText" class="tree-search" placeholder="Search open connections (⌘F)" />
       </div>
       <BaseButton icon="textType" size="sm" :icon-size="15" title="Font size" />
     </div>
@@ -466,16 +467,13 @@ defineExpose({ disconnectConn, refreshConn, getConnections, openSelectedCollecti
   padding: 6px 9px;
 }
 
-.search-box input {
+.base-input.tree-search {
   flex: 1;
   background: none;
   border: none;
-  outline: none;
-  color: var(--text);
+  padding: 0;
   font-size: 12.5px;
 }
-
-.search-box input::placeholder { color: var(--text-faint); }
 
 
 .tree {

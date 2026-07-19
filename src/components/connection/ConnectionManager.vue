@@ -426,7 +426,7 @@ const CM_TOOLS = [
                       class="folder-caret"
                     />
                     <BaseIcon name="folder" :size="15" class="folder-ic" />
-                    <input
+                    <BaseInput
                       v-if="renamingFolderId === row.folder.id"
                       class="folder-rename-input"
                       v-model="renameText"
@@ -652,15 +652,11 @@ table.cmt tr.sel .cm-key { color: rgba(255,255,255,.85); }
   border-radius: 9px;
   padding: 1px 8px;
 }
-.folder-rename-input {
-  background: var(--bg-input);
+.base-input.folder-rename-input {
   border: 1px solid var(--accent);
   border-radius: 5px;
   padding: 2px 7px;
-  font-size: 13px;
   font-weight: 600;
-  color: var(--text);
-  outline: none;
   min-width: 160px;
 }
 .folder-actions {
