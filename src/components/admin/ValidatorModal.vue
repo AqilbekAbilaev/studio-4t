@@ -10,6 +10,7 @@ import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import FieldError from '../base/FieldError.vue'
+import FormField from '../base/FormField.vue'
 
 // Add / Edit Validator for a collection. Fetches the current validator on open so an
 // existing rule is never silently overwritten, then writes changes via collMod.
@@ -80,23 +81,22 @@ async function save() {
       <div class="vd-body">
         <StateMessage v-if="loading" mode="loading" label="Loading validator…" />
         <template v-else>
-          <label class="vd-label">Validator (JSON schema document — leave empty to clear)</label>
-          <BaseTextarea
-            v-model="validatorText"
-            class="vd-editor"
-            spellcheck="false"
-            placeholder='{ "$jsonSchema": { "bsonType": "object", "required": ["name"] } }'
-          ></BaseTextarea>
+          <FormField label="Validator (JSON schema document — leave empty to clear)" uppercase>
+            <BaseTextarea
+              v-model="validatorText"
+              class="vd-editor"
+              spellcheck="false"
+              placeholder='{ "$jsonSchema": { "bsonType": "object", "required": ["name"] } }'
+            ></BaseTextarea>
+          </FormField>
 
           <div class="vd-row">
-            <div class="vd-field">
-              <label class="vd-label">Validation Level</label>
+            <FormField label="Validation Level" uppercase class="vd-field">
               <BaseSelect v-model="level" class="vd-select" :options="LEVEL_OPTIONS" />
-            </div>
-            <div class="vd-field">
-              <label class="vd-label">Validation Action</label>
+            </FormField>
+            <FormField label="Validation Action" uppercase class="vd-field">
               <BaseSelect v-model="action" class="vd-select" :options="ACTION_OPTIONS" />
-            </div>
+            </FormField>
           </div>
 
           <FieldError :text="error" />
@@ -124,15 +124,9 @@ async function save() {
   max-height: 70vh;
   overflow-y: auto;
 }
-.vd-label {
-  font-size: 11px;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
 .base-textarea.vd-editor { min-height: 160px; }
 .vd-row { display: flex; gap: 12px; }
-.vd-field { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.vd-field { flex: 1; }
 .vd-select { width: 100%; }
 
 .vd-footer {

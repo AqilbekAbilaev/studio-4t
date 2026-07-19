@@ -14,6 +14,7 @@ import SegmentedControl from '../base/SegmentedControl.vue'
 import TabStrip from '../base/TabStrip.vue'
 import Disclosure from '../base/Disclosure.vue'
 import FieldError from '../base/FieldError.vue'
+import FormField from '../base/FormField.vue'
 import HintText from '../base/HintText.vue'
 import { OPTION_GROUPS, KNOWN_OPTION_KEYS } from '../../data/connectionOptions.js'
 import { partitionUriOptions } from '../../utils/connectionUri.js'
@@ -657,16 +658,14 @@ async function save() {
 
         <!-- Server -->
         <div v-if="activeTab === 'server'" class="nc-form">
-          <div class="nc-field">
-            <label>Connection type</label>
+          <FormField label="Connection type">
             <SegmentedControl
               :model-value="connType"
               :options="[{ value: 'standalone', label: 'Standalone' }, { value: 'replica', label: 'Replica Set' }, { value: 'sharded', label: 'Sharded' }, { value: 'srv', label: 'DNS Seedlist (SRV)' }]"
               @update:model-value="connType = $event"
             />
-          </div>
-          <div class="nc-field">
-            <label>{{ connType === 'srv' ? 'Server (SRV hostname)' : (isMultiHost ? 'Server(s)' : 'Server') }}</label>
+          </FormField>
+          <FormField :label="connType === 'srv' ? 'Server (SRV hostname)' : (isMultiHost ? 'Server(s)' : 'Server')">
             <BaseInput v-if="connType === 'srv'" class="nc-input" v-model="hosts[0].host" placeholder="cluster.example.com" />
             <template v-else>
               <div v-for="(h, i) in hosts" :key="i" class="nc-inline nc-host-row">
@@ -679,15 +678,13 @@ async function save() {
                 <BaseIcon name="plus" :size="12" /> Add host
               </BaseButton>
             </template>
-          </div>
-          <div v-if="connType === 'replica'" class="nc-field">
-            <label>Replica set name</label>
+          </FormField>
+          <FormField v-if="connType === 'replica'" label="Replica set name">
             <BaseInput class="nc-input" v-model="replicaSetName" placeholder="myReplicaSet" />
-          </div>
-          <div v-if="connType !== 'standalone'" class="nc-field">
-            <label>Read preference</label>
+          </FormField>
+          <FormField v-if="connType !== 'standalone'" label="Read preference">
             <BaseSelect class="nc-sel" v-model="readPreference" :options="READ_PREF_OPTIONS" />
-          </div>
+          </FormField>
           <div class="nc-hint">
             OzenDB currently targets MongoDB.
             PostgreSQL &amp; MySQL engines arrive in a future release.
@@ -696,48 +693,42 @@ async function save() {
 
         <!-- Authentication -->
         <div v-else-if="activeTab === 'auth'" class="nc-form">
-          <div class="nc-field">
-            <label>Authentication mode</label>
+          <FormField label="Authentication mode">
             <BaseSelect class="nc-sel" v-model="authMode" :options="authModeOptions">
               <template #option="{ option }">
                 <span>{{ option.label }}</span>
                 <span v-if="option.soon" class="nc-soon">soon</span>
               </template>
             </BaseSelect>
-          </div>
+          </FormField>
 
           <template v-if="authMode !== 'none' && authMode !== 'OIDC'">
-            <div class="nc-field">
-              <label>User name</label>
+            <FormField label="User name">
               <BaseInput class="nc-input" v-model="username" />
-            </div>
-            <div class="nc-field">
-              <label>Password</label>
+            </FormField>
+            <FormField label="Password">
               <BaseInput
                 class="nc-input"
                 type="password"
                 v-model="password"
                 :placeholder="isEditMode ? 'Leave blank to keep existing password' : ''"
               />
-            </div>
-            <div class="nc-field">
-              <label>Authentication DB</label>
+            </FormField>
+            <FormField label="Authentication DB">
               <BaseInput class="nc-input" v-model="authDb" :placeholder="authMode === 'PLAIN' ? '$external' : 'admin'" />
-            </div>
+            </FormField>
             <div v-if="authMode === 'PLAIN'" class="nc-hint">
               LDAP (PLAIN) requires SSL/TLS. Enable SSL in the SSL tab.
             </div>
           </template>
 
           <template v-else-if="authMode === 'OIDC'">
-            <div class="nc-field">
-              <label>Environment</label>
+            <FormField label="Environment">
               <BaseSelect class="nc-sel" v-model="oidcEnvironment" :options="OIDC_ENVIRONMENTS" />
-            </div>
-            <div v-if="oidcNeedsResource" class="nc-field">
-              <label>Token resource</label>
+            </FormField>
+            <FormField v-if="oidcNeedsResource" label="Token resource">
               <BaseInput class="nc-input" v-model="oidcTokenResource" spellcheck="false" placeholder="e.g. api://&lt;app-id&gt;" />
-            </div>
+            </FormField>
             <div class="nc-hint">
               Workload-identity OIDC: the token is obtained from the {{ oidcEnvironment }} environment — no username or password.
               Interactive (device-flow) OIDC isn't supported yet.
@@ -754,44 +745,37 @@ async function save() {
 
           <template v-if="useSsh">
             <div class="nc-inline2">
-              <div class="nc-field" style="flex:1">
-                <label>SSH host</label>
+              <FormField label="SSH host" style="flex:1">
                 <BaseInput class="nc-input" v-model="sshHost" placeholder="bastion.example.com" spellcheck="false" />
-              </div>
-              <div class="nc-field" style="width:92px">
-                <label>Port</label>
+              </FormField>
+              <FormField label="Port" style="width:92px">
                 <BaseInput class="nc-input" type="number" v-model="sshPort" />
-              </div>
+              </FormField>
             </div>
-            <div class="nc-field">
-              <label>SSH user</label>
+            <FormField label="SSH user">
               <BaseInput class="nc-input" v-model="sshUser" spellcheck="false" />
-            </div>
-            <div class="nc-field">
-              <label>Authentication</label>
+            </FormField>
+            <FormField label="Authentication">
               <SegmentedControl
                 :model-value="sshAuth"
                 :options="[{ value: 'password', label: 'Password' }, { value: 'key', label: 'Private key' }]"
                 @update:model-value="sshAuth = $event"
               />
-            </div>
+            </FormField>
 
-            <div v-if="sshAuth === 'password'" class="nc-field">
-              <label>SSH password</label>
+            <FormField v-if="sshAuth === 'password'" label="SSH password">
               <BaseInput class="nc-input" type="password" v-model="sshPassword" :placeholder="isEditMode ? 'Leave blank to keep existing' : ''" />
-            </div>
+            </FormField>
             <template v-else>
-              <div class="nc-field">
-                <label>Private key file</label>
+              <FormField label="Private key file">
                 <div class="nc-file-row">
                   <BaseInput class="nc-input" v-model="sshKeyFile" placeholder="~/.ssh/id_ed25519" spellcheck="false" />
                   <BaseButton bordered type="button" @click="pickSshKey">Browse…</BaseButton>
                 </div>
-              </div>
-              <div class="nc-field">
-                <label>Key passphrase (optional)</label>
+              </FormField>
+              <FormField label="Key passphrase (optional)">
                 <BaseInput class="nc-input" type="password" v-model="sshKeyPassphrase" :placeholder="isEditMode ? 'Leave blank to keep existing' : ''" />
-              </div>
+              </FormField>
             </template>
 
             <div class="nc-hint">The MongoDB host/port (Server tab) are resolved from the SSH host. Standalone connections only — replica set / SRV over SSH aren't supported yet.</div>
@@ -806,21 +790,19 @@ async function save() {
           </label>
 
           <template v-if="useTls">
-            <div class="nc-field">
-              <label>Certificate Authority (.pem)</label>
+            <FormField label="Certificate Authority (.pem)">
               <div class="nc-file-row">
                 <BaseInput class="nc-input" v-model="tlsCaFile" placeholder="Path to CA certificate" spellcheck="false" />
                 <BaseButton bordered type="button" @click="pickTlsFile('ca')">Browse…</BaseButton>
               </div>
-            </div>
+            </FormField>
 
-            <div class="nc-field">
-              <label>Client Certificate + Key (.pem)</label>
+            <FormField label="Client Certificate + Key (.pem)">
               <div class="nc-file-row">
                 <BaseInput class="nc-input" v-model="tlsCertKeyFile" placeholder="Path to client certificate (optional)" spellcheck="false" />
                 <BaseButton bordered type="button" @click="pickTlsFile('cert')">Browse…</BaseButton>
               </div>
-            </div>
+            </FormField>
 
             <label class="chk-line" @click="tlsAllowInvalidCerts = !tlsAllowInvalidCerts">
               <span class="cb" :class="{ on: tlsAllowInvalidCerts }"><BaseIcon v-if="tlsAllowInvalidCerts" name="check" :size="12" /></span>
@@ -847,11 +829,11 @@ async function save() {
             </Disclosure>
             <template v-if="openGroups[group.title]">
               <template v-for="opt in group.options" :key="opt.key">
-              <div v-if="optionVisible(opt)" class="nc-field">
-                <label>
+              <FormField v-if="optionVisible(opt)">
+                <template #label>
                   {{ opt.label }}
                   <span class="nc-adv-key">{{ opt.key }}</span>
-                </label>
+                </template>
 
                 <BaseSelect
                   v-if="opt.type === 'bool'"
@@ -879,7 +861,7 @@ async function save() {
                 />
 
                 <HintText v-if="opt.hint">{{ opt.hint }}</HintText>
-              </div>
+              </FormField>
               </template>
             </template>
           </template>
@@ -892,8 +874,7 @@ async function save() {
             <span class="nc-adv-group-t">Appearance</span>
             <span v-if="selectedTag !== 'none'" class="nc-adv-badge">1 set</span>
           </Disclosure>
-          <div v-if="openGroups.Appearance" class="nc-field">
-            <label>Color tag</label>
+          <FormField v-if="openGroups.Appearance" label="Color tag">
             <div class="tag-row">
               <span
                 v-for="t in ['none','blue','green','purple','red']"
@@ -906,7 +887,7 @@ async function save() {
                 @click="selectedTag = t"
               ></span>
             </div>
-          </div>
+          </FormField>
 
           <label class="chk-line nc-readonly" @click="readOnly = !readOnly">
             <span class="cb" :class="{ on: readOnly }"><BaseIcon v-if="readOnly" name="check" :size="12" /></span>
@@ -980,12 +961,9 @@ async function save() {
 /* ── Tab body ── */
 .nc-body { flex: 1; overflow-y: auto; padding: 18px; }
 .nc-form { display: flex; flex-direction: column; gap: 15px; max-width: 560px; }
-.nc-field { display: flex; flex-direction: column; gap: 6px; }
-.nc-field > label { font-size: 12px; color: var(--text-dim); }
 .nc-file-row { display: flex; gap: 8px; align-items: center; }
 .nc-inline  { display: flex; align-items: center; gap: 8px; }
 .nc-inline2 { display: flex; gap: 14px; }
-.nc-inline2 .nc-field { flex: 1; }
 .nc-colon { color: var(--text-faint); }
 .nc-host-row { margin-bottom: 8px; }
 .base-btn.nc-host-add {

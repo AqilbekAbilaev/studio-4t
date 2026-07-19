@@ -5,6 +5,7 @@ import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import BaseButton from "../base/BaseButton.vue";
 import BaseInput from "../base/BaseInput.vue";
+import FormField from "../base/FormField.vue";
 import TabStrip from "../base/TabStrip.vue";
 
 const activeTab = ref("server");
@@ -101,49 +102,41 @@ async function cancel() {
 
     <div class="tab-content">
       <div v-if="activeTab === 'server'" class="fields">
-        <div class="field">
-          <label>Connection Name</label>
+        <FormField label="Connection Name">
           <BaseInput v-model="name" type="text" placeholder="My Connection" />
-        </div>
+        </FormField>
         <div class="field-row">
-          <div class="field flex-3">
-            <label>Host</label>
+          <FormField label="Host" class="flex-3">
             <BaseInput v-model="host" type="text" placeholder="localhost" />
-          </div>
-          <div class="field flex-1">
-            <label>Port</label>
+          </FormField>
+          <FormField label="Port" class="flex-1">
             <BaseInput v-model="port" type="number" placeholder="27017" />
-          </div>
+          </FormField>
         </div>
         <div class="section-label">Authentication (optional)</div>
-        <div class="field">
-          <label>Username</label>
+        <FormField label="Username">
           <BaseInput v-model="username" type="text" placeholder="" />
-        </div>
-        <div class="field">
-          <label>Password</label>
+        </FormField>
+        <FormField label="Password">
           <BaseInput v-model="password" type="password" placeholder="" />
-        </div>
-        <div class="field">
-          <label>Auth Database</label>
+        </FormField>
+        <FormField label="Auth Database">
           <BaseInput v-model="authDatabase" type="text" placeholder="admin" />
-        </div>
+        </FormField>
       </div>
 
       <div v-if="activeTab === 'uri'" class="fields">
-        <div class="field">
-          <label>Connection Name</label>
+        <FormField label="Connection Name">
           <BaseInput v-model="name" type="text" placeholder="My Connection" />
-        </div>
-        <div class="field">
-          <label>URI</label>
+        </FormField>
+        <FormField label="URI">
           <BaseInput
             v-model="manualUri"
             type="text"
             placeholder="mongodb://localhost:27017"
             class="uri-input"
           />
-        </div>
+        </FormField>
       </div>
 
       <div v-if="status" class="status" :class="status.type">
@@ -214,12 +207,6 @@ html {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .field-row {
