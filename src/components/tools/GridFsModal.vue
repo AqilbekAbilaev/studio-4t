@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
+import { useConfirmDelete } from '../../composables/useConfirmDelete'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -30,7 +31,7 @@ const loading = ref(true)
 const busy = ref(false)
 const error = ref(null)
 const errorCode = ref(null)
-const pendingDelete = ref(null)  // file id armed for a confirming second click
+const { pendingId: pendingDelete, confirmDelete: confirmDeleteFile, reset: resetDelete } = useConfirmDelete()
 
 // Row selection, so the GridFS menu actions have a target file.
 const selectedId = ref(null)
@@ -197,7 +198,7 @@ async function loadBuckets() {
 async function loadFiles() {
   loading.value = true
   error.value = null
-  pendingDelete.value = null
+  resetDelete()
   try {
     files.value = await invoke('list_gridfs_files', {
       id: props.target.connId,
@@ -272,10 +273,7 @@ async function download(file) {
 }
 
 async function confirmDelete(file) {
-  if (pendingDelete.value !== file.id) {
-    pendingDelete.value = file.id
-    return
-  }
+  if (!confirmDeleteFile(file.id)) return
   busy.value = true
   try {
     await invoke('gridfs_delete', {
@@ -291,7 +289,6 @@ async function confirmDelete(file) {
     errorCode.value = errCode(e)
   } finally {
     busy.value = false
-    pendingDelete.value = null
   }
 }
 
