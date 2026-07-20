@@ -12,6 +12,7 @@ import BaseInput from '../base/BaseInput.vue'
 import BaseCheckbox from '../base/BaseCheckbox.vue'
 import ReorderButtons from '../base/ReorderButtons.vue'
 import HintText from '../base/HintText.vue'
+import FormField from '../base/FormField.vue'
 
 const IMPORT_FORMATS = [
   { value: 'json', label: 'JSON' },
@@ -321,10 +322,9 @@ const titleText = computed(
             <BaseButton bordered @click="pickFile">Choose file…</BaseButton>
             <code class="iew-path" :title="filePath">{{ filePath || 'No file selected' }}</code>
           </div>
-          <label class="iew-f">
-            Format
+          <FormField label="Format">
             <BaseSelect v-model="format" class="iew-select" :options="IMPORT_FORMATS" size="sm" />
-          </label>
+          </FormField>
         </template>
 
         <!-- Field mapping (import step 1 / export step 0) -->
@@ -367,10 +367,9 @@ const titleText = computed(
               <template v-if="isImport"> Types are applied on import.</template>
             </HintText>
             <div v-if="!isImport" class="iew-export-opts">
-              <label class="iew-f">
-                Format
+              <FormField label="Format">
                 <BaseSelect v-model="format" class="iew-select" :options="EXPORT_FORMATS" size="sm" />
-              </label>
+              </FormField>
               <label class="iew-f iew-inc" title="Export only documents added since this collection's last incremental export (tracked by _id)">
                 <BaseCheckbox v-model="incremental" />
                 Incremental (new only)
@@ -496,7 +495,6 @@ const titleText = computed(
 .iew-select { min-width: 110px; }
 .iew-order { display: flex; gap: 4px; }
 
-.iew-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
 .iew-export-opts { display: flex; align-items: center; gap: 16px; flex: none; }
 .iew-inc { cursor: pointer; }
 .iew-inc input { cursor: pointer; }

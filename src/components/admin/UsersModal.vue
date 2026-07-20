@@ -10,6 +10,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import FieldError from '../base/FieldError.vue'
 import HintText from '../base/HintText.vue'
+import FormField from '../base/FormField.vue'
 
 // Manage Users for a database: list, create, and drop users (via usersInfo /
 // createUser / dropUser).
@@ -150,12 +151,14 @@ function copyText(text) {
 
         <div v-if="showCopy" class="um-copy">
           <div class="um-copy-row">
-            <label class="um-copy-lbl">Target connection</label>
-            <BaseSelect v-model="copyTargetConn" class="um-select" :options="connOptions" />
+            <FormField label="Target connection">
+              <BaseSelect v-model="copyTargetConn" class="um-select" :options="connOptions" />
+            </FormField>
           </div>
           <div class="um-copy-row">
-            <label class="um-copy-lbl">Target database</label>
-            <BaseInput v-model="copyTargetDb" spellcheck="false" placeholder="database" />
+            <FormField label="Target database">
+              <BaseInput v-model="copyTargetDb" spellcheck="false" placeholder="database" />
+            </FormField>
           </div>
           <HintText dim class="um-copy-note">
             Roles are copied as-is. Passwords can't be transferred — each user is created with a
@@ -247,7 +250,6 @@ function copyText(text) {
 .um-bar { gap: 8px; }
 .um-copy { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }
 .um-copy-row { display: flex; align-items: center; gap: 10px; }
-.um-copy-lbl { width: 140px; flex: none; font-size: 12px; color: var(--text-dim); }
 .um-copy-note { margin: 2px 0 0; }
 .um-copy-note strong { color: var(--text); }
 .um-copy-results { margin-top: 6px; }

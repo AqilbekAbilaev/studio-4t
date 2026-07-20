@@ -10,6 +10,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import HintText from '../base/HintText.vue'
+import FormField from '../base/FormField.vue'
 
 // Top-bar "Data Masking" tool for the active collection. Lists the collection's
 // fields (from a sample document) and lets the user pick a masking strategy per
@@ -164,14 +165,12 @@ async function runExport() {
           <StateMessage v-if="error && fields.length" mode="error" :message="error" :code="errorCode" />
 
           <div class="mk-footer">
-            <label class="mk-f">
-              Format
+            <FormField label="Format">
               <BaseSelect v-model="format" class="mk-select" :options="FORMAT_OPTIONS" size="sm" />
-            </label>
-            <label class="mk-f">
-              Limit
+            </FormField>
+            <FormField label="Limit">
               <BaseInput v-model="limit" type="number" min="1" placeholder="all" class="mk-num wide" />
-            </label>
+            </FormField>
             <span class="mk-summary">{{ maskedCount }} field{{ maskedCount === 1 ? '' : 's' }} masked</span>
             <BaseButton variant="primary" :disabled="exporting" @click="runExport">
               {{ exporting ? 'Exporting…' : 'Export masked copy' }}
@@ -237,6 +236,5 @@ async function runExport() {
   padding-top: 10px;
   border-top: 1px solid var(--border-soft);
 }
-.mk-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
 .mk-summary { font-size: 12px; color: var(--text-faint); margin-left: auto; }
 </style>

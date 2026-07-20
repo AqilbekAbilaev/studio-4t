@@ -7,6 +7,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import FormField from '../base/FormField.vue'
 
 // Top-bar "SQL Migration" for the active collection. Generates a CREATE TABLE +
 // INSERT script from the collection, the way Studio-3T's SQL Migration does.
@@ -65,14 +66,12 @@ async function copy() {
 
       <div class="mg-body">
         <div class="mg-controls">
-          <label class="mg-f">
-            Table name
+          <FormField label="Table name">
             <BaseInput v-model="tableName" spellcheck="false" />
-          </label>
-          <label class="mg-f">
-            Limit
+          </FormField>
+          <FormField label="Limit">
             <BaseInput v-model="limit" type="number" min="1" class="mg-num" />
-          </label>
+          </FormField>
           <BaseButton variant="primary" :disabled="loading" @click="generate">
             {{ loading ? 'Generating…' : 'Generate' }}
           </BaseButton>
@@ -103,13 +102,6 @@ async function copy() {
   display: flex;
   align-items: flex-end;
   gap: 12px;
-}
-.mg-f {
-  font-size: 12px;
-  color: var(--text-dim);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 .base-input.mg-num { width: 90px; }
 .mg-copy { margin-left: auto; }
