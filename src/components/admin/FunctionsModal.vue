@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
+import { useConfirmDelete } from '../../composables/useConfirmDelete'
 import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -20,7 +21,7 @@ const loading = ref(true)
 const busy = ref(false)
 const error = ref(null)
 const functions = ref([])
-const pendingDrop = ref(null)
+const { pendingId: pendingDrop, confirmDelete } = useConfirmDelete()
 
 // The function being edited (null = list view). name is blank for a new one.
 const editing = ref(null)   // { name, body } | null
@@ -72,7 +73,7 @@ async function saveFunction() {
 }
 
 async function dropFunction(fn) {
-  if (pendingDrop.value !== fn.name) { pendingDrop.value = fn.name; return }
+  if (!confirmDelete(fn.name)) return
   busy.value = true
   try {
     await invoke('drop_function', { id: props.target.connId, database: props.target.dbName, name: fn.name })
@@ -81,7 +82,6 @@ async function dropFunction(fn) {
     error.value = errText(e)
   } finally {
     busy.value = false
-    pendingDrop.value = null
   }
 }
 </script>

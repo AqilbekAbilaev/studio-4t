@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
+import { useConfirmDelete } from '../../composables/useConfirmDelete'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -22,7 +23,7 @@ const loading = ref(true)
 const busy = ref(false)
 const error = ref(null)
 const users = ref([])
-const pendingDrop = ref(null)  // username armed for a confirming second click
+const { pendingId: pendingDrop, confirmDelete } = useConfirmDelete()
 
 const showCreate = ref(false)
 const newName = ref('')
@@ -71,7 +72,7 @@ async function createUser() {
 }
 
 async function dropUser(user) {
-  if (pendingDrop.value !== user.user) { pendingDrop.value = user.user; return }
+  if (!confirmDelete(user.user)) return
   busy.value = true
   try {
     await invoke('drop_user', { id: props.target.connId, database: props.target.dbName, username: user.user })
@@ -80,7 +81,6 @@ async function dropUser(user) {
     error.value = errText(e)
   } finally {
     busy.value = false
-    pendingDrop.value = null
   }
 }
 

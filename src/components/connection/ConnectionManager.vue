@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText } from '../../utils/errors'
+import { useConfirmDelete } from '../../composables/useConfirmDelete'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
@@ -26,7 +27,7 @@ const folders          = ref([])
 const expandedFolders  = ref([])      // folder ids currently expanded (default: all)
 const renamingFolderId = ref(null)
 const renameText       = ref('')
-const pendingDeleteId  = ref(null)    // folder id armed for a confirming second click
+const { pendingId: pendingDeleteId, confirmDelete, reset: resetDelete } = useConfirmDelete()
 const ctxMenu          = ref(null)    // { x, y, connId } for the move-to-folder context menu
 
 const TAG_COLORS = {
@@ -207,7 +208,7 @@ const rootConns = computed(() =>
 function isExpanded(id) { return expandedFolders.value.includes(id) }
 
 function toggleFolder(id) {
-  pendingDeleteId.value = null
+  resetDelete()
   const i = expandedFolders.value.indexOf(id)
   if (i === -1) expandedFolders.value.push(id)
   else expandedFolders.value.splice(i, 1)
@@ -282,12 +283,7 @@ function cancelRenameFolder() {
 }
 
 async function deleteFolder(f) {
-  // Two-click confirm: first click arms, second click deletes.
-  if (pendingDeleteId.value !== f.id) {
-    pendingDeleteId.value = f.id
-    return
-  }
-  pendingDeleteId.value = null
+  if (!confirmDelete(f.id)) return
   try {
     await invoke('delete_folder', { id: f.id })
     folders.value = folders.value.filter(x => x.id !== f.id)
@@ -300,7 +296,7 @@ async function deleteFolder(f) {
 
 function openMoveMenu(event, conn) {
   selectedId.value = conn.id
-  pendingDeleteId.value = null
+  resetDelete()
   ctxMenu.value = { x: event.clientX, y: event.clientY, connId: conn.id }
 }
 
@@ -464,7 +460,7 @@ const CM_TOOLS = [
               <tr
                 v-else
                 :class="{ sel: row.conn.id === selectedId }"
-                @click="selectedId = row.conn.id; pendingDeleteId = null"
+                @click="selectedId = row.conn.id; resetDelete()"
                 @dblclick="editSelected"
                 @contextmenu.prevent="openMoveMenu($event, row.conn)"
               >
