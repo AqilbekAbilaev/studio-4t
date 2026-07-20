@@ -12,6 +12,7 @@ import ResultsPanel from '../results/ResultsPanel.vue'
 const ShellConsole = defineAsyncComponent(() => import('../app/ShellConsole.vue'))
 import IndexManagerPane from './IndexManagerPane.vue'
 import ImportPane from './ImportPane.vue'
+import CsvImportPane from './CsvImportPane.vue'
 import QueryBrowserModal from './QueryBrowserModal.vue'
 import { parseField, parsePipeline } from '../../utils/queryParser'
 
@@ -275,7 +276,8 @@ async function applyFromBrowser(entry) {
     <!-- Index Manager -->
     <IndexManagerPane v-else-if="activeTab.kind === 'indexes'" :active-tab="activeTab" />
 
-    <!-- Import -->
+    <!-- Import (CSV uses the single-source, sub-tab layout; JSON the multi-source table) -->
+    <CsvImportPane v-else-if="activeTab.kind === 'import' && activeTab.format === 'csv'" :active-tab="activeTab" />
     <ImportPane v-else-if="activeTab.kind === 'import'" :active-tab="activeTab" />
 
     <!-- Collection workspace -->

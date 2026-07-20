@@ -683,16 +683,33 @@ function openIndexManagerTab({ connId, connName, dbName, collName }) {
 // this connection; Run loops over the sources on the frontend.
 function openImportTab({ connId, connName, dbName, collName }, format) {
   const id = 't' + Date.now()
-  tabs.value.push({
+  const base = {
     id: id, kind: 'import',
     title: 'Import: ' + collName,
     connId: connId, connName: connName, dbName: dbName, collName: collName,
     format: format,
-    validate: false,
-    sources: [],            // { path, name, targetDb, targetColl, mode }
-    selectedSource: -1,
-    previewOpen: false,
-  })
+  }
+  if (format === 'csv') {
+    // CSV is single-source with Source/Target sub-tabs and per-file CSV options.
+    tabs.value.push({
+      ...base,
+      subTab: 'source',           // 'source' | 'target'
+      sourceType: 'file',         // 'clipboard' | 'file'
+      filePath: '',
+      csv: { delimiter: ',', other: '', qualifier: '"', skipLines: 0, hasHeader: true },
+      targetDb: dbName, targetColl: collName, mode: 'insert',
+      fields: [],                 // column → field mapping (Target options)
+    })
+  } else {
+    // JSON is a multi-source table.
+    tabs.value.push({
+      ...base,
+      validate: false,
+      sources: [],                // { path, name, targetDb, targetColl, mode }
+      selectedSource: -1,
+      previewOpen: false,
+    })
+  }
   activeTabId.value = id
 }
 

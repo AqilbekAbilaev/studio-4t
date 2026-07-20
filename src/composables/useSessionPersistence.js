@@ -19,11 +19,28 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
       }
     }
     if (t.kind === 'import') {
-      return {
+      const target = {
         id: t.id, kind: 'import', title: t.title, color: t.color,
         connId: t.connId, connName: t.connName,
         dbName: t.dbName, collName: t.collName,
-        format: t.format, validate: !!t.validate,
+        format: t.format,
+      }
+      if (t.format === 'csv') {
+        // CSV: single source + options + target. The field mapping is re-derived
+        // from the source preview, so it isn't stored.
+        return {
+          ...target,
+          sourceType: t.sourceType, filePath: t.filePath || '',
+          csv: {
+            delimiter: t.csv.delimiter, other: t.csv.other,
+            qualifier: t.csv.qualifier, skipLines: t.csv.skipLines, hasHeader: t.csv.hasHeader,
+          },
+          targetDb: t.targetDb, targetColl: t.targetColl, mode: t.mode,
+        }
+      }
+      return {
+        ...target,
+        validate: !!t.validate,
         sources: (t.sources || []).map(s => ({
           path: s.path, name: s.name,
           targetDb: s.targetDb, targetColl: s.targetColl, mode: s.mode,
@@ -70,20 +87,37 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
           // drop tabs for deleted connections (import tabs key on connId)
           .filter(t => validIds.has(t.connectionId || t.connId))
           .map(t => t.kind === 'import'
-            ? {
-                // Restore the import tab with its sources; preview is re-derived on
-                // demand (the referenced files may have changed).
-                id: t.id, kind: 'import', title: t.title, color: t.color,
-                connId: t.connId, connName: t.connName,
-                dbName: t.dbName, collName: t.collName,
-                format: t.format, validate: !!t.validate,
-                sources: (t.sources || []).map(s => ({
-                  path: s.path, name: s.name,
-                  targetDb: s.targetDb, targetColl: s.targetColl, mode: s.mode,
-                })),
-                selectedSource: (t.sources && t.sources.length) ? 0 : -1,
-                previewOpen: false,
-              }
+            ? (t.format === 'csv'
+              ? {
+                  // CSV import tab. The field mapping is re-derived from the source
+                  // preview (the referenced file may have changed), so start empty.
+                  id: t.id, kind: 'import', title: t.title, color: t.color,
+                  connId: t.connId, connName: t.connName,
+                  dbName: t.dbName, collName: t.collName,
+                  format: 'csv',
+                  subTab: 'source',
+                  sourceType: t.sourceType || 'file', filePath: t.filePath || '',
+                  csv: {
+                    delimiter: t.csv?.delimiter ?? ',', other: t.csv?.other ?? '',
+                    qualifier: t.csv?.qualifier ?? '"', skipLines: t.csv?.skipLines ?? 0,
+                    hasHeader: t.csv?.hasHeader ?? true,
+                  },
+                  targetDb: t.targetDb, targetColl: t.targetColl, mode: t.mode || 'insert',
+                  fields: [],
+                }
+              : {
+                  // JSON import tab: restore its sources; preview is re-derived on demand.
+                  id: t.id, kind: 'import', title: t.title, color: t.color,
+                  connId: t.connId, connName: t.connName,
+                  dbName: t.dbName, collName: t.collName,
+                  format: t.format, validate: !!t.validate,
+                  sources: (t.sources || []).map(s => ({
+                    path: s.path, name: s.name,
+                    targetDb: s.targetDb, targetColl: s.targetColl, mode: s.mode,
+                  })),
+                  selectedSource: (t.sources && t.sources.length) ? 0 : -1,
+                  previewOpen: false,
+                })
             : t.kind === 'shell'
             ? {
                 // Rebuild a shell tab with a fresh backend session (JS contexts are
