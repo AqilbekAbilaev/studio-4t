@@ -24,6 +24,7 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
               dbName: t.dbName, collectionName: t.collectionName,
               filter: t.filter, sort: t.sort, projection: t.projection,
               skip: t.skip, limit: t.limit, mode: t.mode, pipeline: t.pipeline,
+              vqb: t.vqb,
             }),
     }
   }
