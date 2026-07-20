@@ -8,6 +8,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Opened from App.vue for a collection node. Samples documents server-side and
 // infers the field/type shape, the way Studio-3T's Schema Explorer does.
@@ -138,7 +139,7 @@ const fields = computed(() => (report.value ? report.value.fields : []))
 <template>
   <BaseModal :title="`Schema — ${target.dbName}.${target.collName}`" width="680px" max-width="92vw" @close="$emit('close')">
 
-      <div class="sc-body">
+      <BaseModalBody>
         <div class="sc-controls">
           <label class="sc-sample">
             Sample size
@@ -213,21 +214,13 @@ const fields = computed(() => (report.value ? report.value.fields : []))
             </div>
           </div>
         </template>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.sc-body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 200px;
-  max-height: 72vh;
-  overflow: hidden;
-}
+
 .sc-controls {
   display: flex;
   align-items: center;

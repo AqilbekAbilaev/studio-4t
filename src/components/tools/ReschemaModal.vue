@@ -12,6 +12,8 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import HintText from '../base/HintText.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
+import BaseModalFoot from '../base/BaseModalFoot.vue'
 
 // Top-bar "Reschema" tool for the active collection. Builds an ordered list of
 // transform ops (rename / remove / change type / move nested) and runs them as a
@@ -196,7 +198,7 @@ async function runApply() {
 <template>
   <BaseModal :title="`Reschema — ${target.dbName}.${target.collName}`" width="760px" max-width="94vw" @close="$emit('close')">
 
-      <div class="rs-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" label="Reading fields…" />
         <template v-else>
           <HintText dim>
@@ -261,44 +263,37 @@ async function runApply() {
               </div>
             </div>
           </div>
-
-          <div class="rs-footer">
-            <label class="rs-f">
-              <BaseRadio value="in_place" v-model="mode" /> In place
-            </label>
-            <label class="rs-f">
-              <BaseRadio value="new_collection" v-model="mode" /> New collection
-            </label>
-            <BaseInput
-              v-if="mode === 'new_collection'"
-              v-model="newName"
-              class="rs-input"
-              placeholder="new collection name"
-            />
-            <span class="rs-spacer" />
-            <BaseButton bordered :disabled="!canRun || previewing" @click="runPreview">
-              {{ previewing ? 'Previewing…' : 'Preview' }}
-            </BaseButton>
-            <BaseButton variant="primary" :disabled="!canRun || applying" @click="runApply">
-              {{ applying ? 'Applying…' : 'Apply' }}
-            </BaseButton>
-          </div>
         </template>
-      </div>
+      </BaseModalBody>
+
+      <BaseModalFoot v-if="!loading">
+        <template #left>
+          <label class="rs-f">
+            <BaseRadio value="in_place" v-model="mode" /> In place
+          </label>
+          <label class="rs-f">
+            <BaseRadio value="new_collection" v-model="mode" /> New collection
+          </label>
+          <BaseInput
+            v-if="mode === 'new_collection'"
+            v-model="newName"
+            class="rs-input"
+            placeholder="new collection name"
+          />
+        </template>
+        <BaseButton bordered :disabled="!canRun || previewing" @click="runPreview">
+          {{ previewing ? 'Previewing…' : 'Preview' }}
+        </BaseButton>
+        <BaseButton variant="primary" :disabled="!canRun || applying" @click="runApply">
+          {{ applying ? 'Applying…' : 'Apply' }}
+        </BaseButton>
+      </BaseModalFoot>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.rs-body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 220px;
-  max-height: 80vh;
-  overflow-y: auto;
-}
+
 
 .rs-ops { display: flex; flex-direction: column; gap: 6px; }
 .rs-op {
@@ -353,13 +348,7 @@ async function runApply() {
 }
 .rs-doc:last-child { margin-bottom: 0; }
 
-.rs-footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-soft);
-}
+
 .rs-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; cursor: pointer; }
 .rs-spacer { margin-left: auto; }
 </style>

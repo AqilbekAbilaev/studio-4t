@@ -9,6 +9,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import FieldError from '../base/FieldError.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Add / Edit Stored Functions for a database (its system.js documents).
 const props = defineProps({
@@ -89,7 +90,7 @@ async function dropFunction(fn) {
 <template>
   <BaseModal :title="`Stored Functions — ${target.dbName}`" width="620px" max-width="92vw" @close="$emit('close')">
 
-      <div class="fn-body">
+      <BaseModalBody>
         <!-- Editor -->
         <template v-if="editing">
           <BaseInput v-model="editing.name" placeholder="Function name" spellcheck="false" :disabled="busy" />
@@ -121,13 +122,13 @@ async function dropFunction(fn) {
             </div>
           </div>
         </template>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.fn-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 74vh; overflow-y: auto; }
+
 .fn-bar { display: flex; }
 .base-textarea.fn-code { min-height: 220px; }
 .fn-actions { display: flex; justify-content: flex-end; gap: 8px; }

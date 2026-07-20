@@ -8,6 +8,7 @@ import Disclosure from '../base/Disclosure.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Top-bar "Compare" for a database: diff two collections by _id, the way
 // Studio-3T's Data Compare does.
@@ -74,7 +75,7 @@ function j(v) {
 <template>
   <BaseModal :title="`Compare — ${target.dbName}`" width="760px" max-width="94vw" @close="$emit('close')">
 
-      <div class="cm-body">
+      <BaseModalBody>
         <StateMessage v-if="initErr" mode="error" :message="initErr" />
         <template v-else>
           <div class="cm-pick">
@@ -142,21 +143,13 @@ function j(v) {
             </div>
           </template>
         </template>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.cm-body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 220px;
-  max-height: 76vh;
-  overflow: hidden;
-}
+
 .cm-pick { display: flex; align-items: flex-end; gap: 12px; }
 .cm-f { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .cm-select { width: 100%; }

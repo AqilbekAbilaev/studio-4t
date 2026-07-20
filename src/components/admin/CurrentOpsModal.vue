@@ -5,6 +5,7 @@ import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import RawToggle from '../base/RawToggle.vue'
 import StateMessage from '../base/StateMessage.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 import BaseModal from '../base/BaseModal.vue'
 
 // Opened from App.vue for a connection node. Fetches admin `currentOp` once and lists
@@ -51,7 +52,7 @@ const rawJson = computed(() =>
 <template>
   <BaseModal :title="`Current Operations — ${target.connName}`" width="720px" max-width="92vw" @close="$emit('close')">
 
-      <div class="ss-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" label="Fetching current operations…" />
         <StateMessage
           v-else-if="error"
@@ -89,21 +90,13 @@ const rawJson = computed(() =>
           <RawToggle v-model="showRaw" label="Raw currentOp" />
           <pre v-if="showRaw" class="ss-raw">{{ rawJson }}</pre>
         </template>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.ss-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 160px;
-  max-height: 70vh;
-  overflow-y: auto;
-}
+
 
 .ops-table {
   width: 100%;

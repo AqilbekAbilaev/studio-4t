@@ -10,6 +10,8 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import HintText from '../base/HintText.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
+import BaseModalFoot from '../base/BaseModalFoot.vue'
 
 // Top-bar "Data Masking" tool for the active collection. Lists the collection's
 // fields (from a sample document) and lets the user pick a masking strategy per
@@ -123,7 +125,7 @@ async function runExport() {
 <template>
   <BaseModal :title="`Data Masking — ${target.dbName}.${target.collName}`" width="640px" max-width="92vw" @close="$emit('close')">
 
-      <div class="mk-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" label="Reading fields…" />
         <StateMessage
           v-else-if="error && !fields.length"
@@ -162,37 +164,31 @@ async function runExport() {
           </div>
 
           <StateMessage v-if="error && fields.length" mode="error" :message="error" :code="errorCode" />
-
-          <div class="mk-footer">
-            <label class="mk-f">
-              Format
-              <BaseSelect v-model="format" class="mk-select" :options="FORMAT_OPTIONS" size="sm" />
-            </label>
-            <label class="mk-f">
-              Limit
-              <BaseInput v-model="limit" type="number" min="1" placeholder="all" class="mk-num wide" />
-            </label>
-            <span class="mk-summary">{{ maskedCount }} field{{ maskedCount === 1 ? '' : 's' }} masked</span>
-            <BaseButton variant="primary" :disabled="exporting" @click="runExport">
-              {{ exporting ? 'Exporting…' : 'Export masked copy' }}
-            </BaseButton>
-          </div>
         </template>
-      </div>
+      </BaseModalBody>
+
+      <BaseModalFoot v-if="fields.length">
+        <template #left>
+          <label class="mk-f">
+            Format
+            <BaseSelect v-model="format" class="mk-select" :options="FORMAT_OPTIONS" size="sm" />
+          </label>
+          <label class="mk-f">
+            Limit
+            <BaseInput v-model="limit" type="number" min="1" placeholder="all" class="mk-num wide" />
+          </label>
+        </template>
+        <span class="mk-summary">{{ maskedCount }} field{{ maskedCount === 1 ? '' : 's' }} masked</span>
+        <BaseButton variant="primary" :disabled="exporting" @click="runExport">
+          {{ exporting ? 'Exporting…' : 'Export masked copy' }}
+        </BaseButton>
+      </BaseModalFoot>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.mk-body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 200px;
-  max-height: 74vh;
-  overflow: hidden;
-}
+
 .mk-head {
   display: grid;
   grid-template-columns: 1fr 130px 1.2fr;
@@ -230,13 +226,7 @@ async function runExport() {
   font-size: 12px;
 }
 .base-input.mk-num.wide { width: 64px; }
-.mk-footer {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-soft);
-}
+
 .mk-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
 .mk-summary { font-size: 12px; color: var(--text-faint); margin-left: auto; }
 </style>

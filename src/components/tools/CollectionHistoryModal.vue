@@ -7,6 +7,7 @@ import BaseButton from '../base/BaseButton.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import HintText from '../base/HintText.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Collection History: the app's record of single-document changes (insert / update /
 // delete) made to this collection, newest-first, each restorable — Studio-3T's
@@ -96,7 +97,7 @@ async function clearAll() {
 <template>
   <BaseModal :title="`Collection History — ${target.dbName}.${target.collName}`" width="640px" max-width="calc(100vw - 40px)" height="calc(100vh - 80px)" max-height="calc(100vh - 80px)" @close="$emit('close')">
 
-      <div class="ch-body">
+      <BaseModalBody>
         <div class="ch-controls">
           <HintText dim v-if="!loading && !error">
             {{ entries.length }} recorded change{{ entries.length === 1 ? '' : 's' }}
@@ -130,13 +131,13 @@ async function clearAll() {
             >{{ busyId === entry.id ? 'Restoring…' : (RESTORE_LABEL[entry.op] || 'Restore') }}</BaseButton>
           </div>
         </div>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.ch-body { padding: 14px 16px 16px; display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+
 .ch-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .ch-ok { color: var(--green, #2f9e63); }
 .ch-spacer { flex: 1; }

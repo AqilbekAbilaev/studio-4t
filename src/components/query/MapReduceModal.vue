@@ -4,6 +4,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
+import BaseModalFoot from '../base/BaseModalFoot.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
@@ -51,7 +53,7 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 <template>
   <BaseModal :title="`Map-Reduce — ${target.collName}`" width="640px" max-width="92vw" @close="$emit('close')">
 
-      <div class="mr-body">
+      <BaseModalBody>
         <label class="mr-label">Map</label>
         <BaseTextarea v-model="map" class="mr-code" spellcheck="false"></BaseTextarea>
         <label class="mr-label">Reduce</label>
@@ -66,21 +68,19 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
           <label class="mr-label">Result</label>
           <pre class="mr-result">{{ resultJson() }}</pre>
         </template>
-      </div>
+      </BaseModalBody>
 
-      <div class="mr-footer">
-        <span class="spacer"></span>
+      <BaseModalFoot>
         <BaseButton bordered @click="$emit('close')">Close</BaseButton>
         <BaseButton variant="primary" :disabled="running || !map.trim() || !reduce.trim()" @click="run">
           {{ running ? 'Running…' : 'Run' }}
         </BaseButton>
-      </div>
+      </BaseModalFoot>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.mr-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; max-height: 74vh; overflow-y: auto; }
 .mr-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
 .base-textarea.mr-code { min-height: 84px; }
 .base-textarea.mr-code.short { min-height: 48px; }
@@ -89,6 +89,5 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
   background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px; color: var(--text-dim); white-space: pre; overflow-x: auto; user-select: text; max-height: 220px;
 }
-.mr-footer { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
-.mr-footer .spacer { flex: 1; }
+
 </style>

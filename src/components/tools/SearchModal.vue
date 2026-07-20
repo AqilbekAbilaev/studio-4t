@@ -8,6 +8,7 @@ import BaseInput from '../base/BaseInput.vue'
 import Disclosure from '../base/Disclosure.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Top-bar "Search in…" for the active database. Scans every collection for a
 // value anywhere in a document (case-insensitive), the way Studio-3T does.
@@ -57,7 +58,7 @@ function preview(doc) {
 <template>
   <BaseModal :title="`Search — ${target.dbName}`" width="680px" max-width="92vw" @close="$emit('close')">
 
-      <div class="se-body">
+      <BaseModalBody>
         <div class="se-bar">
           <BaseInput
             v-model="term"
@@ -92,21 +93,13 @@ function preview(doc) {
             </div>
           </div>
         </div>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.se-body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 200px;
-  max-height: 74vh;
-  overflow: hidden;
-}
+
 .se-bar { display: flex; gap: 10px; }
 .base-input.se-input { flex: 1; }
 
