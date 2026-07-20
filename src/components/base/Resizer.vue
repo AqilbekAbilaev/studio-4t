@@ -85,11 +85,14 @@ function onMouseDown(e) {
   align-items: center;
   justify-content: center;
 }
-.resizer-h:hover, .resizer-h.dragging { background: var(--accent); }
 .resizer-grip-h {
-  width: 28px;
-  height: 1px;
-  background: var(--text-faint);
+  width: 32px;
+  height: 2px;
+  background: transparent;
   border-radius: 1px;
+  cursor: row-resize;
+  transition: background 0.12s;
 }
+.resizer-h:hover .resizer-grip-h,
+.resizer-h.dragging .resizer-grip-h { background: var(--accent); }
 </style>
