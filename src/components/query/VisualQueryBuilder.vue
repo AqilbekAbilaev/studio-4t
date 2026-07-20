@@ -15,99 +15,73 @@ import {
 const props = defineProps({
   tabs:            { type: Array,  required: true },
   activeTabId:     { type: String, required: true },
-  // Panel width in px, owned by ResultsPanel (resizable, like the sidebar).
   width:           { type: Number, default: 360 },
   draggedField:    { type: String, default: '' },
-  // Set by QueryWorkspace when a result cell is dropped on a VQB section.
-  // Carries { field, value, section, nonce } — nonce makes each drop a fresh
-  // object so the watcher fires even when the same field lands on the same
-  // section twice. value is the dragged cell's value (used by the query section).
   vqbDrop:         { type: Object, default: null },
-  // Which section ('query' | 'proj' | 'sort') the pointer is currently over
-  // during a drag, so we can highlight it as the drop target.
   dragOverSection: { type: String, default: null },
 })
 const emit = defineEmits(['run'])
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
 
-// ── query section ─────────────────────────────────────────
-const queryEnabled = ref(true)
-const logic        = ref('$and')
-const conditions   = ref([])
+function createDefaultVqb() {
+  return {
+    queryEnabled: true,
+    logic: '$and',
+    conditions: [],
+    projEnabled: false,
+    projFields: [],
+    projInput: '',
+    sortEnabled: false,
+    sortFields: [],
+    sortInput: '',
+  }
+}
 
-// ── projection section ────────────────────────────────────
-const projEnabled = ref(false)
-const projFields  = ref([])
-const projInput   = ref('')
+const vqbState = ref(createDefaultVqb())
 
-// ── sort section ──────────────────────────────────────────
-const sortEnabled = ref(false)
-const sortFields  = ref([])
-const sortInput   = ref('')
+function syncVqbState() {
+  const tab = activeTab.value
+  if (!tab) { vqbState.value = createDefaultVqb(); return }
+  if (!tab.vqb) tab.vqb = createDefaultVqb()
+  vqbState.value = tab.vqb
+}
 
-watch(() => props.activeTabId, () => {
-  conditions.value = []
-  projFields.value = []
-  sortFields.value = []
-  projInput.value  = ''
-  sortInput.value  = ''
-})
+watch(() => props.activeTabId, syncVqbState, { immediate: true })
 
-// Single watcher covers all state — fires applyAndRun whenever anything changes.
-// This is more reliable than @input/@change/@click handlers on every element.
-watch(
-  [conditions, logic, queryEnabled, projFields, projEnabled, sortFields, sortEnabled],
-  applyAndRun,
-  { deep: true }
-)
+watch(() => vqbState.value, applyAndRun, { deep: true })
 
-// When a column header is clicked in QueryWorkspace, its name lands here and
-// is added straight to the Query section.
 watch(() => props.draggedField, (field) => {
   if (!field) return
-  conditions.value.push({ id: uid(), field: field, op: 'eq', value: '', enabled: true })
+  vqbState.value.conditions.push({ id: uid(), field: field, op: 'eq', value: '', enabled: true })
   applyAndRun()
 })
 
-// When a result cell is dragged and dropped onto one of the sections, add the
-// dropped field to that section (Query / Projection / Sort).
 watch(() => props.vqbDrop, (drop) => {
   if (!drop) return
   const field = (drop.field || '').trim()
   if (!field) return
   if (drop.section === 'query') {
-    queryEnabled.value = true
-    conditions.value.push({ id: uid(), field: field, op: 'eq', value: drop.value || '', enabled: true })
+    vqbState.value.queryEnabled = true
+    vqbState.value.conditions.push({ id: uid(), field: field, op: 'eq', value: drop.value || '', enabled: true })
   } else if (drop.section === 'proj') {
-    projEnabled.value = true
-    projFields.value.push({ id: uid(), field: field, include: true })
+    vqbState.value.projEnabled = true
+    vqbState.value.projFields.push({ id: uid(), field: field, include: true })
   } else if (drop.section === 'sort') {
-    sortEnabled.value = true
-    sortFields.value.push({ id: uid(), field: field, dir: 1 })
+    vqbState.value.sortEnabled = true
+    vqbState.value.sortFields.push({ id: uid(), field: field, dir: 1 })
   }
   applyAndRun()
 })
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
 
-// ── core: generate fields only, no auto-run ──────────────
-// VQB updates the filter/sort/projection text in the query bar.
-// The user clicks Run in QueryWorkspace (or presses Enter in a value input) to
-// execute the query.
 function applyToTab() {
   const tab = activeTab.value
-  if (!tab) return
-
-  const filterStr = queryEnabled.value
-    ? generateFilter(conditions.value, logic.value)
-    : '{}'
-  const sortStr = sortEnabled.value
-    ? generateSort(sortFields.value)
-    : '{}'
-  const projStr = projEnabled.value
-    ? generateProjection(projFields.value)
-    : '{}'
-
+  if (!tab || !tab.vqb) return
+  const s = tab.vqb
+  const filterStr = s.queryEnabled ? generateFilter(s.conditions, s.logic) : '{}'
+  const sortStr   = s.sortEnabled  ? generateSort(s.sortFields)           : '{}'
+  const projStr   = s.projEnabled  ? generateProjection(s.projFields)     : '{}'
   tab.filter     = filterStr === '{}' ? '' : filterStr
   tab.sort       = sortStr   === '{}' ? '' : sortStr
   tab.projection = projStr   === '{}' ? '' : projStr
@@ -119,24 +93,21 @@ function applyAndRun() {
   timer = setTimeout(applyToTab, 400)
 }
 
-// Pressing Enter in a value input applies the query immediately (no debounce)
-// and runs it, instead of waiting for the debounce + a manual Run click.
 function applyAndExecute() {
   clearTimeout(timer)
   applyToTab()
   emit('run')
 }
 
-// ── condition helpers ─────────────────────────────────────
 function addCondition() {
-  conditions.value.push({ id: uid(), field: '', op: 'eq', value: '', enabled: true })
+  vqbState.value.conditions.push({ id: uid(), field: '', op: 'eq', value: '', enabled: true })
 }
 function removeCondition(id) {
-  conditions.value = conditions.value.filter(c => c.id !== id)
+  vqbState.value.conditions = vqbState.value.conditions.filter(c => c.id !== id)
   applyAndRun()
 }
 function clearAll() {
-  conditions.value = []
+  vqbState.value.conditions = []
   applyAndRun()
 }
 function opNoValue(op) {
@@ -144,29 +115,27 @@ function opNoValue(op) {
   return found ? found.noValue : false
 }
 
-// ── projection helpers ────────────────────────────────────
 function addProjField() {
-  const f = projInput.value.trim()
+  const f = vqbState.value.projInput.trim()
   if (!f) return
-  projFields.value.push({ id: uid(), field: f, include: true })
-  projInput.value = ''
+  vqbState.value.projFields.push({ id: uid(), field: f, include: true })
+  vqbState.value.projInput = ''
   applyAndRun()
 }
 function removeProjField(id) {
-  projFields.value = projFields.value.filter(f => f.id !== id)
+  vqbState.value.projFields = vqbState.value.projFields.filter(f => f.id !== id)
   applyAndRun()
 }
 
-// ── sort helpers ──────────────────────────────────────────
 function addSortField() {
-  const f = sortInput.value.trim()
+  const f = vqbState.value.sortInput.trim()
   if (!f) return
-  sortFields.value.push({ id: uid(), field: f, dir: 1 })
-  sortInput.value = ''
+  vqbState.value.sortFields.push({ id: uid(), field: f, dir: 1 })
+  vqbState.value.sortInput = ''
   applyAndRun()
 }
 function removeSortField(id) {
-  sortFields.value = sortFields.value.filter(f => f.id !== id)
+  vqbState.value.sortFields = vqbState.value.sortFields.filter(f => f.id !== id)
   applyAndRun()
 }
 </script>
@@ -179,21 +148,21 @@ function removeSortField(id) {
          :class="{ 'drop-target': props.dragOverSection === 'query' }">
       <div class="vqb-head">
         Query
-        <span class="cb" :class="{ on: queryEnabled }"
-              @click="queryEnabled = !queryEnabled; applyAndRun()">
-          <BaseIcon v-if="queryEnabled" name="check" :size="12" />
+        <span class="cb" :class="{ on: vqbState.queryEnabled }"
+              @click="vqbState.queryEnabled = !vqbState.queryEnabled; applyAndRun()">
+          <BaseIcon v-if="vqbState.queryEnabled" name="check" :size="12" />
         </span>
       </div>
-      <div class="vqb-body" v-if="queryEnabled">
+      <div class="vqb-body" v-if="vqbState.queryEnabled">
         <div class="vqb-row1">
-          <div class="vqb-select" @click="logic = logic === '$and' ? '$or' : '$and'; applyAndRun()">
-            {{ logic === '$and' ? 'Match all of ($and)' : 'Match any of ($or)' }}
+          <div class="vqb-select" @click="vqbState.logic = vqbState.logic === '$and' ? '$or' : '$and'; applyAndRun()">
+            {{ vqbState.logic === '$and' ? 'Match all of ($and)' : 'Match any of ($or)' }}
             <BaseIcon name="caretDown" :size="12" />
           </div>
           <BaseButton bordered @click="clearAll">Clear</BaseButton>
         </div>
 
-        <div class="cond" v-for="c in conditions" :key="c.id">
+        <div class="cond" v-for="c in vqbState.conditions" :key="c.id">
           <div class="cond-line">
             <BaseInput
               class="pill cond-field"
@@ -236,13 +205,13 @@ function removeSortField(id) {
          :class="{ 'drop-target': props.dragOverSection === 'proj' }">
       <div class="vqb-head">
         Projection
-        <span class="cb" :class="{ on: projEnabled }"
-              @click="projEnabled = !projEnabled; applyAndRun()">
-          <BaseIcon v-if="projEnabled" name="check" :size="12" />
+        <span class="cb" :class="{ on: vqbState.projEnabled }"
+              @click="vqbState.projEnabled = !vqbState.projEnabled; applyAndRun()">
+          <BaseIcon v-if="vqbState.projEnabled" name="check" :size="12" />
         </span>
       </div>
-      <div class="vqb-body" v-if="projEnabled">
-        <div class="sp-row" v-for="f in projFields" :key="f.id">
+      <div class="vqb-body" v-if="vqbState.projEnabled">
+        <div class="sp-row" v-for="f in vqbState.projFields" :key="f.id">
           <span class="pill sp-field">{{ f.field }}</span>
           <BaseButton
             size="sm"
@@ -256,7 +225,7 @@ function removeSortField(id) {
         <div class="add-field-row">
           <BaseInput
             class="add-field-input"
-            v-model="projInput"
+            v-model="vqbState.projInput"
             placeholder="field name"
             @keydown.enter.prevent="addProjField"
             spellcheck="false"
@@ -265,7 +234,7 @@ function removeSortField(id) {
         </div>
       </div>
       <div class="vqb-body" v-else>
-        <div class="dropzone" @click="projEnabled = true; applyAndRun()">
+        <div class="dropzone" @click="vqbState.projEnabled = true; applyAndRun()">
           <BaseIcon name="plus" :size="14" />
           Drag a cell here or click to enable projection
         </div>
@@ -277,13 +246,13 @@ function removeSortField(id) {
          :class="{ 'drop-target': props.dragOverSection === 'sort' }">
       <div class="vqb-head">
         Sort
-        <span class="cb" :class="{ on: sortEnabled }"
-              @click="sortEnabled = !sortEnabled; applyAndRun()">
-          <BaseIcon v-if="sortEnabled" name="check" :size="12" />
+        <span class="cb" :class="{ on: vqbState.sortEnabled }"
+              @click="vqbState.sortEnabled = !vqbState.sortEnabled; applyAndRun()">
+          <BaseIcon v-if="vqbState.sortEnabled" name="check" :size="12" />
         </span>
       </div>
-      <div class="vqb-body" v-if="sortEnabled">
-        <div class="sp-row" v-for="f in sortFields" :key="f.id">
+      <div class="vqb-body" v-if="vqbState.sortEnabled">
+        <div class="sp-row" v-for="f in vqbState.sortFields" :key="f.id">
           <span class="pill sp-field">{{ f.field }}</span>
           <BaseButton
             size="sm"
@@ -297,7 +266,7 @@ function removeSortField(id) {
         <div class="add-field-row">
           <BaseInput
             class="add-field-input"
-            v-model="sortInput"
+            v-model="vqbState.sortInput"
             placeholder="field name"
             @keydown.enter.prevent="addSortField"
             spellcheck="false"
@@ -306,7 +275,7 @@ function removeSortField(id) {
         </div>
       </div>
       <div class="vqb-body" v-else>
-        <div class="dropzone" @click="sortEnabled = true; applyAndRun()">
+        <div class="dropzone" @click="vqbState.sortEnabled = true; applyAndRun()">
           <BaseIcon name="plus" :size="14" />
           Drag a cell here or click to enable sort
         </div>
@@ -328,9 +297,6 @@ function removeSortField(id) {
 }
 .vqb-section { border-bottom: 1px solid var(--border); position: relative; }
 .vqb-section.drop-target { background: rgba(59, 130, 246, .08); }
-/* Draw the highlight border as a positioned overlay so it paints on top of the
-   section header bar (an in-flow child), whose opaque background would otherwise
-   cover an outline / inset shadow along the top edge. */
 .vqb-section.drop-target::after {
   content: '';
   position: absolute;
@@ -379,8 +345,6 @@ function removeSortField(id) {
 }
 .vqb-select:hover { border-color: var(--accent); }
 
-
-/* checkbox */
 .cb {
   width: 17px; height: 17px;
   border-radius: 4px;
@@ -394,7 +358,6 @@ function removeSortField(id) {
 .cb.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .cb.sm { width: 15px; height: 15px; border-radius: 3px; }
 
-/* dropzone */
 .dropzone {
   border: 1px dashed var(--border-soft);
   border-radius: 6px;
@@ -410,7 +373,6 @@ function removeSortField(id) {
 }
 .dropzone:hover  { border-color: var(--accent); color: var(--accent); }
 
-/* condition rows */
 .cond {
   margin-bottom: 8px;
   background: var(--bg-panel-2);
@@ -425,7 +387,6 @@ function removeSortField(id) {
 }
 .cond-line:last-child { margin-bottom: 0; }
 
-/* pills */
 .pill,
 .base-input.pill {
   border: 1px solid var(--border-soft);
@@ -454,13 +415,9 @@ function removeSortField(id) {
 .cond-val,
 .base-input.cond-val   { font-family: var(--mono); }
 
-/* operator dropdown (BaseSelect) — width only; grows to fill the condition line */
 .op-select { min-width: 0; }
 .op-select.grow { flex: 1; }
 
-/* icon buttons */
-
-/* sort / projection rows */
 .sp-row {
   display: flex; align-items: center; gap: 5px; margin-bottom: 6px;
 }
@@ -472,7 +429,6 @@ function removeSortField(id) {
 .dir-toggle.inc  { color: var(--green);  border-color: var(--green);  }
 .dir-toggle.exc  { color: var(--prod);   border-color: var(--prod);   }
 
-/* add-field row */
 .add-field-row { display: flex; gap: 6px; margin-top: 4px; }
 .base-input.add-field-input {
   flex: 1; border-radius: 5px; font-size: 12px;

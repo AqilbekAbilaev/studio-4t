@@ -584,6 +584,7 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
     collectionName: collectionName,
     filter: filter || '', projection: '', sort: '', skip: 0, limit: defaultQueryLimit.value,
     mode: startMode, pipeline: '',
+    vqb: null,
     results: [], hasRun: false, isRunning: false, runError: null,
     selectedRow: -1, selectedRows: [], elapsedMs: null,
   })
