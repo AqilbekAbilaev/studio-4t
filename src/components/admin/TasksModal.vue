@@ -13,6 +13,7 @@ import BaseTextarea from '../base/BaseTextarea.vue'
 import SelectCard from '../base/SelectCard.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // The Tasks panel: saved, parameterised invocations of an existing operation
 // (Export / Import / Data Masking / SQL Migration / IntelliShell Script) that the
@@ -405,7 +406,7 @@ async function save() {
   <BaseModal :title="`${dialogTitle}`" width="720px" max-width="94vw" @close="$emit('close')">
 
       <!-- LIST VIEW -->
-      <div v-if="view === 'list'" class="tk-body">
+      <BaseModalBody v-if="view === 'list'">
         <div class="tk-toolbar">
           <BaseButton variant="primary" size="sm" @click="startCreate">
             <BaseIcon name="plus" :size="13" /> New Task
@@ -453,10 +454,10 @@ async function save() {
             </div>
           </li>
         </ul>
-      </div>
+      </BaseModalBody>
 
       <!-- FORM VIEW -->
-      <div v-else class="tk-body">
+      <BaseModalBody v-else>
         <!-- Type picker -->
         <label class="tk-lbl">Task type</label>
         <div class="tk-types">
@@ -592,20 +593,13 @@ async function save() {
             <BaseIcon name="save" :size="13" /> {{ saving ? 'Saving…' : (form.id ? 'Save changes' : 'Create task') }}
           </BaseButton>
         </div>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.tk-body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 76vh;
-  overflow-y: auto;
-}
+
 
 .tk-toolbar { display: flex; justify-content: flex-end; }
 

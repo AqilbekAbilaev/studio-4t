@@ -13,6 +13,7 @@ import BaseInput from '../base/BaseInput.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import FieldError from '../base/FieldError.vue'
 import HintText from '../base/HintText.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
 // upload / download / delete / rename / edit-metadata files, plus bucket copy/drop.
@@ -312,7 +313,7 @@ function fmtDate(iso) {
 
 <template>
   <BaseModal :title="`GridFS — ${target.dbName}`" width="680px" max-width="92vw" @close="$emit('close')">
-      <div class="gf-body">
+      <BaseModalBody>
         <div class="gf-controls">
           <label class="gf-f">
             Bucket
@@ -359,7 +360,7 @@ function fmtDate(iso) {
             </div>
           </div>
         </template>
-      </div>
+      </BaseModalBody>
   </BaseModal>
 
   <!-- Rename file -->
@@ -418,15 +419,7 @@ function fmtDate(iso) {
 
 <style scoped>
 
-.gf-body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 220px;
-  max-height: 74vh;
-  overflow: hidden;
-}
+
 .gf-controls { display: flex; align-items: flex-end; gap: 14px; }
 .gf-f { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
 .gf-select { min-width: 160px; }

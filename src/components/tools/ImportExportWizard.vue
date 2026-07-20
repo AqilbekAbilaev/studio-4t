@@ -12,6 +12,8 @@ import BaseInput from '../base/BaseInput.vue'
 import BaseCheckbox from '../base/BaseCheckbox.vue'
 import ReorderButtons from '../base/ReorderButtons.vue'
 import HintText from '../base/HintText.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
+import BaseModalFoot from '../base/BaseModalFoot.vue'
 
 const IMPORT_FORMATS = [
   { value: 'json', label: 'JSON' },
@@ -305,7 +307,7 @@ const titleText = computed(
         </span>
       </div>
 
-      <div class="iew-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" label="Working…" />
         <StateMessage
           v-else-if="error && !fields.length"
@@ -392,11 +394,12 @@ const titleText = computed(
           </div>
           <StateMessage v-if="error" mode="error" :message="error" :code="errorCode" />
         </template>
-      </div>
+      </BaseModalBody>
 
-      <div class="iew-footer">
-        <BaseButton v-if="step > 0" bordered :disabled="running" @click="back">Back</BaseButton>
-        <span class="iew-spacer"></span>
+      <BaseModalFoot>
+        <template #left>
+          <BaseButton v-if="step > 0" bordered :disabled="running" @click="back">Back</BaseButton>
+        </template>
         <BaseButton
           v-if="!isLastStep"
           variant="primary"
@@ -411,7 +414,7 @@ const titleText = computed(
         >
           {{ running ? (isImport ? 'Importing…' : 'Exporting…') : (isImport ? 'Run import' : 'Run export') }}
         </BaseButton>
-      </div>
+      </BaseModalFoot>
     </BaseModal>
 </template>
 
@@ -439,15 +442,7 @@ const titleText = computed(
 }
 .iew-step.active .iew-dot { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-.iew-body {
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 240px;
-  max-height: 66vh;
-  overflow: hidden;
-}
+
 
 .iew-source { display: flex; align-items: center; gap: 10px; }
 .iew-path {
@@ -523,12 +518,6 @@ const titleText = computed(
 }
 .iew-table td { color: var(--text); font-family: var(--mono); }
 
-.iew-footer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-soft);
-}
+
 .iew-spacer { flex: 1; }
 </style>

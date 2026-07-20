@@ -6,6 +6,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import HintText from '../base/HintText.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Live server metrics: polls serverStatus on an interval and draws simple SVG
 // sparklines. Reuses the existing server_status command (no new backend).
@@ -87,7 +88,7 @@ const charts = computed(() => [
 
 <template>
   <BaseModal :title="`Server Status Charts — ${target.connName}`" width="620px" max-width="92vw" @close="$emit('close')">
-      <div class="sc-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" label="Sampling server status…" />
         <StateMessage v-else-if="error" mode="error" :message="error" />
         <template v-else>
@@ -101,12 +102,12 @@ const charts = computed(() => [
             </div>
           </div>
         </template>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
-.sc-body { padding: 16px; min-height: 200px; display: flex; flex-direction: column; gap: 12px; }
+
 .sc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .sc-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
 .sc-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }

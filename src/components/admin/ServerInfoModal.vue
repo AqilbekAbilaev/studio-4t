@@ -5,6 +5,7 @@ import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import RawToggle from '../base/RawToggle.vue'
 import StateMessage from '../base/StateMessage.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 import BaseModal from '../base/BaseModal.vue'
 
 // Reused for the extra Server Info menu entries (Build Info / Host Info / Replica
@@ -53,7 +54,7 @@ const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2)
 <template>
   <BaseModal :title="`${target.title} — ${target.connName}`" width="640px" max-width="92vw" @close="$emit('close')">
 
-      <div class="ss-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" :label="`Fetching ${target.title.toLowerCase()}…`" />
         <StateMessage
           v-else-if="error"
@@ -74,21 +75,13 @@ const rawJson = computed(() => (data.value ? JSON.stringify(data.value, null, 2)
           <RawToggle v-model="showRaw" label="Raw response" />
           <pre v-if="showRaw || !cards.length" class="ss-raw">{{ rawJson }}</pre>
         </template>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.ss-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 160px;
-  max-height: 72vh;
-  overflow-y: auto;
-}
+
 .ss-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

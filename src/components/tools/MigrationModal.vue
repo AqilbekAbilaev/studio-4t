@@ -7,6 +7,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Top-bar "SQL Migration" for the active collection. Generates a CREATE TABLE +
 // INSERT script from the collection, the way Studio-3T's SQL Migration does.
@@ -63,7 +64,7 @@ async function copy() {
 <template>
   <BaseModal :title="`SQL Migration — ${target.dbName}.${target.collName}`" width="680px" max-width="92vw" @close="$emit('close')">
 
-      <div class="mg-body">
+      <BaseModalBody>
         <div class="mg-controls">
           <label class="mg-f">
             Table name
@@ -85,20 +86,13 @@ async function copy() {
         <StateMessage v-if="loading" mode="loading" label="Generating SQL…" />
         <StateMessage v-else-if="error" mode="error" :message="error" :code="errorCode" />
         <pre v-else-if="sql" class="mg-sql">{{ sql }}</pre>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.mg-body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 74vh;
-  overflow: hidden;
-}
+
 .mg-controls {
   display: flex;
   align-items: flex-end;

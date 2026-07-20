@@ -10,6 +10,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import FieldError from '../base/FieldError.vue'
 import HintText from '../base/HintText.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Manage Users for a database: list, create, and drop users (via usersInfo /
 // createUser / dropUser).
@@ -138,7 +139,7 @@ function copyText(text) {
 <template>
   <BaseModal :title="`Users — ${target.dbName}`" width="660px" max-width="92vw" @close="$emit('close')">
 
-      <div class="um-body">
+      <BaseModalBody>
         <div class="um-bar">
           <BaseButton variant="primary" :disabled="busy" @click="showCreate = !showCreate">
             <BaseIcon name="plus" :size="12" /> Add User
@@ -225,13 +226,13 @@ function copyText(text) {
             </tr>
           </tbody>
         </table>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.um-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; min-height: 200px; max-height: 74vh; overflow-y: auto; }
+
 .um-bar { display: flex; }
 .um-create { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }
 .um-create-actions { display: flex; justify-content: flex-end; gap: 8px; }

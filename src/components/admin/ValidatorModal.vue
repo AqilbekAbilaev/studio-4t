@@ -11,6 +11,8 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import FieldError from '../base/FieldError.vue'
 import FormField from '../base/FormField.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
+import BaseModalFoot from '../base/BaseModalFoot.vue'
 
 // Add / Edit Validator for a collection. Fetches the current validator on open so an
 // existing rule is never silently overwritten, then writes changes via collMod.
@@ -78,7 +80,7 @@ async function save() {
 <template>
   <BaseModal :title="`Validator — ${target.collName}`" width="620px" max-width="92vw" @close="$emit('close')">
 
-      <div class="vd-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" label="Loading validator…" />
         <template v-else>
           <FormField label="Validator (JSON schema document — leave empty to clear)" uppercase>
@@ -101,40 +103,23 @@ async function save() {
 
           <FieldError :text="error" />
         </template>
-      </div>
+      </BaseModalBody>
 
-      <div class="vd-footer">
-        <span class="spacer"></span>
+      <BaseModalFoot>
         <BaseButton bordered @click="$emit('close')">Cancel</BaseButton>
         <BaseButton variant="primary" :disabled="loading || saving" @click="save">
           {{ saving ? 'Saving…' : 'Save' }}
         </BaseButton>
-      </div>
+      </BaseModalFoot>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.vd-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 160px;
-  max-height: 70vh;
-  overflow-y: auto;
-}
 .base-textarea.vd-editor { min-height: 160px; }
 .vd-row { display: flex; gap: 12px; }
 .vd-field { flex: 1; }
 .vd-select { width: 100%; }
 
-.vd-footer {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border);
-  gap: 8px;
-}
-.vd-footer .spacer { flex: 1; }
+
 </style>

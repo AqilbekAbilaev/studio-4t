@@ -11,6 +11,8 @@ import { parseField } from '../../utils/queryParser'
 import { predefinedQuery, hasSelectedDocs } from '../../utils/predefinedQuery'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
+import BaseModalFoot from '../base/BaseModalFoot.vue'
 import BaseCheckbox from '../base/BaseCheckbox.vue'
 import TabStrip from '../base/TabStrip.vue'
 import BaseSelect from '../base/BaseSelect.vue'
@@ -141,7 +143,7 @@ async function onRun() {
         />
       </div>
 
-      <div class="uw-body">
+      <BaseModalBody>
         <HintText dim>
           <template v-if="pane === 'query'">Update the document(s) in
             <code>{{ activeTab.collectionName }}</code> matching the query below:</template>
@@ -183,25 +185,25 @@ async function onRun() {
         </div>
 
         <FieldError :text="error" />
-      </div>
+      </BaseModalBody>
 
-      <div class="uw-footer">
-        <BaseButton @click="onValidate">Validate JSON</BaseButton>
-        <BaseButton :disabled="busy" @click="onCount">Find matches</BaseButton>
-        <span class="spacer"></span>
+      <BaseModalFoot>
+        <template #left>
+          <BaseButton @click="onValidate">Validate JSON</BaseButton>
+          <BaseButton :disabled="busy" @click="onCount">Find matches</BaseButton>
+        </template>
         <BaseButton @click="$emit('close')">Cancel</BaseButton>
         <BaseButton
           variant="primary"
           :disabled="busy || matched === null || countedFilter !== filter"
           @click="onRun"
         >{{ busy ? 'Updating…' : (matched !== null && countedFilter === filter ? `Update ${matched.toLocaleString()}` : 'Update') }}</BaseButton>
-      </div>
+      </BaseModalFoot>
   </BaseModal>
 </template>
 
 <style scoped>
 .uw-tabs { display: flex; align-items: stretch; padding: 0 14px; border-bottom: 1px solid var(--border); flex: none; }
-.uw-body { padding: 14px 18px 8px; display: flex; flex-direction: column; gap: 12px; }
 .uw-hint code { font-family: var(--mono); color: var(--text); }
 .uw-editor {
   /* ~10 rows: 13px font × 1.7 line-height + CodeMirror's content padding. */
@@ -219,9 +221,5 @@ async function onRun() {
 .uw-msg { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .uw-msg.ok { color: var(--success-text); }
 .uw-msg.bad { color: var(--danger-text); }
-.uw-footer {
-  height: 48px; flex: none; border-top: 1px solid var(--border);
-  display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-top: 8px;
-}
-.spacer { flex: 1; }
+
 </style>

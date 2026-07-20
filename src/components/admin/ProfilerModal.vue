@@ -8,6 +8,7 @@ import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Opened from App.vue for a database node. Reads the database's profiling status,
 // lists the slow ops captured in `system.profile`, and lets the user change the
@@ -155,7 +156,7 @@ function rawFor(op) {
 <template>
   <BaseModal :title="`Query Profiler — ${target.dbName}`" width="860px" max-width="92vw" @close="$emit('close')">
 
-      <div class="ss-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" label="Reading profiling status…" />
         <template v-else>
           <div class="ctrl-bar">
@@ -226,21 +227,13 @@ function rawFor(op) {
             </tbody>
           </table>
         </template>
-      </div>
+      </BaseModalBody>
     </BaseModal>
 </template>
 
 <style scoped>
 
-.ss-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 160px;
-  max-height: 70vh;
-  overflow-y: auto;
-}
+
 
 .ctrl-bar,
 .filter-bar {

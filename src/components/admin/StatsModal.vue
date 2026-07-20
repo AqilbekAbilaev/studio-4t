@@ -6,6 +6,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import RawToggle from '../base/RawToggle.vue'
 import BaseModal from '../base/BaseModal.vue'
 import StateMessage from '../base/StateMessage.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
 
 // Opened from a collection node's "Collection Stats" action. Fetches collStats
 // and surfaces the headline numbers plus a per-index size breakdown, the way
@@ -77,7 +78,7 @@ const rawJson = computed(() => (stats.value ? JSON.stringify(stats.value.raw, nu
         <span v-if="stats && stats.capped" class="ss-tag">capped</span>
       </template>
 
-      <div class="ss-body">
+      <BaseModalBody>
         <StateMessage v-if="loading" mode="loading" label="Fetching collection stats…" />
         <StateMessage
           v-else-if="error"
@@ -109,7 +110,7 @@ const rawJson = computed(() => (stats.value ? JSON.stringify(stats.value.raw, nu
           <RawToggle v-model="showRaw" label="Raw collStats" />
           <pre v-if="showRaw" class="ss-raw">{{ rawJson }}</pre>
         </template>
-      </div>
+      </BaseModalBody>
   </BaseModal>
 </template>
 
@@ -126,15 +127,7 @@ const rawJson = computed(() => (stats.value ? JSON.stringify(stats.value.raw, nu
   vertical-align: middle;
 }
 
-.ss-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 160px;
-  max-height: 72vh;
-  overflow-y: auto;
-}
+
 .ss-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

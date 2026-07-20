@@ -14,6 +14,8 @@ import BaseInput from '../base/BaseInput.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import { BSON_TYPES, buildTypedValue } from '../../utils/docEdit'
 import BaseModal from '../base/BaseModal.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
+import BaseModalFoot from '../base/BaseModalFoot.vue'
 import FieldError from '../base/FieldError.vue'
 import HintText from '../base/HintText.vue'
 
@@ -79,7 +81,7 @@ const shownError = computed(() => localError.value || props.saveError)
 <template>
   <BaseModal :title="`${title}`" width="460px" max-width="94vw" @close="$emit('close')">
 
-      <div class="fe-body">
+      <BaseModalBody>
         <div v-if="mode === 'edit'" class="fe-field-label">Field: <code>{{ fieldName }}</code></div>
 
         <label v-if="showName" class="fe-row">
@@ -107,18 +109,16 @@ const shownError = computed(() => localError.value || props.saveError)
         </label>
 
         <FieldError :text="shownError" />
-      </div>
+      </BaseModalBody>
 
-      <div class="fe-footer">
-        <span class="spacer"></span>
+      <BaseModalFoot>
         <BaseButton @click="$emit('close')">Cancel</BaseButton>
         <BaseButton variant="primary" @click="onSave">Save</BaseButton>
-      </div>
+      </BaseModalFoot>
     </BaseModal>
 </template>
 
 <style scoped>
-.fe-body { padding: 16px 18px 8px; display: flex; flex-direction: column; gap: 12px; }
 .fe-field-label { font-size: 12.5px; color: var(--text-dim); }
 .fe-field-label code { font-family: var(--mono); color: var(--text); }
 .fe-row { display: flex; flex-direction: column; gap: 5px; }
@@ -133,9 +133,5 @@ const shownError = computed(() => localError.value || props.saveError)
 .fe-select { width: 100%; }
 .base-textarea.fe-area { min-height: 96px; }
 .fe-hint { margin: -4px 0 0; }
-.fe-footer {
-  height: 48px; flex: none; border-top: 1px solid var(--border);
-  display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-top: 8px;
-}
-.spacer { flex: 1; }
+
 </style>

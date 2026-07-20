@@ -11,6 +11,8 @@ import { parseField } from '../../utils/queryParser'
 import { predefinedQuery, hasSelectedDocs } from '../../utils/predefinedQuery'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
+import BaseModalBody from '../base/BaseModalBody.vue'
+import BaseModalFoot from '../base/BaseModalFoot.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import CodeEditor from '../base/CodeEditor.vue'
@@ -101,7 +103,7 @@ async function onDelete() {
 
 <template>
   <BaseModal title="Delete Documents" width="540px" max-width="94vw" @close="$emit('close')">
-      <div class="dw-body">
+      <BaseModalBody>
         <div class="dw-hint">Deletes every document in
           <code>{{ activeTab.collectionName }}</code> that matches the query. This cannot be undone.</div>
 
@@ -127,24 +129,24 @@ async function onDelete() {
         </div>
 
         <FieldError :text="error" />
-      </div>
+      </BaseModalBody>
 
-      <div class="dw-footer">
-        <BaseButton @click="onValidate">Validate JSON</BaseButton>
-        <BaseButton :disabled="busy" @click="onCount">Find matches</BaseButton>
-        <span class="spacer"></span>
+      <BaseModalFoot>
+        <template #left>
+          <BaseButton @click="onValidate">Validate JSON</BaseButton>
+          <BaseButton :disabled="busy" @click="onCount">Find matches</BaseButton>
+        </template>
         <BaseButton @click="$emit('close')">Cancel</BaseButton>
         <BaseButton
           variant="danger"
           :disabled="busy || matched === null || countedFilter !== filter"
           @click="onDelete"
         >{{ matched !== null && countedFilter === filter ? `Delete ${matched.toLocaleString()}` : 'Delete' }}</BaseButton>
-      </div>
+      </BaseModalFoot>
   </BaseModal>
 </template>
 
 <style scoped>
-.dw-body { padding: 14px 18px 8px; display: flex; flex-direction: column; gap: 12px; }
 .dw-hint { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
 .dw-hint code, .dw-lbl code, .dw-note code { font-family: var(--mono); color: var(--text); }
 .dw-row { display: flex; flex-direction: column; gap: 5px; }
@@ -163,9 +165,5 @@ async function onDelete() {
 .dw-msg { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .dw-msg.ok { color: var(--success-text); }
 .dw-msg.bad { color: var(--danger-text); }
-.dw-footer {
-  height: 48px; flex: none; border-top: 1px solid var(--border);
-  display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-top: 8px;
-}
-.spacer { flex: 1; }
+
 </style>
