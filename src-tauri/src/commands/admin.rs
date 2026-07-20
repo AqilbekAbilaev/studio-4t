@@ -743,7 +743,7 @@ pub async fn import_collection(
         // Stream the file in bounded batches instead of loading + parsing + inserting the
         // whole thing at once, so a large import can't exhaust memory. `None` mapping =
         // insert documents exactly as parsed (also the Tasks import path).
-        super::stream_import(&col, &path, &format, None).await
+        super::stream_import(&col, &path, &format, None, super::CsvOptions::default()).await
     };
     tracked(&ops, Some(meta), run).await
 }
@@ -762,6 +762,7 @@ pub async fn import_collection_mapped(
     path: String,
     format: String,
     mapping: Vec<FieldMap>,
+    csv: Option<super::CsvOptionsInput>,
 ) -> Result<usize, AppError> {
     let client = match ctx.client_for_write(&id).await {
         Ok(val) => val,
@@ -775,7 +776,11 @@ pub async fn import_collection_mapped(
     } else {
         Some(mapping)
     };
-    super::stream_import(&col, &path, &format, mapping_opt).await
+    let csv_options = match csv {
+        Some(input) => input.to_options(),
+        None => super::CsvOptions::default(),
+    };
+    super::stream_import(&col, &path, &format, mapping_opt, csv_options).await
 }
 
 // Serialize an `_id` to a stable string for the incremental-export watermark store, as

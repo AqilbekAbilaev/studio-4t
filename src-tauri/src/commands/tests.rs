@@ -294,7 +294,7 @@ fn collect_import(
     batch_size: usize,
 ) -> Result<(usize, Vec<Vec<bson::Document>>), AppError> {
     let mut batches: Vec<Vec<bson::Document>> = Vec::new();
-    let total = match stream_documents(input, format, batch_size, |batch| {
+    let total = match stream_documents(input, format, CsvOptions::default(), batch_size, |batch| {
         batches.push(batch);
         Ok(())
     }) {
@@ -386,6 +386,88 @@ fn import_csv_skips_blank_trailing_rows() {
     // A doubled final newline leaves a blank row that must be skipped, not imported.
     let (total, _batches) = collect_import(b"a\n1\n\n", "csv", IMPORT_BATCH_SIZE).unwrap();
     assert_eq!(total, 1);
+}
+
+// Streaming importer over `input` as CSV with explicit parsing options.
+fn collect_import_csv(
+    input: &[u8],
+    options: CsvOptions,
+) -> Result<(usize, Vec<Vec<bson::Document>>), AppError> {
+    let mut batches: Vec<Vec<bson::Document>> = Vec::new();
+    let total = match stream_documents(input, "csv", options, IMPORT_BATCH_SIZE, |batch| {
+        batches.push(batch);
+        Ok(())
+    }) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    Ok((total, batches))
+}
+
+#[test]
+fn import_csv_honors_tab_delimiter() {
+    let options = CsvOptions {
+        delimiter: b'\t',
+        quote: b'"',
+        has_headers: true,
+        skip_lines: 0,
+    };
+    let (total, batches) = collect_import_csv(b"a\tb\n1\tx\n", options).unwrap();
+    assert_eq!(total, 1);
+    assert!(matches!(batches[0][0].get("a"), Some(bson::Bson::Int64(1))));
+    match batches[0][0].get("b") {
+        Some(bson::Bson::String(value)) => assert_eq!(value, "x"),
+        other => panic!("expected a string, got {:?}", other),
+    }
+}
+
+#[test]
+fn import_csv_without_header_synthesizes_field_names() {
+    let options = CsvOptions {
+        delimiter: b',',
+        quote: b'"',
+        has_headers: false,
+        skip_lines: 0,
+    };
+    // Both rows are data; columns become field1..fieldN.
+    let (total, batches) = collect_import_csv(b"1,x\n2,y\n", options).unwrap();
+    assert_eq!(total, 2);
+    assert!(matches!(batches[0][0].get("field1"), Some(bson::Bson::Int64(1))));
+    match batches[0][0].get("field2") {
+        Some(bson::Bson::String(value)) => assert_eq!(value, "x"),
+        other => panic!("expected a string, got {:?}", other),
+    }
+}
+
+#[test]
+fn import_csv_skips_leading_lines_before_header() {
+    let options = CsvOptions {
+        delimiter: b',',
+        quote: b'"',
+        has_headers: true,
+        skip_lines: 1,
+    };
+    // The preamble line is dropped; the header is then "a,b".
+    let (total, batches) = collect_import_csv(b"# preamble\na,b\n1,x\n", options).unwrap();
+    assert_eq!(total, 1);
+    assert!(matches!(batches[0][0].get("a"), Some(bson::Bson::Int64(1))));
+}
+
+#[test]
+fn import_csv_honors_custom_text_qualifier() {
+    let options = CsvOptions {
+        delimiter: b',',
+        quote: b'\'',
+        has_headers: true,
+        skip_lines: 0,
+    };
+    // A single-quote qualifier lets a value contain the delimiter.
+    let (total, batches) = collect_import_csv(b"a,b\n'x,y',z\n", options).unwrap();
+    assert_eq!(total, 1);
+    match batches[0][0].get("a") {
+        Some(bson::Bson::String(value)) => assert_eq!(value, "x,y"),
+        other => panic!("expected a string, got {:?}", other),
+    }
 }
 
 #[test]

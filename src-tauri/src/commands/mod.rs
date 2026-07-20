@@ -874,20 +874,49 @@ pub(crate) async fn collect_json(
 // structural characters (`"`, `,`, `\n`, `\r`) are single ASCII bytes that can never
 // appear inside a multi-byte UTF-8 sequence; each field's bytes are decoded to a
 // String at its boundary.
+// Configurable CSV parsing options. The defaults reproduce the historical behavior
+// (comma delimiter, double-quote text qualifier, first row is the header, nothing
+// skipped) so every existing caller that passes `CsvOptions::default()` is unchanged;
+// the import UI overrides them per file.
+#[derive(Clone, Copy)]
+pub(crate) struct CsvOptions {
+    pub delimiter: u8,
+    pub quote: u8,
+    pub has_headers: bool,
+    pub skip_lines: usize,
+}
+
+impl Default for CsvOptions {
+    fn default() -> Self {
+        CsvOptions {
+            delimiter: b',',
+            quote: b'"',
+            has_headers: true,
+            skip_lines: 0,
+        }
+    }
+}
+
 struct CsvRecords<R: std::io::Read> {
     bytes: std::io::Bytes<R>,
     // One-byte look-ahead buffer, used to detect a doubled quote (`""`) and to peek
     // the byte after a closing quote.
     peeked: Option<u8>,
     finished: bool,
+    // The field separator and text qualifier bytes (configurable, hence compared at
+    // runtime rather than matched against byte literals).
+    delimiter: u8,
+    quote: u8,
 }
 
 impl<R: std::io::Read> CsvRecords<R> {
-    fn new(reader: R) -> Self {
+    fn new(reader: R, delimiter: u8, quote: u8) -> Self {
         CsvRecords {
             bytes: reader.bytes(),
             peeked: None,
             finished: false,
+            delimiter: delimiter,
+            quote: quote,
         }
     }
 
@@ -953,12 +982,12 @@ impl<R: std::io::Read> CsvRecords<R> {
                 Err(e) => return Err(e),
             };
             if in_quotes {
-                if byte == b'"' {
+                if byte == self.quote {
                     match self.peek_byte() {
-                        Ok(Some(b'"')) => {
+                        Ok(Some(next)) if next == self.quote => {
                             // Consume the second quote of the escaped pair.
                             self.peeked = None;
-                            field.push(b'"');
+                            field.push(self.quote);
                         }
                         Ok(_) => in_quotes = false,
                         Err(e) => return Err(e),
@@ -966,27 +995,25 @@ impl<R: std::io::Read> CsvRecords<R> {
                 } else {
                     field.push(byte);
                 }
+            } else if byte == self.quote {
+                in_quotes = true;
+            } else if byte == self.delimiter {
+                let cell = match Self::field_to_string(std::mem::take(&mut field)) {
+                    Ok(value) => value,
+                    Err(e) => return Err(e),
+                };
+                record.push(cell);
+            } else if byte == b'\n' {
+                let cell = match Self::field_to_string(std::mem::take(&mut field)) {
+                    Ok(value) => value,
+                    Err(e) => return Err(e),
+                };
+                record.push(cell);
+                return Ok(Some(record));
+            } else if byte == b'\r' {
+                // Skip carriage returns so CRLF files parse the same as LF.
             } else {
-                match byte {
-                    b'"' => in_quotes = true,
-                    b',' => {
-                        let cell = match Self::field_to_string(std::mem::take(&mut field)) {
-                            Ok(value) => value,
-                            Err(e) => return Err(e),
-                        };
-                        record.push(cell);
-                    }
-                    b'\n' => {
-                        let cell = match Self::field_to_string(std::mem::take(&mut field)) {
-                            Ok(value) => value,
-                            Err(e) => return Err(e),
-                        };
-                        record.push(cell);
-                        return Ok(Some(record));
-                    }
-                    b'\r' => {}
-                    _ => field.push(byte),
-                }
+                field.push(byte);
             }
         }
     }
@@ -1166,6 +1193,7 @@ where
 // documents emitted.
 fn stream_csv_documents<R, F>(
     reader: R,
+    options: CsvOptions,
     batch_size: usize,
     mut flush: F,
 ) -> Result<usize, AppError>
@@ -1173,14 +1201,38 @@ where
     R: std::io::Read,
     F: FnMut(Vec<bson::Document>) -> Result<(), AppError>,
 {
-    let mut records = CsvRecords::new(reader);
-    let headers = match records.next_record() {
-        Ok(Some(row)) => row,
-        Ok(None) => return Ok(0),
-        Err(e) => return Err(e),
-    };
+    let mut records = CsvRecords::new(reader, options.delimiter, options.quote);
+    // Drop any leading lines (e.g. a preamble above the header row) before parsing.
+    for _ in 0..options.skip_lines {
+        match records.next_record() {
+            Ok(Some(_)) => {}
+            Ok(None) => return Ok(0),
+            Err(e) => return Err(e),
+        }
+    }
     let mut batch: Vec<bson::Document> = Vec::with_capacity(batch_size);
     let mut total: usize = 0;
+    // With a header line the first remaining record names the columns. Without one,
+    // synthesize `field1..fieldN` from the first data row's width — and still import
+    // that row as data rather than consuming it as a header.
+    let headers = if options.has_headers {
+        match records.next_record() {
+            Ok(Some(row)) => row,
+            Ok(None) => return Ok(0),
+            Err(e) => return Err(e),
+        }
+    } else {
+        let first = match records.next_record() {
+            Ok(Some(row)) => row,
+            Ok(None) => return Ok(0),
+            Err(e) => return Err(e),
+        };
+        let synthesized: Vec<String> = (1..=first.len()).map(|i| format!("field{i}")).collect();
+        if !csv_row_is_blank(&first) {
+            batch.push(csv_row_to_document(&synthesized, &first));
+        }
+        synthesized
+    };
     loop {
         let row = match records.next_record() {
             Ok(Some(row)) => row,
@@ -1217,6 +1269,7 @@ where
 fn stream_documents<R, F>(
     reader: R,
     format: &str,
+    csv: CsvOptions,
     batch_size: usize,
     flush: F,
 ) -> Result<usize, AppError>
@@ -1225,8 +1278,9 @@ where
     F: FnMut(Vec<bson::Document>) -> Result<(), AppError>,
 {
     if format == "csv" {
-        stream_csv_documents(reader, batch_size, flush)
+        stream_csv_documents(reader, csv, batch_size, flush)
     } else {
+        // JSON ignores the CSV options.
         stream_json_documents(reader, batch_size, flush)
     }
 }
@@ -1251,6 +1305,7 @@ pub(crate) async fn stream_import(
     path: &str,
     format: &str,
     mapping: Option<Vec<portmap::FieldMap>>,
+    csv: CsvOptions,
 ) -> Result<usize, AppError> {
     // An empty file imports nothing without touching the parser (which would reject
     // zero-length input as malformed JSON).
@@ -1268,13 +1323,14 @@ pub(crate) async fn stream_import(
     let path_owned = path.to_string();
     let format_owned = format.to_string();
     let mapping_owned = mapping;
+    let csv_owned = csv;
     let parse_handle = tokio::task::spawn_blocking(move || -> Result<usize, AppError> {
         let file = match std::fs::File::open(&path_owned) {
             Ok(val) => val,
             Err(e) => return Err(AppError::Io(e)),
         };
         let reader = std::io::BufReader::new(file);
-        stream_documents(reader, &format_owned, IMPORT_BATCH_SIZE, |batch| {
+        stream_documents(reader, &format_owned, csv_owned, IMPORT_BATCH_SIZE, |batch| {
             // Apply the field mapping (rename/coerce/select) before handing the
             // batch over for insertion; without a mapping the batch is inserted
             // exactly as parsed.

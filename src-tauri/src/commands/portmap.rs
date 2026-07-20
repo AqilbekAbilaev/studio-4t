@@ -191,7 +191,53 @@ const PREVIEW_ENOUGH: &str = "__ozendb_preview_enough__";
 
 // Read up to `limit` documents from an import file, reusing the same streaming
 // CSV/JSON parsers the importer uses. Runs on the calling (blocking) thread.
-fn read_records(path: &str, format: &str, limit: usize) -> Result<Vec<bson::Document>, AppError> {
+// CSV parsing options as sent from the import UI (all optional; missing fields fall
+// back to the historical defaults). `delimiter`/`quote` arrive as strings so the UI
+// can send a tab, comma, etc.; only the first byte is used.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvOptionsInput {
+    pub delimiter: Option<String>,
+    pub quote: Option<String>,
+    pub has_headers: Option<bool>,
+    pub skip_lines: Option<usize>,
+}
+
+impl CsvOptionsInput {
+    pub fn to_options(&self) -> crate::commands::CsvOptions {
+        let defaults = crate::commands::CsvOptions::default();
+        crate::commands::CsvOptions {
+            delimiter: first_byte(self.delimiter.as_deref(), defaults.delimiter),
+            quote: first_byte(self.quote.as_deref(), defaults.quote),
+            has_headers: match self.has_headers {
+                Some(value) => value,
+                None => defaults.has_headers,
+            },
+            skip_lines: match self.skip_lines {
+                Some(value) => value,
+                None => defaults.skip_lines,
+            },
+        }
+    }
+}
+
+// The first byte of `text`, or `fallback` when it's absent or empty.
+fn first_byte(text: Option<&str>, fallback: u8) -> u8 {
+    match text {
+        Some(value) => match value.bytes().next() {
+            Some(byte) => byte,
+            None => fallback,
+        },
+        None => fallback,
+    }
+}
+
+fn read_records(
+    path: &str,
+    format: &str,
+    limit: usize,
+    csv: crate::commands::CsvOptions,
+) -> Result<Vec<bson::Document>, AppError> {
     // An empty file previews as no rows without invoking the parser (which would
     // reject zero-length input as malformed JSON), matching `stream_import`.
     let metadata = match std::fs::metadata(path) {
@@ -210,7 +256,7 @@ fn read_records(path: &str, format: &str, limit: usize) -> Result<Vec<bson::Docu
     // full batch already satisfies the request and we can stop.
     let batch_size = if limit == 0 { super::IMPORT_BATCH_SIZE } else { limit };
     let mut rows: Vec<bson::Document> = Vec::new();
-    let result = super::stream_documents(reader, format, batch_size, |batch| {
+    let result = super::stream_documents(reader, format, csv, batch_size, |batch| {
         for doc in batch {
             if limit != 0 && rows.len() >= limit {
                 break;
@@ -252,8 +298,13 @@ pub async fn import_preview(
     path: String,
     format: String,
     limit: usize,
+    csv: Option<CsvOptionsInput>,
 ) -> Result<ImportPreview, AppError> {
-    let docs = match tokio::task::spawn_blocking(move || read_records(&path, &format, limit)).await {
+    let csv_options = match csv {
+        Some(input) => input.to_options(),
+        None => crate::commands::CsvOptions::default(),
+    };
+    let docs = match tokio::task::spawn_blocking(move || read_records(&path, &format, limit, csv_options)).await {
         Ok(Ok(val)) => val,
         Ok(Err(e)) => return Err(e),
         Err(join_err) => return Err(AppError::Bson(format!("Preview task failed: {join_err}"))),
