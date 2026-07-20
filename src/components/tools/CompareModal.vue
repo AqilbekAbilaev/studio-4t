@@ -9,6 +9,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseModalBody from '../base/BaseModalBody.vue'
+import FormField from '../base/FormField.vue'
 
 // Top-bar "Compare" for a database: diff two collections by _id, the way
 // Studio-3T's Data Compare does.
@@ -79,15 +80,13 @@ function j(v) {
         <StateMessage v-if="initErr" mode="error" :message="initErr" />
         <template v-else>
           <div class="cm-pick">
-            <label class="cm-f">
-              Source
+            <FormField label="Source">
               <BaseSelect v-model="source" class="cm-select" :options="collectionOptions" />
-            </label>
+            </FormField>
             <BaseIcon name="compare" :size="16" class="cm-vs" />
-            <label class="cm-f">
-              Target
+            <FormField label="Target">
               <BaseSelect v-model="targetColl" class="cm-select" :options="collectionOptions" />
-            </label>
+            </FormField>
             <BaseButton variant="primary" :disabled="loading || !source || !targetColl" @click="compare">
               {{ loading ? 'Comparing…' : 'Compare' }}
             </BaseButton>
@@ -151,7 +150,6 @@ function j(v) {
 
 
 .cm-pick { display: flex; align-items: flex-end; gap: 12px; }
-.cm-f { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .cm-select { width: 100%; }
 .cm-vs { color: var(--text-faint); margin-bottom: 6px; }
 

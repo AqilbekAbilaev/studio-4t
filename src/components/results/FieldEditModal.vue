@@ -18,6 +18,7 @@ import BaseModalBody from '../base/BaseModalBody.vue'
 import BaseModalFoot from '../base/BaseModalFoot.vue'
 import FieldError from '../base/FieldError.vue'
 import HintText from '../base/HintText.vue'
+import FormField from '../base/FormField.vue'
 
 const typeOptions = BSON_TYPES.map((t) => ({ value: t, label: t }))
 
@@ -84,29 +85,26 @@ const shownError = computed(() => localError.value || props.saveError)
       <BaseModalBody>
         <div v-if="mode === 'edit'" class="fe-field-label">Field: <code>{{ fieldName }}</code></div>
 
-        <label v-if="showName" class="fe-row">
-          <span class="fe-lbl">{{ mode === 'rename' ? 'New name' : 'Field name' }}</span>
+        <FormField v-if="showName" :label="mode === 'rename' ? 'New name' : 'Field name'">
           <BaseInput class="fe-input" v-model="name" spellcheck="false" autocomplete="off"
                  @enter="onSave" />
-        </label>
+        </FormField>
 
         <HintText v-if="mode === 'rename'" class="fe-hint">
           Renames this field on the selected document only. To rename it across every
           document, use the Reschema tool.
         </HintText>
 
-        <label v-if="showValue" class="fe-row">
-          <span class="fe-lbl">Type</span>
+        <FormField v-if="showValue" label="Type">
           <BaseSelect class="fe-select" v-model="type" :options="typeOptions" />
-        </label>
+        </FormField>
 
-        <label v-if="showValueInput" class="fe-row">
-          <span class="fe-lbl">Value</span>
+        <FormField v-if="showValueInput" label="Value">
           <BaseTextarea v-if="useTextarea" class="fe-area" v-model="raw" spellcheck="false"
                     autocomplete="off"></BaseTextarea>
           <BaseInput v-else class="fe-input" v-model="raw" spellcheck="false" autocomplete="off"
                  @enter="onSave" />
-        </label>
+        </FormField>
 
         <FieldError :text="shownError" />
       </BaseModalBody>
@@ -121,8 +119,6 @@ const shownError = computed(() => localError.value || props.saveError)
 <style scoped>
 .fe-field-label { font-size: 12.5px; color: var(--text-dim); }
 .fe-field-label code { font-family: var(--mono); color: var(--text); }
-.fe-row { display: flex; flex-direction: column; gap: 5px; }
-.fe-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-faint); }
 .fe-input,
 .base-input.fe-input {
   background: var(--bg-input); border: 1px solid var(--border); border-radius: 5px;

@@ -10,6 +10,7 @@ import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import FieldError from '../base/FieldError.vue'
+import FormField from '../base/FormField.vue'
 
 // Open Map-Reduce for a collection: enter map / reduce / (optional) finalize JS and
 // an output collection (blank = inline), run mapReduce, and show the raw result.
@@ -54,19 +55,26 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
   <BaseModal :title="`Map-Reduce — ${target.collName}`" width="640px" max-width="92vw" @close="$emit('close')">
 
       <BaseModalBody>
-        <label class="mr-label">Map</label>
-        <BaseTextarea v-model="map" class="mr-code" spellcheck="false"></BaseTextarea>
-        <label class="mr-label">Reduce</label>
-        <BaseTextarea v-model="reduce" class="mr-code" spellcheck="false"></BaseTextarea>
-        <label class="mr-label">Finalize (optional)</label>
-        <BaseTextarea v-model="finalize" class="mr-code short" spellcheck="false" placeholder="function (key, reducedValue) { … }"></BaseTextarea>
-        <label class="mr-label">Output collection (blank = inline)</label>
-        <BaseInput v-model="outCollection" placeholder="e.g. mr_results" spellcheck="false" />
+        <div class="mr-body">
+          <FormField label="Map" uppercase>
+            <BaseTextarea v-model="map" class="mr-code" spellcheck="false"></BaseTextarea>
+          </FormField>
+          <FormField label="Reduce" uppercase>
+            <BaseTextarea v-model="reduce" class="mr-code" spellcheck="false"></BaseTextarea>
+          </FormField>
+          <FormField label="Finalize (optional)" uppercase>
+            <BaseTextarea v-model="finalize" class="mr-code short" spellcheck="false" placeholder="function (key, reducedValue) { … }"></BaseTextarea>
+          </FormField>
+          <FormField label="Output collection (blank = inline)" uppercase>
+            <BaseInput v-model="outCollection" placeholder="e.g. mr_results" spellcheck="false" />
+          </FormField>
+        </div>
 
         <FieldError :text="error" />
         <template v-if="result">
-          <label class="mr-label">Result</label>
-          <pre class="mr-result">{{ resultJson() }}</pre>
+          <FormField label="Result" uppercase>
+            <pre class="mr-result">{{ resultJson() }}</pre>
+          </FormField>
         </template>
       </BaseModalBody>
 
@@ -82,6 +90,7 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
 <style scoped>
 
 .mr-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
+.mr-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; max-height: 74vh; overflow-y: auto; }
 .base-textarea.mr-code { min-height: 84px; }
 .base-textarea.mr-code.short { min-height: 48px; }
 .mr-result {

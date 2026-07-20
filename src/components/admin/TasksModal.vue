@@ -9,6 +9,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
+import FormField from '../base/FormField.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import SelectCard from '../base/SelectCard.vue'
 import StateMessage from '../base/StateMessage.vue'
@@ -459,63 +460,72 @@ async function save() {
       <!-- FORM VIEW -->
       <BaseModalBody v-else>
         <!-- Type picker -->
-        <label class="tk-lbl">Task type</label>
-        <div class="tk-types">
-          <SelectCard
-            v-for="t in TYPES"
-            :key="t.value"
-            :icon="t.icon"
-            :label="t.label"
-            :active="form.type === t.value"
-            :disabled="!t.enabled"
-            :soon="!t.enabled"
-            :title="t.enabled ? '' : 'Coming soon'"
-            @click="pickType(t.value)"
-          />
-        </div>
+        <FormField label="Task type">
+          <div class="tk-types">
+            <SelectCard
+              v-for="t in TYPES"
+              :key="t.value"
+              :icon="t.icon"
+              :label="t.label"
+              :active="form.type === t.value"
+              :disabled="!t.enabled"
+              :soon="!t.enabled"
+              :title="t.enabled ? '' : 'Coming soon'"
+              @click="pickType(t.value)"
+            />
+          </div>
+        </FormField>
 
-        <label class="tk-lbl">Name</label>
-        <BaseInput v-model="form.name" class="tk-input" placeholder="e.g. Nightly orders export" />
+        <FormField label="Name">
+          <BaseInput v-model="form.name" class="tk-input" placeholder="e.g. Nightly orders export" />
+        </FormField>
 
-        <label class="tk-lbl">Connection</label>
-        <BaseSelect :model-value="form.connId" class="tk-select" :options="connOptions"
-          placeholder="Select a connection…" @update:model-value="onConn" />
+        <FormField label="Connection">
+          <BaseSelect :model-value="form.connId" class="tk-select" :options="connOptions"
+            placeholder="Select a connection…" @update:model-value="onConn" />
+        </FormField>
 
         <div class="tk-two">
           <div class="tk-col">
-            <label class="tk-lbl">Database</label>
-            <BaseInput v-model="form.database" list="tk-dblist" class="tk-input" placeholder="database" />
-            <datalist id="tk-dblist">
-              <option v-for="d in databases" :key="d.name" :value="d.name" />
-            </datalist>
+            <FormField label="Database">
+              <BaseInput v-model="form.database" list="tk-dblist" class="tk-input" placeholder="database" />
+              <datalist id="tk-dblist">
+                <option v-for="d in databases" :key="d.name" :value="d.name" />
+              </datalist>
+            </FormField>
           </div>
           <div class="tk-col" v-if="needsCollection">
-            <label class="tk-lbl">Collection</label>
-            <BaseInput v-model="form.collection" list="tk-colllist" class="tk-input" placeholder="collection" />
-            <datalist id="tk-colllist">
-              <option v-for="c in collectionOptions" :key="c" :value="c" />
-            </datalist>
+            <FormField label="Collection">
+              <BaseInput v-model="form.collection" list="tk-colllist" class="tk-input" placeholder="collection" />
+              <datalist id="tk-colllist">
+                <option v-for="c in collectionOptions" :key="c" :value="c" />
+              </datalist>
+            </FormField>
           </div>
         </div>
 
         <!-- Export / Import: format + path -->
         <template v-if="form.type === 'export' || form.type === 'import'">
-          <label class="tk-lbl">Format</label>
-          <BaseSelect v-model="form.format" class="tk-select" :options="formatOptions" />
-          <label class="tk-lbl">{{ form.type === 'import' ? 'Source file' : 'Destination file' }}</label>
-          <div class="tk-path">
-            <BaseInput v-model="form.path" class="tk-input" :placeholder="form.type === 'import' ? '/path/to/input' : '/path/to/output'" />
-            <BaseButton bordered @click="form.type === 'import' ? browseInput() : browseOutput()">Browse…</BaseButton>
-          </div>
+          <FormField label="Format">
+            <BaseSelect v-model="form.format" class="tk-select" :options="formatOptions" />
+          </FormField>
+          <FormField :label="form.type === 'import' ? 'Source file' : 'Destination file'">
+            <div class="tk-path">
+              <BaseInput v-model="form.path" class="tk-input" :placeholder="form.type === 'import' ? '/path/to/input' : '/path/to/output'" />
+              <BaseButton bordered @click="form.type === 'import' ? browseInput() : browseOutput()">Browse…</BaseButton>
+            </div>
+          </FormField>
         </template>
 
         <!-- Masking: filter, limit, rules, format, path -->
         <template v-else-if="form.type === 'masking'">
-          <label class="tk-lbl">Filter (EJSON)</label>
-          <BaseTextarea v-model="form.filter" class="tk-area" rows="2" spellcheck="false" placeholder="{}"></BaseTextarea>
+          <FormField label="Filter (EJSON)">
+            <BaseTextarea v-model="form.filter" class="tk-area" rows="2" spellcheck="false" placeholder="{}"></BaseTextarea>
+          </FormField>
           <div class="tk-rules-head">
-            <label class="tk-lbl">Masking rules</label>
-            <BaseButton variant="ghost" size="sm" @click="addRule"><BaseIcon name="plus" :size="11" /> Add rule</BaseButton>
+            <FormField label="Masking rules">
+              <BaseButton variant="ghost" size="sm" @click="addRule"><BaseIcon name="plus" :size="11" /> Add rule</BaseButton>
+            </FormField>
           </div>
           <div v-for="(rule, i) in form.rules" :key="i" class="tk-rule">
             <BaseInput v-model="rule.field" class="tk-input" placeholder="field.path" />
@@ -528,49 +538,57 @@ async function save() {
           </div>
           <div class="tk-two">
             <div class="tk-col">
-              <label class="tk-lbl">Format</label>
-              <BaseSelect v-model="form.format" class="tk-select" :options="EXPORT_FORMATS" />
+              <FormField label="Format">
+                <BaseSelect v-model="form.format" class="tk-select" :options="EXPORT_FORMATS" />
+              </FormField>
             </div>
             <div class="tk-col">
-              <label class="tk-lbl">Limit (optional)</label>
-              <BaseInput v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
+              <FormField label="Limit (optional)">
+                <BaseInput v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
+              </FormField>
             </div>
           </div>
-          <label class="tk-lbl">Destination file</label>
-          <div class="tk-path">
-            <BaseInput v-model="form.path" class="tk-input" placeholder="/path/to/output" />
-            <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
-          </div>
+          <FormField label="Destination file">
+            <div class="tk-path">
+              <BaseInput v-model="form.path" class="tk-input" placeholder="/path/to/output" />
+              <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
+            </div>
+          </FormField>
         </template>
 
         <!-- Migration: table name, limit, path -->
         <template v-else-if="form.type === 'migration'">
           <div class="tk-two">
             <div class="tk-col">
-              <label class="tk-lbl">Table name (optional)</label>
-              <BaseInput v-model="form.tableName" class="tk-input" :placeholder="form.collection || 'table'" />
+              <FormField label="Table name (optional)">
+                <BaseInput v-model="form.tableName" class="tk-input" :placeholder="form.collection || 'table'" />
+              </FormField>
             </div>
             <div class="tk-col">
-              <label class="tk-lbl">Sample limit (optional)</label>
-              <BaseInput v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
+              <FormField label="Sample limit (optional)">
+                <BaseInput v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
+              </FormField>
             </div>
           </div>
-          <label class="tk-lbl">Destination .sql file</label>
-          <div class="tk-path">
-            <BaseInput v-model="form.path" class="tk-input" placeholder="/path/to/migration.sql" />
-            <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
-          </div>
+          <FormField label="Destination .sql file">
+            <div class="tk-path">
+              <BaseInput v-model="form.path" class="tk-input" placeholder="/path/to/migration.sql" />
+              <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
+            </div>
+          </FormField>
         </template>
 
         <!-- Shell: code -->
         <template v-else-if="form.type === 'shell'">
-          <label class="tk-lbl">Script</label>
-          <BaseTextarea v-model="form.code" class="tk-area" rows="5" spellcheck="false" placeholder="db.collection.find({}).count()"></BaseTextarea>
+          <FormField label="Script">
+            <BaseTextarea v-model="form.code" class="tk-area" rows="5" spellcheck="false" placeholder="db.collection.find({}).count()"></BaseTextarea>
+          </FormField>
         </template>
 
         <!-- Schedule -->
-        <label class="tk-lbl">Schedule</label>
-        <BaseSelect v-model="form.schedKind" class="tk-select" :options="SCHED_OPTIONS" />
+        <FormField label="Schedule">
+          <BaseSelect v-model="form.schedKind" class="tk-select" :options="SCHED_OPTIONS" />
+        </FormField>
         <div v-if="form.schedKind === 'interval'" class="tk-sched-row">
           <span>Every</span>
           <BaseInput v-model="form.everyMinutes" class="tk-input tiny" />
@@ -673,13 +691,6 @@ async function save() {
 .tk-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 
 /* Form */
-.tk-lbl {
-  font-size: 11px;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  margin-top: 4px;
-}
 .tk-input,
 .base-input.tk-input {
   width: 100%;

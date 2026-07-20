@@ -12,6 +12,7 @@ import BaseModal from '../base/BaseModal.vue'
 import HintText from '../base/HintText.vue'
 import BaseModalBody from '../base/BaseModalBody.vue'
 import BaseModalFoot from '../base/BaseModalFoot.vue'
+import FormField from '../base/FormField.vue'
 
 // Top-bar "Data Masking" tool for the active collection. Lists the collection's
 // fields (from a sample document) and lets the user pick a masking strategy per
@@ -164,6 +165,19 @@ async function runExport() {
           </div>
 
           <StateMessage v-if="error && fields.length" mode="error" :message="error" :code="errorCode" />
+
+          <div class="mk-footer">
+            <FormField label="Format">
+              <BaseSelect v-model="format" class="mk-select" :options="FORMAT_OPTIONS" size="sm" />
+            </FormField>
+            <FormField label="Limit">
+              <BaseInput v-model="limit" type="number" min="1" placeholder="all" class="mk-num wide" />
+            </FormField>
+            <span class="mk-summary">{{ maskedCount }} field{{ maskedCount === 1 ? '' : 's' }} masked</span>
+            <BaseButton variant="primary" :disabled="exporting" @click="runExport">
+              {{ exporting ? 'Exporting…' : 'Export masked copy' }}
+            </BaseButton>
+          </div>
         </template>
       </BaseModalBody>
 
@@ -228,5 +242,12 @@ async function runExport() {
 .base-input.mk-num.wide { width: 64px; }
 
 .mk-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+.mk-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
 .mk-summary { font-size: 12px; color: var(--text-faint); margin-left: auto; }
 </style>
