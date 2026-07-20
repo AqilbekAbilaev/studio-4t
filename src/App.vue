@@ -676,6 +676,26 @@ function openIndexManagerTab({ connId, connName, dbName, collName }) {
   activeTabId.value = id
 }
 
+// Opens an Import tab for a collection with the format chosen in the picker. The
+// pane (ImportPane) mutates the working state (sources, validate, preview) directly
+// on the tab, so it survives tab switches; the persisted subset (format, validate,
+// sources) lets the tab return on restart. Each source targets a db.collection on
+// this connection; Run loops over the sources on the frontend.
+function openImportTab({ connId, connName, dbName, collName }, format) {
+  const id = 't' + Date.now()
+  tabs.value.push({
+    id: id, kind: 'import',
+    title: 'Import: ' + collName,
+    connId: connId, connName: connName, dbName: dbName, collName: collName,
+    format: format,
+    validate: false,
+    sources: [],            // { path, name, targetDb, targetColl, mode }
+    selectedSource: -1,
+    previewOpen: false,
+  })
+  activeTabId.value = id
+}
+
 // GridFS menu actions operate inside the GridFS modal on its selected file/bucket.
 // Ensure the modal is open for the resolved database (preserving any existing
 // selection when it's already showing that db), then signal the requested action.
@@ -783,6 +803,7 @@ provide('appModals', {
     onManagerConnect: onManagerConnect,
     onValidatorSaved: onValidatorSaved,
     onWizardImported: onWizardImported,
+    openImportTab: openImportTab,
     onReschemaApplied: onReschemaApplied,
     onPrefsSaved: onPrefsSaved,
     onKeybindingsSaved: onKeybindingsSaved,

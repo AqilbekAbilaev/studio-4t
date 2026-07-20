@@ -73,6 +73,12 @@ rust_xlsxwriter = "0.96"
 # (alongside the CSV form). Small reports, so the doc is built in memory then packed.
 docx-rs = "0.4"
 
+# Native OS clipboard read. WebKitGTK (Linux) refuses programmatic reads via the
+# browser `navigator.clipboard.readText`, so "Paste from clipboard" in the import tab
+# reads through this crate instead (X11 + Wayland backends). Standalone of Tauri, so
+# it doesn't perturb the pinned tauri/wry versions.
+arboard = { version = "3", features = ["wayland-data-control"] }
+
 # keyring needs a per-platform backend feature; without one it silently uses an
 # in-memory mock store that loses every password when the app exits (which made
 # saved connections fail with "no password supplied" after a restart).

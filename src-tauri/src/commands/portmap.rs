@@ -269,6 +269,53 @@ pub async fn import_preview(
     })
 }
 
+/// Read the OS clipboard as text. Used by the import tab's "Paste from clipboard"
+/// because WebKitGTK (Linux) blocks the browser `navigator.clipboard.readText`.
+/// Returns an empty string when the clipboard holds no text.
+#[tauri::command]
+pub async fn read_clipboard_text() -> Result<String, AppError> {
+    let result = tokio::task::spawn_blocking(|| -> Result<String, String> {
+        let mut clipboard = match arboard::Clipboard::new() {
+            Ok(val) => val,
+            Err(e) => return Err(e.to_string()),
+        };
+        match clipboard.get_text() {
+            Ok(val) => Ok(val),
+            // No text on the clipboard is not an error — report it as empty.
+            Err(arboard::Error::ContentNotAvailable) => Ok(String::new()),
+            Err(e) => Err(e.to_string()),
+        }
+    })
+    .await;
+    match result {
+        Ok(Ok(text)) => Ok(text),
+        Ok(Err(message)) => Err(AppError::Bson(format!("Clipboard read failed: {message}"))),
+        Err(join_err) => Err(AppError::Bson(format!("Clipboard task failed: {join_err}"))),
+    }
+}
+
+/// Stage pasted text (e.g. from the clipboard) as a temp file so the import
+/// pipeline — which reads sources by file path — can treat it like any other
+/// source. Returns the absolute path of the written file. The files land in the OS
+/// temp dir named `ozendb-import-<uuid>.<ext>`; the OS reclaims the temp dir.
+#[tauri::command]
+pub async fn stage_import_text(content: String, format: String) -> Result<String, AppError> {
+    let extension = if format == "csv" { "csv" } else { "json" };
+    let file_name = format!("ozendb-import-{}.{}", uuid::Uuid::new_v4(), extension);
+    let mut path = std::env::temp_dir();
+    path.push(file_name);
+    match std::fs::write(&path, content.as_bytes()) {
+        Ok(_) => {}
+        Err(e) => return Err(AppError::Io(e)),
+    }
+    match path.to_str() {
+        Some(val) => Ok(val.to_string()),
+        None => Err(AppError::Bson(
+            "Temp file path is not valid UTF-8".to_string(),
+        )),
+    }
+}
+
 // The export wizard samples the target collection through the existing
 // `find_documents` command (no new command needed), then selects/renames fields
 // through `export_collection_fields` in `admin.rs`.

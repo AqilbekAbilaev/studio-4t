@@ -25,7 +25,8 @@ import CollectionHistoryModal from '../tools/CollectionHistoryModal.vue'
 import SqlModal from '../query/SqlModal.vue'
 import TasksModal from '../admin/TasksModal.vue'
 import MaskingModal from '../tools/MaskingModal.vue'
-import ImportExportWizard from '../tools/ImportExportWizard.vue'
+import ExportWizard from '../tools/ExportWizard.vue'
+import ImportFormatModal from '../tools/ImportFormatModal.vue'
 import ReschemaModal from '../tools/ReschemaModal.vue'
 import StatsModal from '../admin/StatsModal.vue'
 import ServerInfoModal from '../admin/ServerInfoModal.vue'
@@ -155,7 +156,7 @@ const {
   showToast,
   onManagerConnect,
   onValidatorSaved,
-  onWizardImported,
+  openImportTab,
   onReschemaApplied,
   onPrefsSaved,
   onKeybindingsSaved,
@@ -272,18 +273,17 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       @close="maskingTarget = null"
     />
 
-    <!-- Import / Export field-mapping wizard -->
-    <ImportExportWizard
+    <!-- Import: format picker → opens an import tab (ImportPane) on Configure -->
+    <ImportFormatModal
       v-if="importWizardTarget"
-      mode="import"
       :target="importWizardTarget"
-      @toast="showToast"
-      @done="onWizardImported"
+      @configure="(fmt) => { openImportTab(importWizardTarget, fmt); importWizardTarget = null }"
       @close="importWizardTarget = null"
     />
-    <ImportExportWizard
+
+    <!-- Export field-mapping wizard -->
+    <ExportWizard
       v-if="exportWizardTarget"
-      mode="export"
       :target="exportWizardTarget"
       @toast="showToast"
       @close="exportWizardTarget = null"

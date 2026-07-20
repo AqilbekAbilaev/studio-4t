@@ -7,25 +7,45 @@ import { invoke } from '@tauri-apps/api/core'
 // tab spine (`tabs`, `activeTabId`) stays owned by App.vue and is passed in;
 // `runRestoredTab` re-runs a restored find tab's stored query in place.
 export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
+  // Import tabs persist their target + chosen format + the list of sources (each a
+  // file path plus its target db/collection/insertion mode). Preview data is
+  // re-derived on demand, so it isn't stored.
+  function projectTab(t) {
+    if (t.kind === 'shell') {
+      return {
+        id: t.id, kind: 'shell', title: t.title, color: t.color,
+        connectionId: t.connectionId, connectionName: t.connectionName,
+        dbName: t.dbName, code: t.code, scriptPath: t.scriptPath || null,
+      }
+    }
+    if (t.kind === 'import') {
+      return {
+        id: t.id, kind: 'import', title: t.title, color: t.color,
+        connId: t.connId, connName: t.connName,
+        dbName: t.dbName, collName: t.collName,
+        format: t.format, validate: !!t.validate,
+        sources: (t.sources || []).map(s => ({
+          path: s.path, name: s.name,
+          targetDb: s.targetDb, targetColl: s.targetColl, mode: s.mode,
+        })),
+      }
+    }
+    return {
+      id: t.id, kind: 'collection', title: t.title, color: t.color,
+      connectionId: t.connectionId, connectionName: t.connectionName,
+      dbName: t.dbName, collectionName: t.collectionName,
+      filter: t.filter, sort: t.sort, projection: t.projection,
+      skip: t.skip, limit: t.limit, mode: t.mode, pipeline: t.pipeline,
+      vqb: t.vqb,
+    }
+  }
+
   function projectSession() {
     return {
       activeTabId: activeTabId.value,
       tabs: tabs.value
-        .filter(t => t.kind === 'collection' || t.kind === 'shell')
-        .map(t => t.kind === 'shell'
-          ? {
-              id: t.id, kind: 'shell', title: t.title, color: t.color,
-              connectionId: t.connectionId, connectionName: t.connectionName,
-              dbName: t.dbName, code: t.code, scriptPath: t.scriptPath || null,
-            }
-          : {
-              id: t.id, kind: 'collection', title: t.title, color: t.color,
-              connectionId: t.connectionId, connectionName: t.connectionName,
-              dbName: t.dbName, collectionName: t.collectionName,
-              filter: t.filter, sort: t.sort, projection: t.projection,
-              skip: t.skip, limit: t.limit, mode: t.mode, pipeline: t.pipeline,
-              vqb: t.vqb,
-            }),
+        .filter(t => t.kind === 'collection' || t.kind === 'shell' || t.kind === 'import')
+        .map(projectTab),
     }
   }
 
@@ -47,8 +67,24 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
         const conns = await invoke('list_connections')
         const validIds = new Set(conns.map(c => c.id))
         const restored = saved
-          .filter(t => validIds.has(t.connectionId))    // drop tabs for deleted connections
-          .map(t => t.kind === 'shell'
+          // drop tabs for deleted connections (import tabs key on connId)
+          .filter(t => validIds.has(t.connectionId || t.connId))
+          .map(t => t.kind === 'import'
+            ? {
+                // Restore the import tab with its sources; preview is re-derived on
+                // demand (the referenced files may have changed).
+                id: t.id, kind: 'import', title: t.title, color: t.color,
+                connId: t.connId, connName: t.connName,
+                dbName: t.dbName, collName: t.collName,
+                format: t.format, validate: !!t.validate,
+                sources: (t.sources || []).map(s => ({
+                  path: s.path, name: s.name,
+                  targetDb: s.targetDb, targetColl: s.targetColl, mode: s.mode,
+                })),
+                selectedSource: (t.sources && t.sources.length) ? 0 : -1,
+                previewOpen: false,
+              }
+            : t.kind === 'shell'
             ? {
                 // Rebuild a shell tab with a fresh backend session (JS contexts are
                 // ephemeral); the editor text is restored, history loads on mount.
