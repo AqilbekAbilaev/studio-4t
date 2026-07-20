@@ -9,9 +9,10 @@ use super::{
     collect_values, parse_ejson_document, parse_pipeline, tracked, DatabaseInfo, AppContext,
 };
 
-/// Build operation metadata for a long-running data-movement command (export/import/…).
-/// These are always worth logging, so — unlike queries — there's no gating. No cancel
-/// handle yet (server-side cancellation of these is a later phase), hence `cancel_comment: None`.
+/// Build operation metadata for a long-running admin command — data movement
+/// (export/import/…) or an index build/drop, all of which can run for a long time on
+/// a large collection. These are always worth logging, so — unlike queries — there's
+/// no gating. No cancel handle yet (server-side cancellation is a later phase).
 fn data_op_meta(
     ctx: &AppContext,
     op_type: &str,
@@ -528,61 +529,89 @@ pub async fn list_indexes(
 #[tauri::command]
 pub async fn create_index(
     ctx: State<'_, AppContext>,
+    ops: State<'_, OperationsRegistry>,
     id: String,
     database: String,
     collection: String,
     keys: String,
     options: String,
 ) -> Result<(), AppError> {
-    let client = match ctx.client_for_write(&id).await {
-        Ok(val) => val,
-        Err(e) => return Err(e),
+    // Building an index on a large collection can take a long time, so record it in
+    // the Operations pane like export/import rather than blocking silently.
+    let meta = data_op_meta(
+        &ctx,
+        "index",
+        format!("Create index on {}.{}", database, collection),
+        &id,
+        &database,
+        &collection,
+    );
+    let run = async {
+        let client = match ctx.client_for_write(&id).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let keys_doc = match parse_ejson_document(&keys) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let mut index_doc = match parse_ejson_document(&options) {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        index_doc.insert("key", keys_doc);
+        let command = bson::doc! {
+            "createIndexes": &collection,
+            "indexes": [index_doc],
+        };
+        match client.database(&database).run_command(command).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(AppError::Mongo(e)),
+        }
     };
-    let keys_doc = match parse_ejson_document(&keys) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let mut index_doc = match parse_ejson_document(&options) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    index_doc.insert("key", keys_doc);
-    let command = bson::doc! {
-        "createIndexes": &collection,
-        "indexes": [index_doc],
-    };
-    match client.database(&database).run_command(command).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(AppError::Mongo(e)),
-    }
+    tracked(&ops, Some(meta), run).await
 }
 
 #[tauri::command]
 pub async fn drop_index(
     ctx: State<'_, AppContext>,
+    ops: State<'_, OperationsRegistry>,
     id: String,
     database: String,
     collection: String,
     name: String,
 ) -> Result<(), AppError> {
-    // The `_id_` index cannot be dropped; reject it before touching the network.
+    // The `_id_` index cannot be dropped; reject it before touching the network (and
+    // before creating an operation record — a blocked attempt isn't a real op).
     if is_protected_index(&name) {
         return Err(AppError::Validation(format!(
             "The \"{}\" index cannot be dropped.",
             name
         )));
     }
-    let client = match ctx.client_for_write(&id).await {
-        Ok(val) => val,
-        Err(e) => return Err(e),
+    // Dropping an index on a large collection can also run for a while, so track it.
+    let meta = data_op_meta(
+        &ctx,
+        "index",
+        format!("Drop index \"{}\" on {}.{}", name, database, collection),
+        &id,
+        &database,
+        &collection,
+    );
+    let run = async {
+        let client = match ctx.client_for_write(&id).await {
+            Ok(val) => val,
+            Err(e) => return Err(e),
+        };
+        let col = client
+            .database(&database)
+            .collection::<bson::Document>(&collection);
+        match col.drop_index(name).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(AppError::Mongo(e)),
+        }
     };
-    let col = client
-        .database(&database)
-        .collection::<bson::Document>(&collection);
-    match col.drop_index(name).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(AppError::Mongo(e)),
-    }
+    tracked(&ops, Some(meta), run).await
 }
 
 /// Sets or clears an index's `hidden` flag via `collMod`. A hidden index is
