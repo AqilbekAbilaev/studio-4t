@@ -106,7 +106,9 @@ export function accelToTokens(accel, isMac) {
 // usable global shortcut. Requires either a modifier or a function key — a bare
 // letter would fire while typing. Used by the "press a key" capture field.
 export function accelFromEvent(event) {
-  const key = event.key
+  // Use the same code fallback as the matcher so Shift+Tab (which WebKitGTK
+  // reports as key "Unidentified"/ISO_Left_Tab) is captured, not dropped.
+  const key = eventKey(event)
   if (['Control', 'Shift', 'Alt', 'Meta', 'Super', 'CapsLock', 'Dead', 'Unidentified'].includes(key)) return null
 
   let main

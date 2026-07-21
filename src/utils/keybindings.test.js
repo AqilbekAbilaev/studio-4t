@@ -10,8 +10,8 @@ import {
 } from './keybindings'
 
 // A minimal keydown-event stand-in; only the fields the matcher reads.
-function evt({ key, ctrl = false, meta = false, shift = false, alt = false }) {
-  return { key: key, ctrlKey: ctrl, metaKey: meta, shiftKey: shift, altKey: alt }
+function evt({ key, code = '', ctrl = false, meta = false, shift = false, alt = false }) {
+  return { key: key, code: code, ctrlKey: ctrl, metaKey: meta, shiftKey: shift, altKey: alt }
 }
 
 describe('mergeBindings', () => {
@@ -102,5 +102,9 @@ describe('accelFromEvent', () => {
   it('rejects a lone modifier or a bare letter', () => {
     expect(accelFromEvent(evt({ key: 'Shift', shift: true }))).toBeNull()
     expect(accelFromEvent(evt({ key: 'a' }))).toBeNull()
+  })
+
+  it('captures Shift+Tab reported by WebKitGTK as "Unidentified" via code', () => {
+    expect(accelFromEvent(evt({ key: 'Unidentified', code: 'Tab', ctrl: true, shift: true }))).toBe('CmdOrCtrl+Shift+Tab')
   })
 })
