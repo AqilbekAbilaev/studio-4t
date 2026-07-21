@@ -1,7 +1,7 @@
 <script setup>
 // A dropdown menu row — full-width, hover-highlighted, with arbitrary slotted
-// content (icon + label, or code + hint). The default-item / datetag-item rows from
-// the query-bar menus. Owns its <button> so feature code carries none.
+// content (icon + label, or code + hint), e.g. the default-query rows in the
+// query-bar menus. Owns its <button> so feature code carries none.
 const emit = defineEmits(['click'])
 </script>
 
