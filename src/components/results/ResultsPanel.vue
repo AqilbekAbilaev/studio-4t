@@ -442,7 +442,7 @@ function toggleReadOnly() {
         <code>{{ activeTab.collectionName }}</code>. The collection and its indexes remain.
         This cannot be undone.</p>
       <p class="cc-prompt">Type <code>{{ activeTab.collectionName }}</code> to confirm:</p>
-      <BaseInput class="cc-input" v-model="clearConfirmText" spellcheck="false" autocomplete="off"
+      <BaseInput class="cc-input" v-model="clearConfirmText" autocomplete="off"
              @enter="onClearConfirm" />
       <FieldError :text="clearError" spaced />
     </div>

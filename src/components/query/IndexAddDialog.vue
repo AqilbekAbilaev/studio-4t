@@ -241,7 +241,6 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
             class="prompt-input"
             :disabled="mode === 'edit'"
             placeholder="Auto-generated from the fields if left blank"
-            spellcheck="false" autocorrect="off" autocapitalize="off"
           />
         </FormField>
 
@@ -274,7 +273,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
             <tbody>
               <tr v-for="(row, i) in rows" :key="i">
                 <td class="fc-name">
-                  <BaseInput v-model="row.field" class="prompt-input sm" placeholder="e.g. email or address.city" spellcheck="false" autocorrect="off" autocapitalize="off" />
+                  <BaseInput v-model="row.field" class="prompt-input sm" placeholder="e.g. email or address.city" />
                 </td>
                 <td class="fc-type">
                   <BaseSelect v-model="row.type" class="prompt-select" :options="TYPE_OPTIONS" size="sm" />
@@ -299,7 +298,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
           <label class="opt-row"><BaseCheckbox v-model="optTtlEnabled" /><span>TTL — expire documents after</span>
             <BaseInput v-model="optTtlSeconds" class="prompt-input sm ttl" :disabled="!optTtlEnabled" placeholder="seconds" /></label>
           <FormField label="Partial filter expression (JSON)">
-            <BaseInput v-model="optPartial" class="prompt-input" placeholder='e.g. {"status": "active"}' spellcheck="false" autocorrect="off" autocapitalize="off" />
+            <BaseInput v-model="optPartial" class="prompt-input" placeholder='e.g. {"status": "active"}' />
           </FormField>
         </div>
 
@@ -307,13 +306,13 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
         <div v-else-if="subtab === 'text'" class="tab-pane">
           <HintText class="pane-note">Applies to <code>text</code> indexes.</HintText>
           <FormField label="Default language">
-            <BaseInput v-model="txtDefaultLang" class="prompt-input" placeholder="english" spellcheck="false" autocorrect="off" autocapitalize="off" />
+            <BaseInput v-model="txtDefaultLang" class="prompt-input" placeholder="english" />
           </FormField>
           <FormField label="Language override field">
-            <BaseInput v-model="txtLangOverride" class="prompt-input" placeholder="language" spellcheck="false" autocorrect="off" autocapitalize="off" />
+            <BaseInput v-model="txtLangOverride" class="prompt-input" placeholder="language" />
           </FormField>
           <FormField label="Field weights (JSON)">
-            <BaseInput v-model="txtWeights" class="prompt-input" placeholder='e.g. {"title": 10, "body": 1}' spellcheck="false" autocorrect="off" autocapitalize="off" />
+            <BaseInput v-model="txtWeights" class="prompt-input" placeholder='e.g. {"title": 10, "body": 1}' />
           </FormField>
         </div>
 
@@ -321,22 +320,22 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
         <div v-else-if="subtab === 'geo'" class="tab-pane">
           <HintText class="pane-note">Applies to <code>2dsphere</code> / <code>2d</code> indexes.</HintText>
           <FormField label="2dsphere index version">
-            <BaseInput v-model="geoSphereVersion" class="prompt-input" placeholder="3" spellcheck="false" autocorrect="off" autocapitalize="off" />
+            <BaseInput v-model="geoSphereVersion" class="prompt-input" placeholder="3" />
           </FormField>
           <div class="geo-grid">
             <div>
               <FormField label="Bits (2d)">
-                <BaseInput v-model="geoBits" class="prompt-input" placeholder="26" spellcheck="false" autocorrect="off" autocapitalize="off" />
+                <BaseInput v-model="geoBits" class="prompt-input" placeholder="26" />
               </FormField>
             </div>
             <div>
               <FormField label="Min (2d)">
-                <BaseInput v-model="geoMin" class="prompt-input" placeholder="-180" spellcheck="false" autocorrect="off" autocapitalize="off" />
+                <BaseInput v-model="geoMin" class="prompt-input" placeholder="-180" />
               </FormField>
             </div>
             <div>
               <FormField label="Max (2d)">
-                <BaseInput v-model="geoMax" class="prompt-input" placeholder="180" spellcheck="false" autocorrect="off" autocapitalize="off" />
+                <BaseInput v-model="geoMax" class="prompt-input" placeholder="180" />
               </FormField>
             </div>
           </div>
@@ -346,7 +345,7 @@ const title = computed(() => props.mode === 'edit' ? 'Edit index' : 'Add index')
         <div v-else class="tab-pane options-pane">
           <HintText class="pane-note">Set a locale to attach a collation; leave blank for none.</HintText>
           <FormField label="Locale">
-            <BaseInput v-model="colLocale" class="prompt-input" placeholder='e.g. en or "simple"' spellcheck="false" autocorrect="off" autocapitalize="off" />
+            <BaseInput v-model="colLocale" class="prompt-input" placeholder='e.g. en or "simple"' />
           </FormField>
           <div class="geo-grid">
             <div>

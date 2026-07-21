@@ -727,7 +727,7 @@ async function save() {
               <BaseSelect class="nc-sel" v-model="oidcEnvironment" :options="OIDC_ENVIRONMENTS" />
             </FormField>
             <FormField v-if="oidcNeedsResource" label="Token resource">
-              <BaseInput class="nc-input" v-model="oidcTokenResource" spellcheck="false" placeholder="e.g. api://&lt;app-id&gt;" />
+              <BaseInput class="nc-input" v-model="oidcTokenResource" placeholder="e.g. api://&lt;app-id&gt;" />
             </FormField>
             <div class="nc-hint">
               Workload-identity OIDC: the token is obtained from the {{ oidcEnvironment }} environment — no username or password.
@@ -746,14 +746,14 @@ async function save() {
           <template v-if="useSsh">
             <div class="nc-inline2">
               <FormField label="SSH host" style="flex:1">
-                <BaseInput class="nc-input" v-model="sshHost" placeholder="bastion.example.com" spellcheck="false" />
+                <BaseInput class="nc-input" v-model="sshHost" placeholder="bastion.example.com" />
               </FormField>
               <FormField label="Port" style="width:92px">
                 <BaseInput class="nc-input" type="number" v-model="sshPort" />
               </FormField>
             </div>
             <FormField label="SSH user">
-              <BaseInput class="nc-input" v-model="sshUser" spellcheck="false" />
+              <BaseInput class="nc-input" v-model="sshUser" />
             </FormField>
             <FormField label="Authentication">
               <SegmentedControl
@@ -769,7 +769,7 @@ async function save() {
             <template v-else>
               <FormField label="Private key file">
                 <div class="nc-file-row">
-                  <BaseInput class="nc-input" v-model="sshKeyFile" placeholder="~/.ssh/id_ed25519" spellcheck="false" />
+                  <BaseInput class="nc-input" v-model="sshKeyFile" placeholder="~/.ssh/id_ed25519" />
                   <BaseButton bordered type="button" @click="pickSshKey">Browse…</BaseButton>
                 </div>
               </FormField>
@@ -792,14 +792,14 @@ async function save() {
           <template v-if="useTls">
             <FormField label="Certificate Authority (.pem)">
               <div class="nc-file-row">
-                <BaseInput class="nc-input" v-model="tlsCaFile" placeholder="Path to CA certificate" spellcheck="false" />
+                <BaseInput class="nc-input" v-model="tlsCaFile" placeholder="Path to CA certificate" />
                 <BaseButton bordered type="button" @click="pickTlsFile('ca')">Browse…</BaseButton>
               </div>
             </FormField>
 
             <FormField label="Client Certificate + Key (.pem)">
               <div class="nc-file-row">
-                <BaseInput class="nc-input" v-model="tlsCertKeyFile" placeholder="Path to client certificate (optional)" spellcheck="false" />
+                <BaseInput class="nc-input" v-model="tlsCertKeyFile" placeholder="Path to client certificate (optional)" />
                 <BaseButton bordered type="button" @click="pickTlsFile('cert')">Browse…</BaseButton>
               </div>
             </FormField>

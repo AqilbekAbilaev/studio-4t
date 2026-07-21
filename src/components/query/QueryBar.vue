@@ -308,9 +308,6 @@ watch(() => props.activeTab && props.activeTab.id, () => {
           :model-value="activeTab.filter"
           @update:model-value="activeTab.filter = $event"
           placeholder="{}"
-          spellcheck="false"
-          autocorrect="off"
-          autocapitalize="off"
           @keydown.enter.prevent="emit('run')"
         />
         <span class="qicons">
@@ -330,7 +327,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
       </div>
       <span class="qlabel">Sort</span>
       <div class="qinput">
-        <BaseInput class="qval" :model-value="activeTab.sort" @update:model-value="activeTab.sort = $event" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="emit('run')" />
+        <BaseInput class="qval" :model-value="activeTab.sort" @update:model-value="activeTab.sort = $event" placeholder="{}" @keydown.enter.prevent="emit('run')" />
         <span class="qicon-col">
           <BaseIcon name="caret" :size="11" style="transform: rotate(-90deg)" title="Sort by _id ascending (oldest first)" @click="sortById(1)" />
           <BaseIcon name="caret" :size="11" style="transform: rotate(90deg)" title="Sort by _id descending (newest first)" @click="sortById(-1)" />
@@ -340,7 +337,7 @@ watch(() => props.activeTab && props.activeTab.id, () => {
 
       <span class="qlabel">Projection</span>
       <div class="qinput">
-        <BaseInput class="qval" :model-value="activeTab.projection" @update:model-value="activeTab.projection = $event" placeholder="{}" spellcheck="false" autocorrect="off" autocapitalize="off" @keydown.enter.prevent="emit('run')" />
+        <BaseInput class="qval" :model-value="activeTab.projection" @update:model-value="activeTab.projection = $event" placeholder="{}" @keydown.enter.prevent="emit('run')" />
       </div>
       <div class="num-cluster">
         <span class="qlabel">Limit</span>

@@ -158,7 +158,7 @@ function copyText(text) {
           </div>
           <div class="um-copy-row">
             <FormField label="Target database">
-              <BaseInput v-model="copyTargetDb" spellcheck="false" placeholder="database" />
+              <BaseInput v-model="copyTargetDb" placeholder="database" />
             </FormField>
           </div>
           <HintText dim class="um-copy-note">
@@ -196,9 +196,9 @@ function copyText(text) {
         </div>
 
         <div v-if="showCreate" class="um-create">
-          <BaseInput v-model="newName" placeholder="Username" spellcheck="false" />
+          <BaseInput v-model="newName" placeholder="Username" />
           <BaseInput v-model="newPassword" type="password" placeholder="Password" />
-          <BaseInput v-model="newRoles" placeholder="Roles (comma-separated, e.g. readWrite, read@other)" spellcheck="false" />
+          <BaseInput v-model="newRoles" placeholder="Roles (comma-separated, e.g. readWrite, read@other)" />
           <div class="um-create-actions">
             <BaseButton bordered @click="showCreate = false">Cancel</BaseButton>
             <BaseButton variant="primary" :disabled="!newName.trim() || !newPassword || busy" @click="createUser">Create</BaseButton>

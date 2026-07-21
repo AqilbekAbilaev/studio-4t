@@ -383,9 +383,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             v-model="newCollectionName"
             class="prompt-input"
             placeholder="Collection name"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
             @keydown.enter="confirmAddCollection"
           />
           <div class="cc-types">
@@ -409,11 +406,11 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
           <div v-else-if="newCollectionType === 'timeseries'" class="cc-opts">
             <label class="cc-field">
               <span class="cc-label">Time field</span>
-              <BaseInput v-model="newCollectionOpts.timeField" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. timestamp" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.timeField" class="prompt-input" placeholder="e.g. timestamp" @keydown.enter="confirmAddCollection" />
             </label>
             <label class="cc-field">
               <span class="cc-label">Meta field <span class="cc-opt">(optional)</span></span>
-              <BaseInput v-model="newCollectionOpts.metaField" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. metadata" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.metaField" class="prompt-input" placeholder="e.g. metadata" @keydown.enter="confirmAddCollection" />
             </label>
             <label class="cc-field">
               <span class="cc-label">Granularity <span class="cc-opt">(optional)</span></span>
@@ -429,7 +426,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             <p class="cc-hint">Documents are stored in <code>_id</code> order (clustered index on <code>{ _id: 1 }</code>).</p>
             <label class="cc-field">
               <span class="cc-label">Index name <span class="cc-opt">(optional)</span></span>
-              <BaseInput v-model="newCollectionOpts.clusteredIndexName" class="prompt-input" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="e.g. events_clustered" @keydown.enter="confirmAddCollection" />
+              <BaseInput v-model="newCollectionOpts.clusteredIndexName" class="prompt-input" placeholder="e.g. events_clustered" @keydown.enter="confirmAddCollection" />
             </label>
           </div>
 
@@ -451,17 +448,11 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             v-model="newViewName"
             class="prompt-input"
             placeholder="View name"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
           />
           <BaseInput
             v-model="newViewSource"
             class="prompt-input"
             placeholder="Source collection (viewOn)"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
           />
           <BaseTextarea
             v-model="newViewPipeline"
@@ -487,9 +478,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             v-model="newBucketName"
             class="prompt-input"
             placeholder="Bucket name (e.g. fs)"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
             @keydown.enter="confirmAddBucket"
           />
           <FieldError :text="addBucketError" spaced />
@@ -510,9 +498,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             v-model="renameTabValue"
             class="prompt-input"
             placeholder="Tab name"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
             @keydown.enter="confirmRenameTab"
             @keydown.escape="renameTabTarget = null"
           />
@@ -561,9 +546,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             v-model="renameCollectionName"
             class="prompt-input"
             placeholder="New collection name"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
             @keydown.enter="confirmRenameCollection"
           />
           <FieldError :text="renameCollectionError" spaced />
@@ -584,9 +566,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             v-model="duplicateCollectionName"
             class="prompt-input"
             placeholder="New collection name"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
             @keydown.enter="confirmDuplicateCollection"
           />
           <FieldError :text="duplicateCollectionError" spaced />
@@ -607,18 +586,12 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
             v-model="newDatabaseName"
             class="prompt-input"
             placeholder="Database name"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
           />
           <BaseInput
             v-model="newDatabaseCollName"
             class="prompt-input"
             style="margin-top:8px"
             placeholder="First collection name"
-            spellcheck="false"
-            autocorrect="off"
-            autocapitalize="off"
             @keydown.enter="confirmAddDatabase"
           />
           <p style="margin-top:8px;color:var(--text-faint);font-size:12px">MongoDB only creates a database once it holds a collection, so a first collection is required.</p>
@@ -664,10 +637,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
           <BaseInput
             class="prompt-input"
             v-model="dropIndexConfirmText"
-            spellcheck="false"
             autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
             @keydown.enter="confirmDropIndex"
           />
           <FieldError :text="dropIndexError" spaced />

@@ -64,7 +64,6 @@ function preview(doc) {
             v-model="term"
             class="se-input"
             placeholder="Search all collections for a value…"
-            spellcheck="false"
             @enter="search"
           />
           <BaseButton variant="primary" :disabled="loading || !term.trim()" @click="search">

@@ -363,7 +363,7 @@ function fmtDate(iso) {
   <!-- Rename file -->
   <BaseModal v-if="renameTarget" title="Rename File" width="440px" max-width="92vw" @close="renameTarget = null">
       <div class="sub-body">
-        <BaseInput v-model="renameName" placeholder="New filename" spellcheck="false" @enter="doRename" />
+        <BaseInput v-model="renameName" placeholder="New filename" @enter="doRename" />
         <FieldError :text="subError" />
       </div>
       <div class="sub-footer">
@@ -404,7 +404,7 @@ function fmtDate(iso) {
   <!-- Copy bucket -->
   <BaseModal v-if="copyBucketOpen" :title="`Copy Bucket &quot;${selectedBucket}&quot;`" width="440px" max-width="92vw" @close="copyBucketOpen = false">
       <div class="sub-body">
-        <BaseInput v-model="copyBucketName" placeholder="New bucket name" spellcheck="false" @enter="doCopyBucket" />
+        <BaseInput v-model="copyBucketName" placeholder="New bucket name" @enter="doCopyBucket" />
         <FieldError :text="subError" />
       </div>
       <div class="sub-footer">

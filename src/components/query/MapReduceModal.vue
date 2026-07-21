@@ -66,7 +66,7 @@ const resultJson = () => (result.value ? JSON.stringify(result.value, null, 2) :
             <BaseTextarea v-model="finalize" class="mr-code short" spellcheck="false" placeholder="function (key, reducedValue) { … }"></BaseTextarea>
           </FormField>
           <FormField label="Output collection (blank = inline)" uppercase>
-            <BaseInput v-model="outCollection" placeholder="e.g. mr_results" spellcheck="false" />
+            <BaseInput v-model="outCollection" placeholder="e.g. mr_results" />
           </FormField>
         </div>
 

@@ -93,7 +93,7 @@ async function dropFunction(fn) {
       <BaseModalBody>
         <!-- Editor -->
         <template v-if="editing">
-          <BaseInput v-model="editing.name" placeholder="Function name" spellcheck="false" :disabled="busy" />
+          <BaseInput v-model="editing.name" placeholder="Function name" :disabled="busy" />
           <BaseTextarea v-model="editing.body" class="fn-code" spellcheck="false" placeholder="function () { … }"></BaseTextarea>
           <FieldError :text="editError" />
           <div class="fn-actions">

@@ -86,7 +86,7 @@ const shownError = computed(() => localError.value || props.saveError)
         <div v-if="mode === 'edit'" class="fe-field-label">Field: <code>{{ fieldName }}</code></div>
 
         <FormField v-if="showName" :label="mode === 'rename' ? 'New name' : 'Field name'">
-          <BaseInput class="fe-input" v-model="name" spellcheck="false" autocomplete="off"
+          <BaseInput class="fe-input" v-model="name" autocomplete="off"
                  @enter="onSave" />
         </FormField>
 
@@ -102,7 +102,7 @@ const shownError = computed(() => localError.value || props.saveError)
         <FormField v-if="showValueInput" label="Value">
           <BaseTextarea v-if="useTextarea" class="fe-area" v-model="raw" spellcheck="false"
                     autocomplete="off"></BaseTextarea>
-          <BaseInput v-else class="fe-input" v-model="raw" spellcheck="false" autocomplete="off"
+          <BaseInput v-else class="fe-input" v-model="raw" autocomplete="off"
                  @enter="onSave" />
         </FormField>
 

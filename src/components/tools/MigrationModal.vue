@@ -68,7 +68,7 @@ async function copy() {
       <BaseModalBody>
         <div class="mg-controls">
           <FormField label="Table name">
-            <BaseInput v-model="tableName" spellcheck="false" />
+            <BaseInput v-model="tableName" />
           </FormField>
           <FormField label="Limit">
             <BaseInput v-model="limit" type="number" min="1" class="mg-num" />

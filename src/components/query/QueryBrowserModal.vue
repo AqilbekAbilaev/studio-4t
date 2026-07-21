@@ -76,8 +76,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
           v-model="search"
           class="search-input"
           placeholder="Search queries…"
-          spellcheck="false"
-          autocorrect="off"
         />
       </div>
 

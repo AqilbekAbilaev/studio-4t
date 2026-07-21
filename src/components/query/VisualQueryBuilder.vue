@@ -170,7 +170,6 @@ function removeSortField(id) {
               placeholder="field"
               @update:model-value="applyAndRun"
               @keydown.enter.prevent="applyAndExecute"
-              spellcheck="false"
             />
             <BaseSelect class="op-select grow" :model-value="c.op" :options="OPERATORS" size="sm"
               @update:model-value="v => { c.op = v; applyAndRun() }" />
@@ -184,7 +183,6 @@ function removeSortField(id) {
               :placeholder="c.op === 'in' || c.op === 'nin' ? 'val1, val2, …' : 'value'"
               @update:model-value="applyAndRun"
               @keydown.enter.prevent="applyAndExecute"
-              spellcheck="false"
             />
             <span class="cb sm" :class="{ on: c.enabled }"
                   @click="c.enabled = !c.enabled; applyAndRun()">
@@ -228,7 +226,6 @@ function removeSortField(id) {
             v-model="vqbState.projInput"
             placeholder="field name"
             @keydown.enter.prevent="addProjField"
-            spellcheck="false"
           />
           <BaseButton variant="primary" size="sm" @click="addProjField">Add</BaseButton>
         </div>
@@ -269,7 +266,6 @@ function removeSortField(id) {
             v-model="vqbState.sortInput"
             placeholder="field name"
             @keydown.enter.prevent="addSortField"
-            spellcheck="false"
           />
           <BaseButton variant="primary" size="sm" @click="addSortField">Add</BaseButton>
         </div>
