@@ -150,7 +150,7 @@ function pickHidden(id) {
     >
       <span v-if="colorHex(tabColor(t))" class="dot" :style="{ background: colorHex(tabColor(t)) }"></span>
       <span class="title">{{ t.title }}</span>
-      <span class="x" @click.stop="emit('close-tab', t.id)">
+      <span v-if="tabs.length > 1 || t.kind !== 'quickstart'" class="x" @click.stop="emit('close-tab', t.id)">
         <BaseIcon name="close" :size="12" />
       </span>
     </button>

@@ -109,6 +109,13 @@ const tabs = ref([
   { id: 't0', kind: 'quickstart', title: 'Quickstart' }
 ])
 const activeTabId = ref('t0')
+
+// The workspace always keeps at least one tab open: closing the last tab reopens
+// the Quickstart tab (the home screen) instead of leaving an empty, tab-less pane.
+// openQuickstart is a hoisted function declaration, so referencing it here is safe.
+watch(() => tabs.value.length, (count) => {
+  if (count === 0) openQuickstart()
+})
 const toast = ref(null)
 let toastTimer = null
 const connectionTreeRef = ref(null)
@@ -158,6 +165,16 @@ function applyTheme(next) {
   theme.value = value
   document.documentElement.dataset.theme = value
   localStorage.setItem('s4t-theme', value)
+}
+
+// Persist + apply a theme chosen outside the Preferences dialog (e.g. the Quickstart
+// tab's Quick Options). Mirrors what onPrefsSaved does, but saves the setting too so
+// the choice survives a restart.
+async function setTheme(next) {
+  try {
+    await invoke('update_settings', { defaultQueryLimit: defaultQueryLimit.value, theme: next })
+  } catch (_) {}
+  applyTheme(next)
 }
 
 const expandConnectionId = ref(null)
@@ -817,6 +834,7 @@ provide('appModals', {
   ssh: sshApi,
   handlers: {
     showToast: showToast,
+    setTheme: setTheme,
     onManagerConnect: onManagerConnect,
     onValidatorSaved: onValidatorSaved,
     onWizardImported: onWizardImported,
