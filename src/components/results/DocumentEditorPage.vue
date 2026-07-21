@@ -211,9 +211,20 @@ async function onClose() {
   await getCurrentWindow().close()
 }
 
+// Escape closes the window (like the Close/Cancel button). We skip an event the
+// editor already handled — a plain Escape in CodeMirror collapses a multi-range or
+// non-empty selection first (preventDefault), so a second Escape closes.
+function onWindowKeydown(event) {
+  if (event.key !== 'Escape') return
+  if (event.defaultPrevented) return
+  onClose()
+}
+
 let unlisten = null
 
 onMounted(async () => {
+  window.addEventListener('keydown', onWindowKeydown)
+
   // The single window is retargeted in place: reload when the backend emits a new target.
   unlisten = await listen('document-target', (e) => {
     if (!confirmDiscardIfDirty()) return
@@ -225,6 +236,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onWindowKeydown)
   if (unlisten) unlisten()
 })
 </script>
