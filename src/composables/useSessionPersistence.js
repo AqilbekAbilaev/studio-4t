@@ -1,7 +1,7 @@
 import { watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
-// Tab-session persistence. Persists open collection/shell tabs (and which one is active)
+// Tab-session persistence. Persists open collection/shell/import/index tabs (and which one is active)
 // so they return after a restart. Only the persistable fields are projected — result sets
 // and other runtime state are rebuilt on demand, so paging through data never saves. The
 // tab spine (`tabs`, `activeTabId`) stays owned by App.vue and is passed in;
@@ -47,6 +47,15 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
         })),
       }
     }
+    if (t.kind === 'indexes') {
+      // Index Manager tab: a thin shell keyed on the collection. The pane reloads
+      // its index list + metrics itself on mount, so only the identity is stored.
+      return {
+        id: t.id, kind: 'indexes', title: t.title, color: t.color,
+        connId: t.connId, connName: t.connName,
+        dbName: t.dbName, collName: t.collName,
+      }
+    }
     return {
       id: t.id, kind: 'collection', title: t.title, color: t.color,
       connectionId: t.connectionId, connectionName: t.connectionName,
@@ -61,7 +70,7 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
     return {
       activeTabId: activeTabId.value,
       tabs: tabs.value
-        .filter(t => t.kind === 'collection' || t.kind === 'shell' || t.kind === 'import')
+        .filter(t => t.kind === 'collection' || t.kind === 'shell' || t.kind === 'import' || t.kind === 'indexes')
         .map(projectTab),
     }
   }
@@ -130,6 +139,13 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
                 results: [], resultView: 'table', resultTab: 'Console',
                 runError: null, elapsedMs: null, drillPath: [], hasRun: false, selectedRow: -1, selectedRows: [],
                 logs: [], scalar: undefined, hasScalar: false,
+              }
+            : t.kind === 'indexes'
+            ? {
+                // Index Manager tab: identity only; the pane reloads its list on mount.
+                id: t.id, kind: 'indexes', title: t.title, color: t.color,
+                connId: t.connId, connName: t.connName,
+                dbName: t.dbName, collName: t.collName,
               }
             : {
                 ...t,
