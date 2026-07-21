@@ -259,8 +259,8 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Separator,
                 // Tab navigation/closing act on the active tab; always enabled (they
                 // no-op safely when there are 0–1 tabs), so no gate.
-                Spec::Action { id: "view:next_tab", label: "Next Tab", accel: None, gate: None },
-                Spec::Action { id: "view:prev_tab", label: "Previous Tab", accel: None, gate: None },
+                Spec::Action { id: "view:next_tab", label: "Next Tab", accel: Some("CmdOrCtrl+Tab"), gate: None },
+                Spec::Action { id: "view:prev_tab", label: "Previous Tab", accel: Some("CmdOrCtrl+Shift+Tab"), gate: None },
                 Spec::Action { id: "view:close_tab", label: "Close Tab", accel: None, gate: None },
                 Spec::Action { id: "view:close_tab_np", label: "Close Tab (No Prompt)", accel: None, gate: None },
                 Spec::Separator,
@@ -375,7 +375,12 @@ fn build_submenu(
                     Some(custom) => Some(custom.clone()),
                     None => accel.map(|a| a.to_string()),
                 };
-                let accelerator = if accelerators_enabled() && !is_mac_exit {
+                // Tab-navigation items register their accelerators even on Linux so
+                // GTK handles Ctrl+Tab / Ctrl+Shift+Tab before WebKitGTK can swallow
+                // the key. Clipboard/editing items (Edit menu) still skip accelerators
+                // on Linux to avoid the WebKitGTK swallow trap.
+                let is_tab_nav = *id == "view:next_tab" || *id == "view:prev_tab";
+                let accelerator = if (accelerators_enabled() || is_tab_nav) && !is_mac_exit {
                     effective.as_deref()
                 } else {
                     None

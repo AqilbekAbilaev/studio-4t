@@ -16,6 +16,8 @@ export const SHORTCUT_COMMANDS = [
   { id: 'coll:open_tab',     label: 'Open Collection Tab',       group: 'Collection', default: 'F10' },
   { id: 'doc:edit_json',     label: 'Edit Document (JSON)…',     group: 'Document',   default: 'CmdOrCtrl+J' },
   { id: 'view:refresh',      label: 'Refresh',                   group: 'View',       default: 'CmdOrCtrl+R' },
+  { id: 'view:next_tab',    label: 'Next Tab',                 group: 'View',       default: 'CmdOrCtrl+Tab' },
+  { id: 'view:prev_tab',    label: 'Previous Tab',             group: 'View',       default: 'CmdOrCtrl+Shift+Tab' },
 ]
 
 const DEFAULTS = Object.fromEntries(SHORTCUT_COMMANDS.map((cmd) => [cmd.id, cmd.default]))
@@ -53,6 +55,16 @@ export function parseAccel(accel) {
   return matcher
 }
 
+// The logical key name for an event. WebKitGTK reports some keys with
+// `key: "Unidentified"` (notably Shift+Tab, which arrives as ISO_Left_Tab) even
+// though `code` is correct, so fall back to the physical `code` for the keys we
+// bind. Only `Tab` needs mapping — letters and function keys report `key` fine.
+function eventKey(event) {
+  if (event.key && event.key !== 'Unidentified') return event.key
+  if (event.code === 'Tab') return 'Tab'
+  return event.key
+}
+
 // Does a keydown event match the accelerator? Mirrors the app convention that
 // CmdOrCtrl means Ctrl (Win/Linux) or Cmd (mac): we accept ctrl OR meta.
 export function eventMatchesAccel(event, accel) {
@@ -62,7 +74,7 @@ export function eventMatchesAccel(event, accel) {
   if (matcher.mod !== mod) return false
   if (matcher.shift !== event.shiftKey) return false
   if (matcher.alt !== event.altKey) return false
-  return String(event.key).toLowerCase() === matcher.key.toLowerCase()
+  return String(eventKey(event)).toLowerCase() === matcher.key.toLowerCase()
 }
 
 // Given a keydown event and merged bindings, return the id of the command whose

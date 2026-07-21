@@ -70,6 +70,12 @@ describe('matchBinding', () => {
     expect(matchBinding(evt({ key: 'z', ctrl: true }), bindings)).toBeNull()
   })
 
+  it('matches Ctrl+Tab / Ctrl+Shift+Tab for next/prev tab', () => {
+    const bindings = mergeBindings(null)
+    expect(matchBinding(evt({ key: 'Tab', ctrl: true }), bindings)).toBe('view:next_tab')
+    expect(matchBinding(evt({ key: 'Tab', ctrl: true, shift: true }), bindings)).toBe('view:prev_tab')
+  })
+
   it('follows a rebind', () => {
     const bindings = mergeBindings({ 'view:refresh': 'CmdOrCtrl+Shift+R' })
     expect(matchBinding(evt({ key: 'r', ctrl: true }), bindings)).toBeNull()
