@@ -428,7 +428,7 @@ const CM_TOOLS = [
                       v-model="renameText"
                       @click.stop
                       @keydown.enter="commitRenameFolder(row.folder)"
-                      @keydown.esc="cancelRenameFolder"
+                      @keydown.esc.prevent="cancelRenameFolder"
                       @blur="commitRenameFolder(row.folder)"
                     />
                     <span

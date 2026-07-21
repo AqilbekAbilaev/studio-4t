@@ -57,12 +57,10 @@ function fmt(ranAt) {
 }
 
 function handleKey(e) {
-  if (e.key === 'Escape') emit('close')
   if (e.key === 'Enter' && selected.value) load()
 }
 
-// The dialog moved into BaseModal (no focusable overlay to catch keys), so the
-// Escape/Enter shortcuts ride a window listener that lives only while it's open.
+// Enter loads the selected query. Escape-to-close is handled by BaseModal.
 onMounted(() => window.addEventListener('keydown', handleKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 </script>

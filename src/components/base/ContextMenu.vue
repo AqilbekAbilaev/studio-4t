@@ -123,7 +123,10 @@ onUnmounted(() => {
 })
 
 function onKeyDown(e) {
+  // Mark the event handled so a surrounding BaseModal doesn't also close on the
+  // same Escape — the menu backs out first.
   if (e.key === 'Escape') {
+    e.preventDefault()
     emit('close')
   }
 }

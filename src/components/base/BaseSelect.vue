@@ -72,7 +72,12 @@ function onDocPointer(e) {
   open.value = false
 }
 function onKey(e) {
-  if (e.key === 'Escape' && open.value) open.value = false
+  // Mark the event handled so a surrounding BaseModal doesn't also close on the
+  // same Escape — the dropdown backs out first.
+  if (e.key === 'Escape' && open.value) {
+    open.value = false
+    e.preventDefault()
+  }
 }
 function onReflow() {
   if (open.value) positionMenu()
