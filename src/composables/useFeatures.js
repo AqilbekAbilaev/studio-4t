@@ -23,7 +23,6 @@ export function useFeatures({
 }) {
   const {
     showConnectionManager, showTasksModal,
-    gridfsTarget,
   } = modals
   const {
     openAddCollection, openAddDatabase, openAddView, openAddBucket,
@@ -158,7 +157,7 @@ export function useFeatures({
     'Manage Users':            modalFeature('users'),
     'Manage Roles':            modalFeature('roles'),
     'Stored Functions':        modalFeature('functions'),
-    'GridFS…':                 modal(gridfsTarget,    'database', DB),
+    'GridFS…':                 modalFeature('gridfs'),
     'Search in…':              modalFeature('search'),
     'Data Compare':            modalFeature('compare'),
 

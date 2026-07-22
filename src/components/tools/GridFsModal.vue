@@ -20,8 +20,7 @@ import BaseModalBody from '../base/BaseModalBody.vue'
 // Top-bar / tree GridFS browser for a database: list buckets, list files, and
 // upload / download / delete / rename / edit-metadata files, plus bucket copy/drop.
 const props = defineProps({
-  target: { type: Object, required: true },  // { connId, connName, dbName }
-  menuRequest: { type: Object, default: null },  // { action, nonce } from the GridFS menu
+  target: { type: Object, required: true },  // { connId, connName, dbName, menuRequest? }
 })
 const emit = defineEmits(['close'])
 const { showToast } = useToast()
@@ -50,11 +49,13 @@ const copyBucketOpen = ref(false)
 const copyBucketName = ref('')
 const subError = ref(null)       // error for the active sub-form
 
-// The GridFS menu emits { action, nonce }; dispatch each to the matching operation.
-watch(() => props.menuRequest && props.menuRequest.nonce, (nonce) => {
+// The GridFS menu signals actions by setting { action, nonce } on the modal's own target;
+// dispatch each to the matching operation. `immediate` covers the case where the action was
+// set before this (lazily-loaded) modal mounted, so the first request is never dropped.
+watch(() => props.target.menuRequest && props.target.menuRequest.nonce, (nonce) => {
   if (nonce == null) return
-  handleGridfsMenu(props.menuRequest.action)
-})
+  handleGridfsMenu(props.target.menuRequest.action)
+}, { immediate: true })
 
 function needFile() {
   if (!selectedFile.value) { showToast('Select a file first'); return false }

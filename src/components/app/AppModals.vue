@@ -12,7 +12,6 @@ import FieldError from '../base/FieldError.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import TasksModal from '../admin/TasksModal.vue'
-import GridFsModal from '../tools/GridFsModal.vue'
 import ShortcutsModal from './ShortcutsModal.vue'
 import AboutModal from './AboutModal.vue'
 import PreferencesModal from './PreferencesModal.vue'
@@ -34,8 +33,6 @@ const {
   openModals,
   closeModal,
   showConnectionManager,
-  gridfsTarget,
-  gridfsRequest,
   showTasksModal,
   showShortcuts,
   showAbout,
@@ -152,14 +149,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       :key="id"
       :target="target"
       v-on="modalListeners(id)"
-    />
-
-    <!-- GridFS modal -->
-    <GridFsModal
-      v-if="gridfsTarget"
-      :target="gridfsTarget"
-      :menu-request="gridfsRequest"
-      @close="gridfsTarget = null"
     />
 
     <!-- Keyboard Shortcuts (customizable) -->

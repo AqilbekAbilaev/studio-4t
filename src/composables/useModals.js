@@ -14,8 +14,6 @@ export function useModals() {
   function isModalOpen(id) { return id in openModals }
 
   const showConnectionManager = ref(false)
-  const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
-  const gridfsRequest = ref(null)       // { action, nonce } signal to the open GridFS modal
   const showTasksModal = ref(false)     // Tasks panel (top-bar Tasks button / File → Open Tasks)
   const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
   const showAbout = ref(false)          // Help → About
@@ -27,8 +25,6 @@ export function useModals() {
     closeModal: closeModal,
     isModalOpen: isModalOpen,
     showConnectionManager: showConnectionManager,
-    gridfsTarget: gridfsTarget,
-    gridfsRequest: gridfsRequest,
     showTasksModal: showTasksModal,
     showShortcuts: showShortcuts,
     showAbout: showAbout,

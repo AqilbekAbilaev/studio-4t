@@ -28,6 +28,7 @@ export const MODALS = {
   functions: { component: lazy(() => import('../components/admin/FunctionsModal.vue')),     level: 'database' },
   search:    { component: lazy(() => import('../components/tools/SearchModal.vue')),        level: 'database' },
   compare:   { component: lazy(() => import('../components/tools/CompareModal.vue')),       level: 'database' },
+  gridfs:    { component: lazy(() => import('../components/tools/GridFsModal.vue')),        level: 'database' },
 
   // ── collection level ──
   // A modal with extra domain events (e.g. validator's `saved`) keeps its component

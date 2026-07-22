@@ -142,8 +142,6 @@ const modalsApi = useModals()
 // by useFeatures (via `modals: modalsApi`) and AppModals (via provide/inject).
 const {
   showConnectionManager,
-  gridfsTarget,
-  gridfsRequest,
   showTasksModal,
   showShortcuts,
   showAbout,
@@ -766,18 +764,19 @@ async function requestGridfsAction(action) {
     showToast('Open a database first')
     return
   }
-  const sameOpen = gridfsTarget.value
-    && gridfsTarget.value.connId === target.connectionId
-    && gridfsTarget.value.dbName === target.dbName
+  const open = modalsApi.openModals.gridfs
+  const sameOpen = open
+    && open.connId === target.connectionId
+    && open.dbName === target.dbName
   if (!sameOpen) {
-    gridfsTarget.value = {
+    modalsApi.openModal('gridfs', {
       connId: target.connectionId,
       connName: target.connectionName,
       dbName: target.dbName,
-    }
+    })
   }
   await nextTick()
-  gridfsRequest.value = { action: action, nonce: Date.now() }
+  modalsApi.openModals.gridfs.menuRequest = { action: action, nonce: Date.now() }
 }
 
 // Help → Quickstart: focus the existing Quickstart tab, or open one if it was closed.
