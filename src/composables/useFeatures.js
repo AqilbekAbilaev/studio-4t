@@ -17,11 +17,11 @@ export function useFeatures({
   modals, dbActions,
   // injected functions
   showToast, applyColorTag, menuTarget,
-  handleTabAction, openCollectionTab, openShellTab, openIndexManagerTab,
+  handleTabAction, openCollectionTab, openShellTab, openIndexManagerTab, openSqlTab,
   openExportWizard, openImportWizard, exportDatabase, importDatabase,
 }) {
   const {
-    showConnectionManager, showSqlModal, showTasksModal,
+    showConnectionManager, showTasksModal,
     serverStatusTarget, serverChartsTarget, currentOpsTarget,
     dbStatsTarget, profilerTarget, usersTarget, rolesTarget, functionsTarget,
     gridfsTarget, searchTarget, compareTarget,
@@ -245,7 +245,6 @@ export function useFeatures({
   // active tab) and routes through the shared feature registry.
   function handleTool(name, target = null) {
     if (name === 'connect') { showConnectionManager.value = true; return }
-    if (name === 'sql')     { showSqlModal.value = true;         return }
     if (name === 'tasks')   { showTasksModal.value = true;       return }
 
     if (name === 'collection') {
@@ -270,6 +269,20 @@ export function useFeatures({
         })
       } else {
         showToast('Select a database or collection first to open IntelliShell')
+      }
+      return
+    }
+
+    if (name === 'sql') {
+      if (tab && tab.connectionId && tab.dbName && tab.collectionName) {
+        openSqlTab({
+          connectionId: tab.connectionId,
+          connectionName: tab.connectionName,
+          dbName: tab.dbName,
+          collectionName: tab.collectionName,
+        })
+      } else {
+        showToast('Select a collection first to open SQL')
       }
       return
     }

@@ -6,6 +6,7 @@ import BaseIcon from '../base/BaseIcon.vue'
 import TabBar from '../base/TabBar.vue'
 import QuickstartPane from './QuickstartPane.vue'
 import QueryBar from './QueryBar.vue'
+import SqlQueryBar from './SqlQueryBar.vue'
 import PipelineEditor from './PipelineEditor.vue'
 import ResultsPanel from '../results/ResultsPanel.vue'
 // Lazy-loaded so CodeMirror (a large dep) is only fetched when a shell tab opens.
@@ -33,6 +34,7 @@ const showQueryBrowser = ref(false)
 
 const activeTab = computed(() => props.tabs.find(t => t.id === props.activeTabId))
 const isAggregate = computed(() => activeTab.value && activeTab.value.mode === 'aggregate')
+const isSql = computed(() => activeTab.value && activeTab.value.mode === 'sql')
 
 // Which result sub-tab is active. Kept here (rather than in ResultsPanel) because the
 // run pipeline below lazily refreshes the Explain plan whenever a query re-runs while
@@ -66,7 +68,10 @@ const pipelineValid = computed(() => {
   const p = parsedPipeline.value
   return !p || p.ok
 })
-const runValid = computed(() => (isAggregate.value ? pipelineValid.value : queryValid.value))
+// SQL validity is checked by the backend on translate, so the Run button is never
+// gated here for sql mode; find/aggregate gate on their parsed input as before.
+const runValid = computed(() =>
+  isSql.value ? true : (isAggregate.value ? pipelineValid.value : queryValid.value))
 // First offending field's message, shown under the query area / pipeline editor.
 const queryErrorText = computed(() => {
   const p = parsedQuery.value
@@ -84,11 +89,45 @@ const pipelineErrorText = computed(() => {
 
 // The Run button (and the result toolbar's refresh) dispatch on the tab's mode.
 function run() {
-  if (isAggregate.value) {
+  if (isSql.value) {
+    runSql()
+  } else if (isAggregate.value) {
     runAggregate()
   } else {
     runQuery()
   }
+}
+
+// Translate the tab's SQL into a MongoDB find, then run it against the tab's
+// collection. The translated pieces are stored on the tab (as canonical JSON) so
+// the shared result stack — paging, the Query Code preview, and Explain — all
+// operate on the same query. The collection is fixed by the tab; the collection
+// named in the SQL FROM clause is intentionally ignored.
+async function runSql() {
+  const tab = activeTab.value
+  if (!tab || tab.kind !== 'collection') return
+  tab.sqlError = null
+  let mql
+  try {
+    mql = await invoke('translate_sql', { sql: tab.sql || '' })
+  } catch (e) {
+    tab.sqlError = errText(e)
+    return
+  }
+  tab.filter     = mql.filter
+  tab.projection = mql.projection
+  tab.sort       = mql.sort
+  tab.skip       = mql.skip ?? 0
+  tab.limit      = mql.limit ?? (tab.limit || 50)
+  emit('run-query', tab.id, {
+    filter:        mql.filter,
+    projection:    mql.projection,
+    sort:          mql.sort,
+    skip:          tab.skip,
+    limit:         tab.limit,
+    addToHistory:  true,
+  })
+  if (rtab.value === 'Explain') runExplain()
 }
 
 function runAggregate() {
@@ -294,31 +333,42 @@ async function applyFromBrowser(entry) {
         <span class="crumb">{{ activeTab.collectionName }}</span>
       </div>
 
-      <!-- Query bar + find-mode inputs -->
-      <QueryBar
+      <!-- SQL query bar (sql mode) -->
+      <SqlQueryBar
+        v-if="isSql"
         :active-tab="activeTab"
-        :is-aggregate="isAggregate"
         :run-valid="runValid"
-        :query-error-text="queryErrorText"
-        :vqb-open="vqbOpen"
-        :clipboard-query="clipboardQuery"
-        :history-request="historyRequest"
-        :save-request="saveQueryRequest"
+        :error-text="activeTab.sqlError"
         @run="run"
-        @copy-query="emit('copy-query')"
-        @paste-query="emit('paste-query')"
-        @toggle-vqb="emit('toggle-vqb')"
-        @toast="emit('toast', $event)"
-        @open-browser="openQueryBrowser"
       />
 
-      <!-- Aggregation pipeline editor -->
-      <PipelineEditor
-        v-if="isAggregate"
-        :active-tab="activeTab"
-        :pipeline-error-text="pipelineErrorText"
-        @run="run"
-      />
+      <!-- Query bar + find-mode inputs -->
+      <template v-else>
+        <QueryBar
+          :active-tab="activeTab"
+          :is-aggregate="isAggregate"
+          :run-valid="runValid"
+          :query-error-text="queryErrorText"
+          :vqb-open="vqbOpen"
+          :clipboard-query="clipboardQuery"
+          :history-request="historyRequest"
+          :save-request="saveQueryRequest"
+          @run="run"
+          @copy-query="emit('copy-query')"
+          @paste-query="emit('paste-query')"
+          @toggle-vqb="emit('toggle-vqb')"
+          @toast="emit('toast', $event)"
+          @open-browser="openQueryBrowser"
+        />
+
+        <!-- Aggregation pipeline editor -->
+        <PipelineEditor
+          v-if="isAggregate"
+          :active-tab="activeTab"
+          :pipeline-error-text="pipelineErrorText"
+          @run="run"
+        />
+      </template>
 
       <!-- Results -->
       <ResultsPanel

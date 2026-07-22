@@ -276,7 +276,7 @@ const { handleContextAction, handleTool, menuNode } = useFeatures({
   modals: modalsApi, dbActions: dbActionsApi,
   showToast: showToast, applyColorTag: applyColorTag, menuTarget: menuTarget,
   handleTabAction: handleTabAction, openCollectionTab: openCollectionTab,
-  openShellTab: openShellTab, openIndexManagerTab: openIndexManagerTab,
+  openShellTab: openShellTab, openIndexManagerTab: openIndexManagerTab, openSqlTab: openSqlTab,
   openExportWizard: openExportWizard, openImportWizard: openImportWizard,
   exportDatabase: exportDatabase, importDatabase: importDatabase,
 })
@@ -362,7 +362,7 @@ function handleMenuAction(id) {
 
     // --- toolbar dispatcher (targets the sidebar selection, else the active tab) ---
     case 'file:intellishell': handleTool('shell', menuTarget('database')); return
-    case 'file:sql':          handleTool('sql'); return
+    case 'file:sql':          handleTool('sql', menuTarget('collection')); return
     case 'file:tasks':        showTasksModal.value = true; return
     // File → Load / Save: the saved-query browser and save-query form live in the
     // active collection tab's QueryBar; signal it (no-op with a toast otherwise).
@@ -655,6 +655,33 @@ async function openCollectionTab({ connectionId, connectionName, dbName, collect
   } else {
     runQuery(id, { filter: '{}', projection: '{}', sort: '{}', skip: 0, limit: defaultQueryLimit.value })
   }
+}
+
+// Opens (or re-focuses) a SQL query tab for a collection. It's a collection tab in
+// `sql` mode: the query area shows a SQL editor, but the whole result stack (grid,
+// paging, Query Code, Explain) is reused. One SQL tab per collection.
+function openSqlTab({ connectionId, connectionName, dbName, collectionName }) {
+  const existing = tabs.value.find(t =>
+    t.kind === 'collection' && t.mode === 'sql' &&
+    t.connectionId === connectionId && t.dbName === dbName && t.collectionName === collectionName)
+  if (existing) { activeTabId.value = existing.id; return }
+  const id = 't' + Date.now()
+  tabs.value.push({
+    id: id, kind: 'collection',
+    title: 'SQL: ' + collectionName,
+    connectionId: connectionId,
+    connectionName: connectionName,
+    dbName: dbName,
+    collectionName: collectionName,
+    filter: '', projection: '', sort: '', skip: 0, limit: defaultQueryLimit.value,
+    mode: 'sql', pipeline: '',
+    sql: 'SELECT *\nFROM ' + collectionName,
+    sqlError: null,
+    vqb: null,
+    results: [], hasRun: false, isRunning: false, runError: null,
+    selectedRow: -1, selectedRows: [], elapsedMs: null,
+  })
+  activeTabId.value = id
 }
 
 // Open an IntelliShell tab scoped to a connection + database. Each shell tab has

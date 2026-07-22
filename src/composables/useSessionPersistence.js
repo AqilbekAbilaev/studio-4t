@@ -56,6 +56,16 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
         dbName: t.dbName, collName: t.collName,
       }
     }
+    if (t.mode === 'sql') {
+      // SQL tab: a collection tab whose query is SQL. Only identity + the SQL text
+      // are stored; the translated find pieces are re-derived on the next Run.
+      return {
+        id: t.id, kind: 'collection', title: t.title, color: t.color,
+        connectionId: t.connectionId, connectionName: t.connectionName,
+        dbName: t.dbName, collectionName: t.collectionName,
+        mode: 'sql', sql: t.sql || '',
+      }
+    }
     return {
       id: t.id, kind: 'collection', title: t.title, color: t.color,
       connectionId: t.connectionId, connectionName: t.connectionName,
@@ -146,6 +156,19 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
                 id: t.id, kind: 'indexes', title: t.title, color: t.color,
                 connId: t.connId, connName: t.connName,
                 dbName: t.dbName, collName: t.collName,
+              }
+            : t.mode === 'sql'
+            ? {
+                // SQL tab: restore the editor text but don't auto-run — the find
+                // pieces are re-derived on the next Run (like a freshly opened tab).
+                id: t.id, kind: 'collection', title: t.title, color: t.color,
+                connectionId: t.connectionId, connectionName: t.connectionName,
+                dbName: t.dbName, collectionName: t.collectionName,
+                mode: 'sql', sql: t.sql || '', sqlError: null,
+                filter: '', projection: '', sort: '', skip: 0, limit: 50, pipeline: '',
+                vqb: null,
+                results: [], hasRun: false, isRunning: false, runError: null,
+                selectedRow: -1, selectedRows: [], elapsedMs: null,
               }
             : {
                 ...t,

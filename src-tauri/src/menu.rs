@@ -19,7 +19,7 @@ use tauri::{
 // Enable/disable is context-driven. Items that gate on the current
 // connection/database/collection selection start disabled and are toggled by the
 // `set_menu_context` command, which the frontend calls whenever the active tab or
-// the sidebar/tree selection changes. Items with no gate (Connect…, Open SQL,
+// the sidebar/tree selection changes. Items with no gate (Connect…,
 // Preferences…, Keyboard Shortcuts, Exit) stay always enabled; `built:false`
 // placeholders stay always disabled.
 
@@ -102,7 +102,7 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "file:add_database", label: "Add Database…", accel: None, gate: Some(Gate::Connection) },
                 Spec::Separator,
                 Spec::Action { id: "file:intellishell", label: "Open IntelliShell", accel: Some("CmdOrCtrl+L"), gate: Some(Gate::Database) },
-                Spec::Action { id: "file:sql", label: "Open SQL", accel: Some("CmdOrCtrl+Shift+L"), gate: None },
+                Spec::Action { id: "file:sql", label: "Open SQL", accel: Some("CmdOrCtrl+Shift+L"), gate: Some(Gate::Collection) },
                 Spec::Action { id: "file:tasks", label: "Open Tasks", accel: None, gate: None },
                 Spec::Action { id: "file:search", label: "Search in…", accel: None, gate: Some(Gate::Database) },
                 Spec::Placeholder { id: "file:manage_sql", label: "Manage SQL Connections" },
@@ -896,11 +896,12 @@ mod tests {
         assert_eq!(gate_of("coll:compare"), Gate::Database);
         assert_eq!(gate_of("coll:schema"), Gate::Collection);
         assert_eq!(gate_of("db:collection_stats"), Gate::Collection);
+        assert_eq!(gate_of("file:sql"), Gate::Collection);
     }
 
     #[test]
     fn always_on_items_have_no_gate() {
-        for id in ["file:connect", "file:sql", "edit:preferences", "help:shortcuts", "file:exit"] {
+        for id in ["file:connect", "edit:preferences", "help:shortcuts", "file:exit"] {
             assert!(spec_of(id).is_some(), "{id} should exist");
             assert!(gate_of_opt(id).is_none(), "{id} should be always-on");
         }

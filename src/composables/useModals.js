@@ -23,7 +23,6 @@ export function useModals() {
   const compareTarget = ref(null)       // { connId, connName, dbName } for the Data Compare modal
   const schemaTarget = ref(null)  // { connId, connName, dbName, collName } when the Schema modal is open
   const historyTarget = ref(null) // { connId, connName, dbName, collName } for the Collection History modal
-  const showSqlModal = ref(false)       // SQL → MQL translator modal (top-bar SQL button)
   const showTasksModal = ref(false)     // Tasks panel (top-bar Tasks button / File → Open Tasks)
   const maskingTarget = ref(null)       // { connId, connName, dbName, collName } for the Data Masking modal
   const importWizardTarget = ref(null)  // { connId, connName, dbName, collName } for the Import wizard
@@ -54,7 +53,6 @@ export function useModals() {
     compareTarget: compareTarget,
     schemaTarget: schemaTarget,
     historyTarget: historyTarget,
-    showSqlModal: showSqlModal,
     showTasksModal: showTasksModal,
     maskingTarget: maskingTarget,
     importWizardTarget: importWizardTarget,

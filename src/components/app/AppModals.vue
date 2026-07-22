@@ -22,7 +22,6 @@ import MapReduceModal from '../query/MapReduceModal.vue'
 import ServerChartsModal from '../admin/ServerChartsModal.vue'
 import SchemaModal from '../tools/SchemaModal.vue'
 import CollectionHistoryModal from '../tools/CollectionHistoryModal.vue'
-import SqlModal from '../query/SqlModal.vue'
 import TasksModal from '../admin/TasksModal.vue'
 import MaskingModal from '../tools/MaskingModal.vue'
 import ExportWizard from '../tools/ExportWizard.vue'
@@ -70,7 +69,6 @@ const {
   compareTarget,
   schemaTarget,
   historyTarget,
-  showSqlModal,
   showTasksModal,
   maskingTarget,
   importWizardTarget,
@@ -250,12 +248,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       v-if="historyTarget"
       :target="historyTarget"
       @close="historyTarget = null"
-    />
-
-    <!-- SQL → MQL translator -->
-    <SqlModal
-      v-if="showSqlModal"
-      @close="showSqlModal = false"
     />
 
     <!-- Tasks panel -->
