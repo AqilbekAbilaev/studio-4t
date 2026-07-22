@@ -1,5 +1,6 @@
 <script setup>
 import { inject } from 'vue'
+import { MODALS } from '../../constants/modalRegistry'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseSelect from '../base/BaseSelect.vue'
@@ -10,29 +11,13 @@ import BaseTextarea from '../base/BaseTextarea.vue'
 import FieldError from '../base/FieldError.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
-import ServerStatusModal from '../admin/ServerStatusModal.vue'
-import DatabaseStatsModal from '../admin/DatabaseStatsModal.vue'
-import CurrentOpsModal from '../admin/CurrentOpsModal.vue'
-import ProfilerModal from '../admin/ProfilerModal.vue'
 import ValidatorModal from '../admin/ValidatorModal.vue'
-import UsersModal from '../admin/UsersModal.vue'
-import RolesModal from '../admin/RolesModal.vue'
-import FunctionsModal from '../admin/FunctionsModal.vue'
-import MapReduceModal from '../query/MapReduceModal.vue'
-import ServerChartsModal from '../admin/ServerChartsModal.vue'
-import SchemaModal from '../tools/SchemaModal.vue'
-import CollectionHistoryModal from '../tools/CollectionHistoryModal.vue'
 import TasksModal from '../admin/TasksModal.vue'
 import MaskingModal from '../tools/MaskingModal.vue'
 import ExportWizard from '../tools/ExportWizard.vue'
 import ImportFormatModal from '../tools/ImportFormatModal.vue'
 import ReschemaModal from '../tools/ReschemaModal.vue'
-import StatsModal from '../admin/StatsModal.vue'
-import ServerInfoModal from '../admin/ServerInfoModal.vue'
-import MigrationModal from '../tools/MigrationModal.vue'
-import SearchModal from '../tools/SearchModal.vue'
 import GridFsModal from '../tools/GridFsModal.vue'
-import CompareModal from '../tools/CompareModal.vue'
 import ShortcutsModal from './ShortcutsModal.vue'
 import AboutModal from './AboutModal.vue'
 import PreferencesModal from './PreferencesModal.vue'
@@ -51,31 +36,17 @@ const GRANULARITY_OPTIONS = [
 ]
 
 const {
+  openModals,
+  closeModal,
   showConnectionManager,
-  serverStatusTarget,
-  dbStatsTarget,
-  currentOpsTarget,
-  profilerTarget,
   validatorTarget,
-  usersTarget,
-  rolesTarget,
-  functionsTarget,
-  mapReduceTarget,
-  serverChartsTarget,
-  migrationTarget,
-  searchTarget,
   gridfsTarget,
   gridfsRequest,
-  compareTarget,
-  schemaTarget,
-  historyTarget,
   showTasksModal,
   maskingTarget,
   importWizardTarget,
   exportWizardTarget,
   reschemaTarget,
-  statsTarget,
-  serverInfoTarget,
   showShortcuts,
   showAbout,
   showPreferences,
@@ -174,80 +145,11 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       @toast="showToast"
     />
 
-    <!-- Server Status modal -->
-    <ServerStatusModal
-      v-if="serverStatusTarget"
-      :target="serverStatusTarget"
-      @close="serverStatusTarget = null"
-    />
-
-    <DatabaseStatsModal
-      v-if="dbStatsTarget"
-      :target="dbStatsTarget"
-      @close="dbStatsTarget = null"
-    />
-
-    <CurrentOpsModal
-      v-if="currentOpsTarget"
-      :target="currentOpsTarget"
-      @close="currentOpsTarget = null"
-    />
-
-    <ProfilerModal
-      v-if="profilerTarget"
-      :target="profilerTarget"
-      @close="profilerTarget = null"
-    />
-
     <ValidatorModal
       v-if="validatorTarget"
       :target="validatorTarget"
       @saved="onValidatorSaved"
       @close="validatorTarget = null"
-    />
-
-    <UsersModal
-      v-if="usersTarget"
-      :target="usersTarget"
-      @close="usersTarget = null"
-    />
-
-    <RolesModal
-      v-if="rolesTarget"
-      :target="rolesTarget"
-      @close="rolesTarget = null"
-    />
-
-    <FunctionsModal
-      v-if="functionsTarget"
-      :target="functionsTarget"
-      @close="functionsTarget = null"
-    />
-
-    <MapReduceModal
-      v-if="mapReduceTarget"
-      :target="mapReduceTarget"
-      @close="mapReduceTarget = null"
-    />
-
-    <ServerChartsModal
-      v-if="serverChartsTarget"
-      :target="serverChartsTarget"
-      @close="serverChartsTarget = null"
-    />
-
-    <!-- Schema (View Schema) modal -->
-    <SchemaModal
-      v-if="schemaTarget"
-      :target="schemaTarget"
-      @close="schemaTarget = null"
-    />
-
-    <!-- Collection History modal -->
-    <CollectionHistoryModal
-      v-if="historyTarget"
-      :target="historyTarget"
-      @close="historyTarget = null"
     />
 
     <!-- Tasks panel -->
@@ -290,32 +192,15 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       @close="reschemaTarget = null"
     />
 
-    <!-- Collection Stats modal -->
-    <StatsModal
-      v-if="statsTarget"
-      :target="statsTarget"
-      @close="statsTarget = null"
-    />
-
-    <!-- Build / Host / Replica Set info modal -->
-    <ServerInfoModal
-      v-if="serverInfoTarget"
-      :target="serverInfoTarget"
-      @close="serverInfoTarget = null"
-    />
-
-    <!-- SQL Migration modal -->
-    <MigrationModal
-      v-if="migrationTarget"
-      :target="migrationTarget"
-      @close="migrationTarget = null"
-    />
-
-    <!-- Global Search modal -->
-    <SearchModal
-      v-if="searchTarget"
-      :target="searchTarget"
-      @close="searchTarget = null"
+    <!-- Registry-driven modals: one entry per modal in constants/modalRegistry.js.
+         Each conforming modal takes a single `target` and emits `close`, so the whole
+         set renders from this one block — adding a modal needs no change here. -->
+    <component
+      v-for="(target, id) in openModals"
+      :is="MODALS[id].component"
+      :key="id"
+      :target="target"
+      @close="closeModal(id)"
     />
 
     <!-- GridFS modal -->
@@ -325,13 +210,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       :menu-request="gridfsRequest"
       @toast="showToast"
       @close="gridfsTarget = null"
-    />
-
-    <!-- Data Compare modal -->
-    <CompareModal
-      v-if="compareTarget"
-      :target="compareTarget"
-      @close="compareTarget = null"
     />
 
     <!-- Keyboard Shortcuts (customizable) -->

@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TOOLS } from '../constants/tools'
+import { MODALS } from '../constants/modalRegistry'
 
 // Node-action dispatch layer, shared by the right-click menu (@pick →
 // handleContextAction), the native menu bar (handleMenuAction → menuNode →
@@ -22,11 +23,8 @@ export function useFeatures({
 }) {
   const {
     showConnectionManager, showTasksModal,
-    serverStatusTarget, serverChartsTarget, currentOpsTarget,
-    dbStatsTarget, profilerTarget, usersTarget, rolesTarget, functionsTarget,
-    gridfsTarget, searchTarget, compareTarget,
-    validatorTarget, schemaTarget, historyTarget, statsTarget, mapReduceTarget,
-    maskingTarget, reschemaTarget, migrationTarget, serverInfoTarget,
+    gridfsTarget,
+    validatorTarget, maskingTarget, reschemaTarget,
   } = modals
   const {
     openAddCollection, openAddDatabase, openAddView, openAddBucket,
@@ -60,6 +58,15 @@ export function useFeatures({
   // A feature that simply opens a modal by copying node fields into its target ref.
   function modal(target, requires, fields) {
     return { requires: requires, run: (node) => { target.value = pick(node, fields) } }
+  }
+
+  // A registry-driven modal feature (see constants/modalRegistry.js): its level and
+  // component are declared once in MODALS, so the feature is named by id alone and opens
+  // the registry modal with the node fields that level needs.
+  const LEVEL_FIELDS = { connection: CONN, database: DB, collection: COLL }
+  function modalFeature(id) {
+    const level = MODALS[id].level
+    return { requires: level, run: (node) => modals.openModal(id, pick(node, LEVEL_FIELDS[level])) }
   }
 
   // Normalize a tab (connectionId/collectionName keys) into a registry node.
@@ -119,7 +126,7 @@ export function useFeatures({
   }
 
   function openServerInfo(node, kind, title) {
-    serverInfoTarget.value = { connId: node.connId, connName: node.connName, kind: kind, title: title }
+    modals.openModal('serverInfo', { connId: node.connId, connName: node.connName, kind: kind, title: title })
   }
   function copyToClipboard(node, kind) {
     if (kind === 'collection') {
@@ -139,32 +146,32 @@ export function useFeatures({
     'Indexes…':                { requires: 'collection', run: (n) => openIndexManagerTab(pick(n, COLL)) },
 
     // ── connection-scoped info modals ──
-    'Server Status':           modal(serverStatusTarget, 'connection', CONN),
-    'Server Status Charts':    modal(serverChartsTarget,  'connection', CONN),
-    'Current Operations':      modal(currentOpsTarget,    'connection', CONN),
+    'Server Status':           modalFeature('serverStatus'),
+    'Server Status Charts':    modalFeature('serverCharts'),
+    'Current Operations':      modalFeature('currentOps'),
     'Build Info':              { requires: 'connection', run: (n) => openServerInfo(n, 'build',   'Build Info') },
     'Host Info':               { requires: 'connection', run: (n) => openServerInfo(n, 'host',    'Host Info') },
     'Replica Set Status':      { requires: 'connection', run: (n) => openServerInfo(n, 'replica', 'Replica Set Status') },
 
     // ── database-scoped modals ──
-    'Database Statistics':     modal(dbStatsTarget,   'database', DB),
-    'Query Profiler':          modal(profilerTarget,  'database', DB),
-    'Manage Users':            modal(usersTarget,     'database', DB),
-    'Manage Roles':            modal(rolesTarget,     'database', DB),
-    'Stored Functions':        modal(functionsTarget, 'database', DB),
+    'Database Statistics':     modalFeature('dbStats'),
+    'Query Profiler':          modalFeature('profiler'),
+    'Manage Users':            modalFeature('users'),
+    'Manage Roles':            modalFeature('roles'),
+    'Stored Functions':        modalFeature('functions'),
     'GridFS…':                 modal(gridfsTarget,    'database', DB),
-    'Search in…':              modal(searchTarget,    'database', DB),
-    'Data Compare':            modal(compareTarget,   'database', DB),
+    'Search in…':              modalFeature('search'),
+    'Data Compare':            modalFeature('compare'),
 
     // ── collection-scoped modals ──
     'Add / Edit Validator…':   modal(validatorTarget, 'collection', COLL),
-    'View Schema':             modal(schemaTarget,    'collection', COLL),
-    'Collection History':      modal(historyTarget,   'collection', COLL),
-    'Collection Stats':        modal(statsTarget,     'collection', COLL),
-    'Open Map-Reduce':         modal(mapReduceTarget, 'collection', COLL),
+    'View Schema':             modalFeature('schema'),
+    'Collection History':      modalFeature('history'),
+    'Collection Stats':        modalFeature('stats'),
+    'Open Map-Reduce':         modalFeature('mapReduce'),
     'Data Masking':            modal(maskingTarget,   'collection', COLL),
     'Reschema':                modal(reschemaTarget,  'collection', COLL),
-    'SQL Migration':           modal(migrationTarget, 'collection', COLL),
+    'SQL Migration':           modalFeature('migration'),
 
     // ── create/edit dialogs (state + seeders owned by useDbActions) ──
     'Add Collection…':         { requires: 'database',   run: openAddCollection },
