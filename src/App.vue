@@ -140,13 +140,6 @@ const dbClipboard = ref(null)         // Copy/Paste: { kind: 'collection'|'datab
 const modalsApi = useModals()
 // Only the refs App.vue itself touches are destructured here; the rest are consumed
 // by useFeatures (via `modals: modalsApi`) and AppModals (via provide/inject).
-const {
-  showConnectionManager,
-  showTasksModal,
-  showShortcuts,
-  showAbout,
-  showPreferences,
-} = modalsApi
 const defaultQueryLimit = ref(50)     // from settings; applied to newly opened collection tabs
 const theme = ref('dark')             // from settings; drives <html data-theme>
 // Effective keyboard shortcuts (defaults + user overrides). The JS key handler
@@ -325,10 +318,10 @@ function handleMenuAction(id) {
     // --- direct modals / app ---
     case 'file:connect':     invoke('open_connect_window').catch(() => {}); return
     case 'file:exit':        appWindow.close(); return
-    case 'edit:preferences': showPreferences.value = true; return
-    case 'help:shortcuts':   showShortcuts.value = true; return
+    case 'edit:preferences': modalsApi.openModal('preferences'); return
+    case 'help:shortcuts':   modalsApi.openModal('shortcuts'); return
     case 'help:quickstart':  openQuickstart(); return
-    case 'help:about':       showAbout.value = true; return
+    case 'help:about':       modalsApi.openModal('about'); return
     // Help links open the project's GitHub (issues / releases / repo). Configurable —
     // retarget any URL in HELP_URLS.
     case 'help:license':
@@ -361,7 +354,7 @@ function handleMenuAction(id) {
     // --- toolbar dispatcher (targets the sidebar selection, else the active tab) ---
     case 'file:intellishell': handleTool('shell', menuTarget('database')); return
     case 'file:sql':          handleTool('sql', menuTarget('collection')); return
-    case 'file:tasks':        showTasksModal.value = true; return
+    case 'file:tasks':        modalsApi.openModal('tasks'); return
     // File → Load / Save: the saved-query browser and save-query form live in the
     // active collection tab's QueryBar; signal it (no-op with a toast otherwise).
     case 'file:load':
@@ -576,7 +569,7 @@ function onGlobalKeydown(e) {
 }
 
 function onManagerConnect(id) {
-  showConnectionManager.value = false
+  modalsApi.closeModal('connectionManager')
   expandConnectionId.value = id
 }
 
@@ -879,6 +872,18 @@ provide('appModals', {
         modalsApi.closeModal('import')
       },
     },
+    connectionManager: { connect: onManagerConnect },
+    shortcuts: { save: onKeybindingsSaved },
+    preferences: {
+      saved: onPrefsSaved,
+      'open-shortcuts': () => { modalsApi.closeModal('preferences'); modalsApi.openModal('shortcuts') },
+    },
+  },
+  // Extra props for registry-driven modals that need app-level state beyond their target:
+  // modal id → () => props object, re-read on each render so reactive values stay current.
+  modalProps: {
+    shortcuts: () => ({ bindings: keyBindings.value }),
+    preferences: () => ({ defaultQueryLimit: defaultQueryLimit.value, theme: theme.value }),
   },
   prefs: { defaultQueryLimit: defaultQueryLimit, theme: theme, keyBindings: keyBindings },
   tabRename: { renameTabTarget: renameTabTarget, renameTabValue: renameTabValue, confirmRenameTab: confirmRenameTab },

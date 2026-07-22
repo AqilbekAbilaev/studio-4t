@@ -10,11 +10,6 @@ import BaseRadio from '../base/BaseRadio.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import FieldError from '../base/FieldError.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
-import ConnectionManager from '../connection/ConnectionManager.vue'
-import TasksModal from '../admin/TasksModal.vue'
-import ShortcutsModal from './ShortcutsModal.vue'
-import AboutModal from './AboutModal.vue'
-import PreferencesModal from './PreferencesModal.vue'
 import SshHostKeyModal from '../connection/SshHostKeyModal.vue'
 
 // Single provide/inject from App.vue. Each group is destructured back to the same
@@ -29,21 +24,19 @@ const GRANULARITY_OPTIONS = [
   { value: 'hours', label: 'Hours' },
 ]
 
-const {
-  openModals,
-  closeModal,
-  showConnectionManager,
-  showTasksModal,
-  showShortcuts,
-  showAbout,
-  showPreferences,
-} = ctx.modals
+const { openModals, closeModal } = ctx.modals
 
-// Extra per-modal event handlers (id → { event: handler }) for registry-driven modals,
-// wired alongside the generic `close`. See App.vue's modalEmits.
+// Registry-driven modals are bound generically: every modal gets `close`; node-targeted
+// modals (level set) also get their `target`; modals listed in App.vue's modalEmits/modalProps
+// get those extra events/props too. See constants/modalRegistry.js.
 const modalEmits = ctx.modalEmits
+const modalProps = ctx.modalProps
 function modalListeners(id) {
   return { close: () => closeModal(id), ...(modalEmits[id] || {}) }
+}
+function modalBindings(id, payload) {
+  const extra = modalProps[id] ? modalProps[id]() : {}
+  return MODALS[id].level ? { target: payload, ...extra } : extra
 }
 
 // The Index Manager list/form now lives in IndexManagerPane (the 'indexes' tab).
@@ -115,64 +108,20 @@ const {
   onHostKeyForget,
 } = ctx.ssh
 
-const {
-  onManagerConnect,
-  onPrefsSaved,
-  onKeybindingsSaved,
-} = ctx.handlers
-
-const { defaultQueryLimit, theme, keyBindings } = ctx.prefs
-
 const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
 </script>
 
 <template>
-    <!-- Connection Manager modal -->
-    <ConnectionManager
-      v-if="showConnectionManager"
-      @close="showConnectionManager = false"
-      @connect="onManagerConnect"
-    />
-
-    <!-- Tasks panel -->
-    <TasksModal
-      v-if="showTasksModal"
-      @close="showTasksModal = false"
-    />
-
-    <!-- Registry-driven modals: one entry per modal in constants/modalRegistry.js.
-         Each conforming modal takes a single `target` and emits `close`, so the whole
-         set renders from this one block — adding a modal needs no change here. -->
+    <!-- Every registry-driven modal renders from this one block (constants/modalRegistry.js):
+         `close` is always wired; node-targeted modals also get their `target`, and any
+         extra props/events come from App.vue's modalProps/modalEmits. Adding a modal needs
+         no change here. -->
     <component
-      v-for="(target, id) in openModals"
+      v-for="(payload, id) in openModals"
       :is="MODALS[id].component"
       :key="id"
-      :target="target"
+      v-bind="modalBindings(id, payload)"
       v-on="modalListeners(id)"
-    />
-
-    <!-- Keyboard Shortcuts (customizable) -->
-    <ShortcutsModal
-      v-if="showShortcuts"
-      :bindings="keyBindings"
-      @save="onKeybindingsSaved"
-      @close="showShortcuts = false"
-    />
-
-    <!-- About -->
-    <AboutModal
-      v-if="showAbout"
-      @close="showAbout = false"
-    />
-
-    <!-- Preferences -->
-    <PreferencesModal
-      v-if="showPreferences"
-      :default-query-limit="defaultQueryLimit"
-      :theme="theme"
-      @close="showPreferences = false"
-      @saved="onPrefsSaved"
-      @open-shortcuts="showPreferences = false; showShortcuts = true"
     />
 
     <!-- SSH host-key trust prompt / changed-key warning -->

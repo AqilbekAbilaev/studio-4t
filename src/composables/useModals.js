@@ -1,11 +1,10 @@
-import { ref, reactive } from 'vue'
+import { reactive } from 'vue'
 
-// Open-state for every top-level modal/dialog. Registry-driven modals (see
-// constants/modalRegistry.js) live in a single `openModals` map — key present with
-// its context payload iff open — opened/closed via openModal/closeModal. The remaining
-// `*Target` refs and `show*` booleans are modals not yet migrated to the registry.
-// The dispatchers (handleTool / handleMenuAction / handleContextAction) set these;
-// AppModals.vue reads them to render the modals.
+// Open-state for every top-level modal/dialog. Each modal is declared once in
+// constants/modalRegistry.js and lives in the single `openModals` map — its key is
+// present with its context payload iff it is open. The dispatchers (handleTool /
+// handleMenuAction / handleContextAction) open/close via openModal/closeModal; AppModals.vue
+// renders whatever is open. App-level singletons open with an empty payload (openModal('about')).
 export function useModals() {
   // id -> context payload, key present iff that modal is open.
   const openModals = reactive({})
@@ -13,21 +12,10 @@ export function useModals() {
   function closeModal(id) { delete openModals[id] }
   function isModalOpen(id) { return id in openModals }
 
-  const showConnectionManager = ref(false)
-  const showTasksModal = ref(false)     // Tasks panel (top-bar Tasks button / File → Open Tasks)
-  const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
-  const showAbout = ref(false)          // Help → About
-  const showPreferences = ref(false)    // File → Preferences
-
   return {
     openModals: openModals,
     openModal: openModal,
     closeModal: closeModal,
     isModalOpen: isModalOpen,
-    showConnectionManager: showConnectionManager,
-    showTasksModal: showTasksModal,
-    showShortcuts: showShortcuts,
-    showAbout: showAbout,
-    showPreferences: showPreferences,
   }
 }

@@ -4,7 +4,8 @@ import { MODALS } from './modalRegistry'
 // The registry is the single source of truth for registry-driven modals: adding a
 // modal means adding a row here. This guards the row shape every consumer relies on —
 // a component to render and a node level to gate/seed it.
-const LEVELS = ['connection', 'database', 'collection']
+// null = app-level singleton (no node target); the others are node depths.
+const LEVELS = ['connection', 'database', 'collection', null]
 
 describe('modal registry', () => {
   it('has at least one modal registered', () => {

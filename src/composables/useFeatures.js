@@ -22,9 +22,6 @@ export function useFeatures({
   openExportWizard, openImportWizard, exportDatabase, importDatabase,
 }) {
   const {
-    showConnectionManager, showTasksModal,
-  } = modals
-  const {
     openAddCollection, openAddDatabase, openAddView, openAddBucket,
     openDropDatabase, openDropCollection, openRenameCollection, openDuplicateCollection,
     pasteClipboard,
@@ -249,8 +246,8 @@ export function useFeatures({
   // other tool resolves the operating node (the passed sidebar selection, else the
   // active tab) and routes through the shared feature registry.
   function handleTool(name, target = null) {
-    if (name === 'connect') { showConnectionManager.value = true; return }
-    if (name === 'tasks')   { showTasksModal.value = true;       return }
+    if (name === 'connect') { modals.openModal('connectionManager'); return }
+    if (name === 'tasks')   { modals.openModal('tasks');            return }
 
     if (name === 'collection') {
       // Opens the collection currently highlighted in the sidebar, same as

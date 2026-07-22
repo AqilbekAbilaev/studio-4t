@@ -12,6 +12,15 @@ import { defineAsyncComponent } from 'vue'
 const lazy = (loader) => defineAsyncComponent(loader)
 
 export const MODALS = {
+  // ── app-level singletons (no node target; level null) ──
+  // Opened by id alone (openModal('about')); any props/events they need are declared in
+  // App.vue's modalProps / modalEmits maps and bound generically by AppModals.
+  connectionManager: { component: lazy(() => import('../components/connection/ConnectionManager.vue')), level: null },
+  tasks:             { component: lazy(() => import('../components/admin/TasksModal.vue')),              level: null },
+  shortcuts:         { component: lazy(() => import('../components/app/ShortcutsModal.vue')),            level: null },
+  about:             { component: lazy(() => import('../components/app/AboutModal.vue')),                level: null },
+  preferences:       { component: lazy(() => import('../components/app/PreferencesModal.vue')),          level: null },
+
   // ── connection level ──
   serverStatus: { component: lazy(() => import('../components/admin/ServerStatusModal.vue')), level: 'connection' },
   serverCharts: { component: lazy(() => import('../components/admin/ServerChartsModal.vue')), level: 'connection' },

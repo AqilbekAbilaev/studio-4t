@@ -27,7 +27,7 @@ const onImported = bundle.handlers.onWizardImported   // refresh the connection 
 // "Change target" opens the Connection Manager (the app's single place to pick /
 // edit connections).
 function changeTarget() {
-  bundle.modals.showConnectionManager.value = true
+  bundle.modals.openModal('connectionManager')
 }
 
 // Insertion modes. Only plain insert is wired today; overwrite/merge/skip need a

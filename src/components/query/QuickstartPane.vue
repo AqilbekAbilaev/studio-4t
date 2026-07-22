@@ -60,9 +60,9 @@ async function openRecent(c) {
 }
 
 // ── actions ────────────────────────────────────────────────
-function openConnectionManager() { if (modals.showConnectionManager) modals.showConnectionManager.value = true }
+function openConnectionManager() { if (modals.openModal) modals.openModal('connectionManager') }
 function createConnection()       { openConnectionManager() }  // new-connection form lives inside the manager
-function openTasks()              { if (modals.showTasksModal) modals.showTasksModal.value = true }
+function openTasks()              { if (modals.openModal) modals.openModal('tasks') }
 function createTask()             { openTasks() }
 
 function setTheme(value) { handlers.setTheme?.(value) }
