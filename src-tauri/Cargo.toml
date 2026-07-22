@@ -78,6 +78,7 @@ docx-rs = "0.4"
 # reads through this crate instead (X11 + Wayland backends). Standalone of Tauri, so
 # it doesn't perturb the pinned tauri/wry versions.
 arboard = { version = "3", features = ["wayland-data-control"] }
+sqlparser = "0.62.0"
 
 # keyring needs a per-platform backend feature; without one it silently uses an
 # in-memory mock store that loses every password when the app exits (which made

@@ -1,11 +1,19 @@
 use crate::error::AppError;
 use serde::Serialize;
+use sqlparser::ast::{
+    BinaryOperator, Expr as SqlExpr, GroupByExpr, Ident, LimitClause, ObjectName, OrderBy,
+    OrderByKind, Query, SelectItem, SetExpr, Statement, TableFactor, UnaryOperator,
+    Value as SqlValue,
+};
+use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser as SqlParser;
 
 // Translate a simple SQL SELECT into the pieces of a MongoDB find query, the way
-// Studio-3T's "SQL Query" surface does. This is deliberately pure (no I/O) so it
-// is fully unit-testable and works with no live connection. Scope is single-table
-// SELECT with WHERE / ORDER BY / LIMIT / OFFSET; aggregate functions and GROUP BY
-// are intentionally out of scope for now and rejected with a clear message.
+// Studio-3T's "SQL Query" surface does. Parsing is delegated to the `sqlparser`
+// crate; this module only walks the resulting AST and maps it to MQL. Scope is a
+// single-table SELECT with WHERE / ORDER BY / LIMIT / OFFSET; aggregates, GROUP BY,
+// HAVING, DISTINCT, and JOINs are intentionally out of scope and rejected with a
+// clear message. Pure (no I/O), so it is fully unit-testable with no live connection.
 
 #[derive(Serialize, Debug)]
 pub struct MqlQuery {
@@ -80,132 +88,10 @@ impl J {
     }
 }
 
-// ── Tokenizer ──────────────────────────────────────────────────────
-#[derive(Debug, Clone, PartialEq)]
-enum Tok {
-    // A bare word: keyword or identifier, decided by the parser (case-insensitive).
-    Word(String),
-    Str(String),
-    Int(i64),
-    Float(f64),
-    Sym(String), // = != <> < <= > >= ( ) , * .
-    Eof,
-}
-
-fn tokenize(sql: &str) -> Result<Vec<Tok>, String> {
-    let chars: Vec<char> = sql.chars().collect();
-    let mut tokens: Vec<Tok> = Vec::new();
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        if c.is_whitespace() {
-            i += 1;
-            continue;
-        }
-        // String literal: single or double quoted, with doubled-quote escaping.
-        if c == '\'' || c == '"' {
-            let quote = c;
-            i += 1;
-            let mut value = String::new();
-            let mut closed = false;
-            while i < chars.len() {
-                let ch = chars[i];
-                if ch == quote {
-                    if i + 1 < chars.len() && chars[i + 1] == quote {
-                        value.push(quote);
-                        i += 2;
-                        continue;
-                    }
-                    closed = true;
-                    i += 1;
-                    break;
-                }
-                value.push(ch);
-                i += 1;
-            }
-            if !closed {
-                return Err("Unterminated string literal".to_string());
-            }
-            tokens.push(Tok::Str(value));
-            continue;
-        }
-        // Number: digits with optional single decimal point. A leading sign is
-        // handled by the value parser as unary minus so "a-1" still tokenizes sanely.
-        if c.is_ascii_digit() {
-            let start = i;
-            let mut seen_dot = false;
-            while i < chars.len() {
-                let ch = chars[i];
-                if ch.is_ascii_digit() {
-                    i += 1;
-                } else if ch == '.' && !seen_dot {
-                    seen_dot = true;
-                    i += 1;
-                } else {
-                    break;
-                }
-            }
-            let text: String = chars[start..i].iter().collect();
-            if seen_dot {
-                match text.parse::<f64>() {
-                    Ok(val) => tokens.push(Tok::Float(val)),
-                    Err(_) => return Err(format!("Invalid number: {text}")),
-                }
-            } else {
-                match text.parse::<i64>() {
-                    Ok(val) => tokens.push(Tok::Int(val)),
-                    Err(_) => return Err(format!("Invalid number: {text}")),
-                }
-            }
-            continue;
-        }
-        // Identifier / keyword: letters, digits, underscore, and dots for field paths.
-        if c.is_alphabetic() || c == '_' {
-            let start = i;
-            while i < chars.len() {
-                let ch = chars[i];
-                if ch.is_alphanumeric() || ch == '_' || ch == '.' {
-                    i += 1;
-                } else {
-                    break;
-                }
-            }
-            let text: String = chars[start..i].iter().collect();
-            tokens.push(Tok::Word(text));
-            continue;
-        }
-        // Multi-char and single-char operators.
-        let two: String = if i + 1 < chars.len() {
-            chars[i..i + 2].iter().collect()
-        } else {
-            String::new()
-        };
-        if two == "!=" || two == "<>" || two == "<=" || two == ">=" {
-            tokens.push(Tok::Sym(two));
-            i += 2;
-            continue;
-        }
-        match c {
-            '=' | '<' | '>' | '(' | ')' | ',' | '*' => {
-                tokens.push(Tok::Sym(c.to_string()));
-                i += 1;
-            }
-            ';' => {
-                // Statement terminator; ignore so a trailing ';' is accepted.
-                i += 1;
-            }
-            '-' => {
-                tokens.push(Tok::Sym("-".to_string()));
-                i += 1;
-            }
-            other => return Err(format!("Unexpected character: {other}")),
-        }
-    }
-    tokens.push(Tok::Eof);
-    Ok(tokens)
-}
-
-// ── Expression tree ────────────────────────────────────────────────
+// ── Condition / expression tree ────────────────────────────────────
+// A field-level condition and a boolean tree over such conditions. The AST from
+// `sqlparser` is lowered into these before emitting MQL, so the mapping logic stays
+// independent of the parser's representation.
 enum Cond {
     Eq(J),
     Ne(J),
@@ -228,151 +114,6 @@ enum Expr {
     Leaf(String, Cond),
 }
 
-struct Parser {
-    tokens: Vec<Tok>,
-    pos: usize,
-}
-
-impl Parser {
-    fn peek(&self) -> &Tok {
-        match self.tokens.get(self.pos) {
-            Some(val) => val,
-            None => &Tok::Eof,
-        }
-    }
-
-    fn next(&mut self) -> Tok {
-        let tok = match self.tokens.get(self.pos) {
-            Some(val) => val.clone(),
-            None => Tok::Eof,
-        };
-        self.pos += 1;
-        tok
-    }
-
-    // Consume a word if it matches `kw` case-insensitively; return whether it did.
-    fn eat_keyword(&mut self, kw: &str) -> bool {
-        if let Tok::Word(word) = self.peek() {
-            if word.eq_ignore_ascii_case(kw) {
-                self.pos += 1;
-                return true;
-            }
-        }
-        false
-    }
-
-    fn peek_keyword(&self, kw: &str) -> bool {
-        if let Tok::Word(word) = self.peek() {
-            return word.eq_ignore_ascii_case(kw);
-        }
-        false
-    }
-
-    fn eat_sym(&mut self, sym: &str) -> bool {
-        if let Tok::Sym(value) = self.peek() {
-            if value == sym {
-                self.pos += 1;
-                return true;
-            }
-        }
-        false
-    }
-
-    // A field name is a bare word that is not a reserved keyword.
-    fn expect_field(&mut self) -> Result<String, String> {
-        match self.next() {
-            Tok::Word(word) => {
-                if is_reserved(&word) {
-                    return Err(format!("Expected a field name, found reserved word `{word}`"));
-                }
-                Ok(word)
-            }
-            other => Err(format!("Expected a field name, found {}", describe(&other))),
-        }
-    }
-}
-
-fn describe(tok: &Tok) -> String {
-    match tok {
-        Tok::Word(word) => format!("`{word}`"),
-        Tok::Str(_) => "a string".to_string(),
-        Tok::Int(value) => format!("`{value}`"),
-        Tok::Float(value) => format!("`{value}`"),
-        Tok::Sym(value) => format!("`{value}`"),
-        Tok::Eof => "end of input".to_string(),
-    }
-}
-
-const RESERVED: &[&str] = &[
-    "select", "from", "where", "order", "by", "limit", "offset", "skip", "and", "or", "like",
-    "in", "is", "null", "not", "between", "asc", "desc", "as", "group",
-];
-
-fn is_reserved(word: &str) -> bool {
-    RESERVED.iter().any(|kw| word.eq_ignore_ascii_case(kw))
-}
-
-// ── Value parsing ──────────────────────────────────────────────────
-fn parse_value(parser: &mut Parser) -> Result<J, String> {
-    let negate = parser.eat_sym("-");
-    match parser.next() {
-        Tok::Int(value) => {
-            let v = if negate { -value } else { value };
-            Ok(J::Int(v))
-        }
-        Tok::Float(value) => {
-            let v = if negate { -value } else { value };
-            Ok(J::Float(v))
-        }
-        Tok::Str(value) => {
-            if negate {
-                return Err("Cannot negate a string literal".to_string());
-            }
-            Ok(J::Str(value))
-        }
-        Tok::Word(word) => {
-            if negate {
-                return Err(format!("Cannot negate `{word}`"));
-            }
-            if word.eq_ignore_ascii_case("true") {
-                Ok(J::Bool(true))
-            } else if word.eq_ignore_ascii_case("false") {
-                Ok(J::Bool(false))
-            } else if word.eq_ignore_ascii_case("null") {
-                Ok(J::Null)
-            } else {
-                Err(format!("Expected a value, found `{word}`"))
-            }
-        }
-        other => Err(format!("Expected a value, found {}", describe(&other))),
-    }
-}
-
-fn parse_value_list(parser: &mut Parser) -> Result<Vec<J>, String> {
-    if !parser.eat_sym("(") {
-        return Err("Expected `(` after IN".to_string());
-    }
-    let mut values: Vec<J> = Vec::new();
-    if parser.eat_sym(")") {
-        return Err("IN list cannot be empty".to_string());
-    }
-    loop {
-        let value = match parse_value(parser) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        };
-        values.push(value);
-        if parser.eat_sym(",") {
-            continue;
-        }
-        if parser.eat_sym(")") {
-            break;
-        }
-        return Err(format!("Expected `,` or `)` in IN list, found {}", describe(parser.peek())));
-    }
-    Ok(values)
-}
-
 // SQL LIKE → anchored regex, escaping regex metacharacters and mapping % → .* and _ → .
 fn like_to_regex(pattern: &str) -> String {
     let mut out = String::from("^");
@@ -389,155 +130,6 @@ fn like_to_regex(pattern: &str) -> String {
     }
     out.push('$');
     out
-}
-
-// ── Condition / expression parsing ─────────────────────────────────
-fn parse_comparison(parser: &mut Parser) -> Result<Expr, String> {
-    let field = match parser.expect_field() {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-
-    // IS [NOT] NULL
-    if parser.eat_keyword("is") {
-        let is_not = parser.eat_keyword("not");
-        if !parser.eat_keyword("null") {
-            return Err("Expected NULL after IS".to_string());
-        }
-        let cond = if is_not { Cond::IsNotNull } else { Cond::IsNull };
-        return Ok(Expr::Leaf(field, cond));
-    }
-
-    // NOT LIKE / NOT IN
-    if parser.eat_keyword("not") {
-        if parser.eat_keyword("like") {
-            match parser.next() {
-                Tok::Str(pattern) => return Ok(Expr::Leaf(field, Cond::NotRegex(like_to_regex(&pattern)))),
-                other => return Err(format!("Expected a pattern string after NOT LIKE, found {}", describe(&other))),
-            }
-        }
-        if parser.eat_keyword("in") {
-            let values = match parse_value_list(parser) {
-                Ok(val) => val,
-                Err(e) => return Err(e),
-            };
-            return Ok(Expr::Leaf(field, Cond::Nin(values)));
-        }
-        return Err("Expected LIKE or IN after NOT".to_string());
-    }
-
-    // LIKE
-    if parser.eat_keyword("like") {
-        match parser.next() {
-            Tok::Str(pattern) => return Ok(Expr::Leaf(field, Cond::Regex(like_to_regex(&pattern)))),
-            other => return Err(format!("Expected a pattern string after LIKE, found {}", describe(&other))),
-        }
-    }
-
-    // IN
-    if parser.eat_keyword("in") {
-        let values = match parse_value_list(parser) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        };
-        return Ok(Expr::Leaf(field, Cond::In(values)));
-    }
-
-    // BETWEEN a AND b
-    if parser.eat_keyword("between") {
-        let low = match parse_value(parser) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        };
-        if !parser.eat_keyword("and") {
-            return Err("Expected AND in BETWEEN".to_string());
-        }
-        let high = match parse_value(parser) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        };
-        return Ok(Expr::Leaf(field, Cond::Between(low, high)));
-    }
-
-    // Comparison operators.
-    let op = match parser.next() {
-        Tok::Sym(value) => value,
-        other => return Err(format!("Expected an operator after `{field}`, found {}", describe(&other))),
-    };
-    let value = match parse_value(parser) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let cond = match op.as_str() {
-        "=" => Cond::Eq(value),
-        "!=" | "<>" => Cond::Ne(value),
-        "<" => Cond::Lt(value),
-        "<=" => Cond::Lte(value),
-        ">" => Cond::Gt(value),
-        ">=" => Cond::Gte(value),
-        other => return Err(format!("Unsupported operator `{other}`")),
-    };
-    Ok(Expr::Leaf(field, cond))
-}
-
-fn parse_primary(parser: &mut Parser) -> Result<Expr, String> {
-    if parser.eat_sym("(") {
-        let expr = match parse_or(parser) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        };
-        if !parser.eat_sym(")") {
-            return Err("Expected `)`".to_string());
-        }
-        return Ok(expr);
-    }
-    parse_comparison(parser)
-}
-
-fn parse_and(parser: &mut Parser) -> Result<Expr, String> {
-    let first = match parse_primary(parser) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    // No `AND` follows — a single term, returned as-is (no And wrapper).
-    if !parser.eat_keyword("and") {
-        return Ok(first);
-    }
-    let mut parts = vec![first];
-    loop {
-        let next = match parse_primary(parser) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        };
-        parts.push(next);
-        if !parser.eat_keyword("and") {
-            break;
-        }
-    }
-    Ok(Expr::And(parts))
-}
-
-fn parse_or(parser: &mut Parser) -> Result<Expr, String> {
-    let first = match parse_and(parser) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    // No `OR` follows — a single term, returned as-is (no Or wrapper).
-    if !parser.eat_keyword("or") {
-        return Ok(first);
-    }
-    let mut parts = vec![first];
-    loop {
-        let next = match parse_and(parser) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        };
-        parts.push(next);
-        if !parser.eat_keyword("or") {
-            break;
-        }
-    }
-    Ok(Expr::Or(parts))
 }
 
 // ── Expr → JSON ────────────────────────────────────────────────────
@@ -609,119 +201,455 @@ fn expr_to_j(expr: Expr) -> J {
     }
 }
 
-// ── Top-level translate ────────────────────────────────────────────
-pub(crate) fn sql_to_mql(sql: &str) -> Result<MqlQuery, String> {
-    let tokens = match tokenize(sql) {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-    let mut parser = Parser { tokens: tokens, pos: 0 };
-
-    if !parser.eat_keyword("select") {
-        return Err("Query must start with SELECT".to_string());
+// ── SQL AST → our expression tree ──────────────────────────────────
+// `SKIP <n>` is a non-standard alias we accept for `OFFSET <n>` (sqlparser doesn't
+// know it), so rewrite the bare keyword to OFFSET before parsing. Only whole-word,
+// case-insensitive matches outside string literals are touched.
+fn normalize_skip(sql: &str) -> String {
+    let chars: Vec<char> = sql.chars().collect();
+    let mut out = String::with_capacity(sql.len());
+    let mut i = 0;
+    let mut in_str: Option<char> = None;
+    while i < chars.len() {
+        let c = chars[i];
+        if let Some(quote) = in_str {
+            out.push(c);
+            if c == quote {
+                in_str = None;
+            }
+            i += 1;
+            continue;
+        }
+        if c == '\'' || c == '"' {
+            in_str = Some(c);
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        if c.is_alphabetic() || c == '_' {
+            let start = i;
+            while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                i += 1;
+            }
+            let word: String = chars[start..i].iter().collect();
+            if word.eq_ignore_ascii_case("skip") {
+                out.push_str("OFFSET");
+            } else {
+                out.push_str(&word);
+            }
+            continue;
+        }
+        out.push(c);
+        i += 1;
     }
+    out
+}
 
-    // Projection list.
-    let mut projection: Vec<(String, J)> = Vec::new();
-    if parser.eat_sym("*") {
-        // All fields: empty projection.
-    } else {
-        loop {
-            let field = match parser.expect_field() {
+fn join_idents(parts: &[Ident]) -> String {
+    parts
+        .iter()
+        .map(|ident| ident.value.clone())
+        .collect::<Vec<String>>()
+        .join(".")
+}
+
+fn object_name_to_string(name: &ObjectName) -> String {
+    name.0
+        .iter()
+        .filter_map(|part| part.as_ident())
+        .map(|ident| ident.value.clone())
+        .collect::<Vec<String>>()
+        .join(".")
+}
+
+// A field reference: a bare column or a dotted path (address.city).
+fn ident_field(expr: &SqlExpr) -> Result<String, String> {
+    match expr {
+        SqlExpr::Identifier(ident) => Ok(ident.value.clone()),
+        SqlExpr::CompoundIdentifier(parts) => Ok(join_idents(parts)),
+        other => Err(format!("Expected a field name, found `{other}`")),
+    }
+}
+
+fn value_from_value(value: &SqlValue) -> Result<J, String> {
+    match value {
+        SqlValue::Number(text, _) => {
+            if text.contains('.') {
+                match text.parse::<f64>() {
+                    Ok(num) => Ok(J::Float(num)),
+                    Err(_) => Err(format!("Invalid number: {text}")),
+                }
+            } else {
+                match text.parse::<i64>() {
+                    Ok(num) => Ok(J::Int(num)),
+                    Err(_) => Err(format!("Invalid number: {text}")),
+                }
+            }
+        }
+        SqlValue::SingleQuotedString(text) | SqlValue::DoubleQuotedString(text) => {
+            Ok(J::Str(text.clone()))
+        }
+        SqlValue::Boolean(flag) => Ok(J::Bool(*flag)),
+        SqlValue::Null => Ok(J::Null),
+        other => Err(format!("Unsupported value: {other}")),
+    }
+}
+
+fn value_from_expr(expr: &SqlExpr) -> Result<J, String> {
+    match expr {
+        SqlExpr::Value(value) => value_from_value(&value.value),
+        SqlExpr::UnaryOp { op: UnaryOperator::Minus, expr } => match value_from_expr(expr) {
+            Ok(J::Int(num)) => Ok(J::Int(-num)),
+            Ok(J::Float(num)) => Ok(J::Float(-num)),
+            Ok(_) => Err("Cannot negate a non-numeric value".to_string()),
+            Err(e) => Err(e),
+        },
+        SqlExpr::UnaryOp { op: UnaryOperator::Plus, expr } => value_from_expr(expr),
+        other => Err(format!("Expected a value, found `{other}`")),
+    }
+}
+
+fn string_literal(expr: &SqlExpr) -> Result<String, String> {
+    match value_from_expr(expr) {
+        Ok(J::Str(text)) => Ok(text),
+        Ok(_) => Err("Expected a pattern string".to_string()),
+        Err(e) => Err(e),
+    }
+}
+
+// Lower a single (non-boolean) comparison node into a field + condition.
+fn convert_leaf(expr: &SqlExpr) -> Result<Expr, String> {
+    match expr {
+        SqlExpr::Nested(inner) => convert_leaf(inner),
+        SqlExpr::IsNull(inner) => {
+            let field = match ident_field(inner) {
                 Ok(val) => val,
                 Err(e) => return Err(e),
             };
-            // Reject function calls (COUNT(...), SUM(...)) — aggregates are out of scope.
-            if parser.peek() == &Tok::Sym("(".to_string()) {
-                return Err(format!(
-                    "Aggregate/function `{field}(...)` is not supported yet — only plain column selection"
-                ));
+            Ok(Expr::Leaf(field, Cond::IsNull))
+        }
+        SqlExpr::IsNotNull(inner) => {
+            let field = match ident_field(inner) {
+                Ok(val) => val,
+                Err(e) => return Err(e),
+            };
+            Ok(Expr::Leaf(field, Cond::IsNotNull))
+        }
+        SqlExpr::Like { negated, any, expr: field_expr, pattern, .. } => {
+            if *any {
+                return Err("LIKE ANY is not supported".to_string());
             }
-            projection.push((field, J::Int(1)));
-            // Optional `AS alias` — accepted and ignored (projection uses the source field).
-            if parser.eat_keyword("as") {
-                match parser.expect_field() {
-                    Ok(_) => {}
+            let field = match ident_field(field_expr) {
+                Ok(val) => val,
+                Err(e) => return Err(e),
+            };
+            let pattern = match string_literal(pattern) {
+                Ok(val) => val,
+                Err(e) => return Err(e),
+            };
+            let regex = like_to_regex(&pattern);
+            let cond = if *negated { Cond::NotRegex(regex) } else { Cond::Regex(regex) };
+            Ok(Expr::Leaf(field, cond))
+        }
+        SqlExpr::InList { expr: field_expr, list, negated } => {
+            let field = match ident_field(field_expr) {
+                Ok(val) => val,
+                Err(e) => return Err(e),
+            };
+            if list.is_empty() {
+                return Err("IN list cannot be empty".to_string());
+            }
+            let mut values: Vec<J> = Vec::new();
+            for item in list {
+                match value_from_expr(item) {
+                    Ok(val) => values.push(val),
                     Err(e) => return Err(e),
                 }
             }
-            if parser.eat_sym(",") {
-                continue;
+            let cond = if *negated { Cond::Nin(values) } else { Cond::In(values) };
+            Ok(Expr::Leaf(field, cond))
+        }
+        SqlExpr::Between { expr: field_expr, negated, low, high } => {
+            if *negated {
+                return Err("NOT BETWEEN is not supported yet".to_string());
             }
-            break;
-        }
-    }
-
-    if !parser.eat_keyword("from") {
-        return Err("Expected FROM".to_string());
-    }
-    let collection = match parser.expect_field() {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-    };
-
-    // WHERE.
-    let filter = if parser.eat_keyword("where") {
-        let expr = match parse_or(&mut parser) {
-            Ok(val) => val,
-            Err(e) => return Err(e),
-        };
-        expr_to_j(expr)
-    } else {
-        J::Obj(Vec::new())
-    };
-
-    // ORDER BY.
-    let mut sort: Vec<(String, J)> = Vec::new();
-    if parser.eat_keyword("order") {
-        if !parser.eat_keyword("by") {
-            return Err("Expected BY after ORDER".to_string());
-        }
-        loop {
-            let field = match parser.expect_field() {
+            let field = match ident_field(field_expr) {
                 Ok(val) => val,
                 Err(e) => return Err(e),
             };
-            let dir = if parser.eat_keyword("desc") {
-                -1
-            } else {
-                parser.eat_keyword("asc");
-                1
+            let low = match value_from_expr(low) {
+                Ok(val) => val,
+                Err(e) => return Err(e),
             };
-            sort.push((field, J::Int(dir)));
-            if parser.eat_sym(",") {
-                continue;
-            }
-            break;
+            let high = match value_from_expr(high) {
+                Ok(val) => val,
+                Err(e) => return Err(e),
+            };
+            Ok(Expr::Leaf(field, Cond::Between(low, high)))
         }
+        SqlExpr::BinaryOp { left, op, right } => {
+            let field = match ident_field(left) {
+                Ok(val) => val,
+                Err(e) => return Err(e),
+            };
+            let value = match value_from_expr(right) {
+                Ok(val) => val,
+                Err(e) => return Err(e),
+            };
+            let cond = match op {
+                BinaryOperator::Eq => Cond::Eq(value),
+                BinaryOperator::NotEq => Cond::Ne(value),
+                BinaryOperator::Lt => Cond::Lt(value),
+                BinaryOperator::LtEq => Cond::Lte(value),
+                BinaryOperator::Gt => Cond::Gt(value),
+                BinaryOperator::GtEq => Cond::Gte(value),
+                other => return Err(format!("Unsupported operator `{other}`")),
+            };
+            Ok(Expr::Leaf(field, cond))
+        }
+        other => Err(format!("Unsupported condition: `{other}`")),
+    }
+}
+
+// Collect the operands of a left-associative chain of the same boolean operator
+// into one flat list (so `a AND b AND c` merges rather than nesting). Parentheses
+// (Nested) are a boundary — they recurse through convert_where instead.
+fn flatten_bool(expr: &SqlExpr, op: &BinaryOperator, out: &mut Vec<Expr>) -> Result<(), String> {
+    match expr {
+        SqlExpr::BinaryOp { left, op: inner, right } if inner == op => {
+            match flatten_bool(left, op, out) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+            flatten_bool(right, op, out)
+        }
+        other => match convert_where(other) {
+            Ok(val) => {
+                out.push(val);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        },
+    }
+}
+
+fn convert_where(expr: &SqlExpr) -> Result<Expr, String> {
+    match expr {
+        SqlExpr::Nested(inner) => convert_where(inner),
+        SqlExpr::BinaryOp { left, op: BinaryOperator::And, right } => {
+            let mut parts: Vec<Expr> = Vec::new();
+            match flatten_bool(left, &BinaryOperator::And, &mut parts) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+            match flatten_bool(right, &BinaryOperator::And, &mut parts) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+            Ok(Expr::And(parts))
+        }
+        SqlExpr::BinaryOp { left, op: BinaryOperator::Or, right } => {
+            let mut parts: Vec<Expr> = Vec::new();
+            match flatten_bool(left, &BinaryOperator::Or, &mut parts) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+            match flatten_bool(right, &BinaryOperator::Or, &mut parts) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+            Ok(Expr::Or(parts))
+        }
+        other => convert_leaf(other),
+    }
+}
+
+fn convert_projection(items: &[SelectItem]) -> Result<Vec<(String, J)>, String> {
+    let mut out: Vec<(String, J)> = Vec::new();
+    for item in items {
+        match item {
+            // SELECT * → all fields, i.e. an empty projection.
+            SelectItem::Wildcard(_) => return Ok(Vec::new()),
+            SelectItem::UnnamedExpr(expr) => {
+                let field = match projection_field(expr) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e),
+                };
+                out.push((field, J::Int(1)));
+            }
+            // `AS alias` is accepted and ignored (projection uses the source field).
+            SelectItem::ExprWithAlias { expr, alias: _ } => {
+                let field = match projection_field(expr) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e),
+                };
+                out.push((field, J::Int(1)));
+            }
+            other => return Err(format!("Unsupported SELECT item: `{other}`")),
+        }
+    }
+    Ok(out)
+}
+
+fn projection_field(expr: &SqlExpr) -> Result<String, String> {
+    match expr {
+        SqlExpr::Identifier(ident) => Ok(ident.value.clone()),
+        SqlExpr::CompoundIdentifier(parts) => Ok(join_idents(parts)),
+        SqlExpr::Function(_) => Err(
+            "Aggregate/function projection is not supported yet — only plain column selection"
+                .to_string(),
+        ),
+        other => Err(format!("Only plain column names are supported in SELECT, found `{other}`")),
+    }
+}
+
+fn convert_from(from: &[sqlparser::ast::TableWithJoins]) -> Result<String, String> {
+    if from.len() != 1 {
+        return Err("Expected exactly one table in FROM".to_string());
+    }
+    let table = &from[0];
+    if !table.joins.is_empty() {
+        return Err("JOINs are not supported yet".to_string());
+    }
+    match &table.relation {
+        TableFactor::Table { name, alias, args, .. } => {
+            if alias.is_some() {
+                return Err("Table aliases are not supported".to_string());
+            }
+            if args.is_some() {
+                return Err("Table-valued functions are not supported".to_string());
+            }
+            Ok(object_name_to_string(name))
+        }
+        _ => Err("Unsupported table expression in FROM".to_string()),
+    }
+}
+
+fn convert_order_by(order_by: &Option<OrderBy>) -> Result<Vec<(String, J)>, String> {
+    let mut out: Vec<(String, J)> = Vec::new();
+    let order_by = match order_by {
+        Some(val) => val,
+        None => return Ok(out),
+    };
+    match &order_by.kind {
+        OrderByKind::Expressions(exprs) => {
+            for order_expr in exprs {
+                let field = match ident_field(&order_expr.expr) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e),
+                };
+                // asc == Some(false) means DESC; ASC or unspecified is ascending.
+                let dir = if order_expr.options.asc == Some(false) { -1 } else { 1 };
+                out.push((field, J::Int(dir)));
+            }
+        }
+        OrderByKind::All(_) => return Err("ORDER BY ALL is not supported".to_string()),
+    }
+    Ok(out)
+}
+
+fn expect_int(expr: &SqlExpr) -> Result<i64, String> {
+    match value_from_expr(expr) {
+        Ok(J::Int(num)) => Ok(num),
+        Ok(_) => Err("Expected an integer".to_string()),
+        Err(e) => Err(e),
+    }
+}
+
+fn convert_limit(limit_clause: &Option<LimitClause>) -> Result<(Option<i64>, Option<i64>), String> {
+    match limit_clause {
+        None => Ok((None, None)),
+        Some(LimitClause::LimitOffset { limit, offset, limit_by }) => {
+            if !limit_by.is_empty() {
+                return Err("LIMIT BY is not supported".to_string());
+            }
+            let limit_val = match limit {
+                Some(expr) => match expect_int(expr) {
+                    Ok(val) => Some(val),
+                    Err(e) => return Err(e),
+                },
+                None => None,
+            };
+            let skip_val = match offset {
+                Some(off) => match expect_int(&off.value) {
+                    Ok(val) => Some(val),
+                    Err(e) => return Err(e),
+                },
+                None => None,
+            };
+            Ok((limit_val, skip_val))
+        }
+        Some(LimitClause::OffsetCommaLimit { .. }) => {
+            Err("`LIMIT offset, count` syntax is not supported".to_string())
+        }
+    }
+}
+
+// ── Top-level translate ────────────────────────────────────────────
+pub(crate) fn sql_to_mql(sql: &str) -> Result<MqlQuery, String> {
+    let normalized = normalize_skip(sql);
+    let dialect = GenericDialect {};
+    let statements = match SqlParser::parse_sql(&dialect, &normalized) {
+        Ok(val) => val,
+        Err(e) => return Err(format!("{e}")),
+    };
+    if statements.len() != 1 {
+        return Err("Expected a single SELECT statement".to_string());
+    }
+    let statement = match statements.into_iter().next() {
+        Some(val) => val,
+        None => return Err("Empty query".to_string()),
+    };
+    let query: Query = match statement {
+        Statement::Query(query) => *query,
+        _ => return Err("Only SELECT queries are supported".to_string()),
+    };
+
+    let Query { body, order_by, limit_clause, .. } = query;
+    let select = match *body {
+        SetExpr::Select(select) => *select,
+        _ => return Err("Only simple SELECT queries are supported".to_string()),
+    };
+
+    // sqlparser's generic dialect accepts a SELECT-less `FROM t` (a DuckDB/ClickHouse
+    // shorthand); we require an explicit SELECT, so an empty projection list is rejected.
+    if select.projection.is_empty() {
+        return Err("Query must start with SELECT".to_string());
+    }
+    if select.distinct.is_some() {
+        return Err("DISTINCT is not supported yet".to_string());
+    }
+    if select.having.is_some() {
+        return Err("HAVING is not supported yet".to_string());
+    }
+    match &select.group_by {
+        GroupByExpr::Expressions(exprs, _) if exprs.is_empty() => {}
+        _ => return Err("GROUP BY is not supported yet".to_string()),
     }
 
-    // LIMIT / OFFSET / SKIP, in either order.
-    let mut limit: Option<i64> = None;
-    let mut skip: Option<i64> = None;
-    loop {
-        if parser.peek_keyword("limit") {
-            parser.eat_keyword("limit");
-            match parser.next() {
-                Tok::Int(value) => limit = Some(value),
-                other => return Err(format!("Expected a number after LIMIT, found {}", describe(&other))),
-            }
-            continue;
-        }
-        if parser.peek_keyword("offset") || parser.peek_keyword("skip") {
-            parser.next();
-            match parser.next() {
-                Tok::Int(value) => skip = Some(value),
-                other => return Err(format!("Expected a number after OFFSET, found {}", describe(&other))),
-            }
-            continue;
-        }
-        break;
-    }
-
-    if parser.peek() != &Tok::Eof {
-        return Err(format!("Unexpected trailing input: {}", describe(parser.peek())));
-    }
+    let projection = match convert_projection(&select.projection) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let collection = match convert_from(&select.from) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let filter = match &select.selection {
+        Some(expr) => match convert_where(expr) {
+            Ok(val) => expr_to_j(val),
+            Err(e) => return Err(e),
+        },
+        None => J::Obj(Vec::new()),
+    };
+    let sort = match convert_order_by(&order_by) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
+    let (limit, skip) = match convert_limit(&limit_clause) {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+    };
 
     Ok(MqlQuery {
         collection: collection,
