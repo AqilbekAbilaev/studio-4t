@@ -30,9 +30,15 @@ export const MODALS = {
   compare:   { component: lazy(() => import('../components/tools/CompareModal.vue')),       level: 'database' },
 
   // ── collection level ──
+  // A modal with extra domain events (e.g. validator's `saved`) keeps its component
+  // conforming — one `target`, emits `close` — and declares those events in App.vue's
+  // modalEmits map, which AppModals binds generically. The registry row stays pure data.
   stats:     { component: lazy(() => import('../components/admin/StatsModal.vue')),             level: 'collection' },
   schema:    { component: lazy(() => import('../components/tools/SchemaModal.vue')),            level: 'collection' },
   history:   { component: lazy(() => import('../components/tools/CollectionHistoryModal.vue')), level: 'collection' },
   mapReduce: { component: lazy(() => import('../components/query/MapReduceModal.vue')),         level: 'collection' },
   migration: { component: lazy(() => import('../components/tools/MigrationModal.vue')),         level: 'collection' },
+  masking:   { component: lazy(() => import('../components/tools/MaskingModal.vue')),           level: 'collection' },
+  validator: { component: lazy(() => import('../components/admin/ValidatorModal.vue')),         level: 'collection' },
+  reschema:  { component: lazy(() => import('../components/tools/ReschemaModal.vue')),          level: 'collection' },
 }

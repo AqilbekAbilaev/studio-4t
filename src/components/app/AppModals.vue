@@ -11,12 +11,9 @@ import BaseTextarea from '../base/BaseTextarea.vue'
 import FieldError from '../base/FieldError.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
-import ValidatorModal from '../admin/ValidatorModal.vue'
 import TasksModal from '../admin/TasksModal.vue'
-import MaskingModal from '../tools/MaskingModal.vue'
 import ExportWizard from '../tools/ExportWizard.vue'
 import ImportFormatModal from '../tools/ImportFormatModal.vue'
-import ReschemaModal from '../tools/ReschemaModal.vue'
 import GridFsModal from '../tools/GridFsModal.vue'
 import ShortcutsModal from './ShortcutsModal.vue'
 import AboutModal from './AboutModal.vue'
@@ -39,18 +36,22 @@ const {
   openModals,
   closeModal,
   showConnectionManager,
-  validatorTarget,
   gridfsTarget,
   gridfsRequest,
   showTasksModal,
-  maskingTarget,
   importWizardTarget,
   exportWizardTarget,
-  reschemaTarget,
   showShortcuts,
   showAbout,
   showPreferences,
 } = ctx.modals
+
+// Extra per-modal event handlers (id → { event: handler }) for registry-driven modals,
+// wired alongside the generic `close`. See App.vue's modalEmits.
+const modalEmits = ctx.modalEmits
+function modalListeners(id) {
+  return { close: () => closeModal(id), ...(modalEmits[id] || {}) }
+}
 
 // The Index Manager list/form now lives in IndexManagerPane (the 'indexes' tab).
 // AppModals only keeps the two index dialogs that overlay it: View Details and the
@@ -123,9 +124,7 @@ const {
 
 const {
   onManagerConnect,
-  onValidatorSaved,
   openImportTab,
-  onReschemaApplied,
   onPrefsSaved,
   onKeybindingsSaved,
 } = ctx.handlers
@@ -143,24 +142,10 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       @connect="onManagerConnect"
     />
 
-    <ValidatorModal
-      v-if="validatorTarget"
-      :target="validatorTarget"
-      @saved="onValidatorSaved"
-      @close="validatorTarget = null"
-    />
-
     <!-- Tasks panel -->
     <TasksModal
       v-if="showTasksModal"
       @close="showTasksModal = false"
-    />
-
-    <!-- Data Masking modal -->
-    <MaskingModal
-      v-if="maskingTarget"
-      :target="maskingTarget"
-      @close="maskingTarget = null"
     />
 
     <!-- Import: format picker → opens an import tab (ImportPane) on Configure -->
@@ -178,14 +163,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       @close="exportWizardTarget = null"
     />
 
-    <!-- Reschema modal -->
-    <ReschemaModal
-      v-if="reschemaTarget"
-      :target="reschemaTarget"
-      @applied="onReschemaApplied"
-      @close="reschemaTarget = null"
-    />
-
     <!-- Registry-driven modals: one entry per modal in constants/modalRegistry.js.
          Each conforming modal takes a single `target` and emits `close`, so the whole
          set renders from this one block — adding a modal needs no change here. -->
@@ -194,7 +171,7 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       :is="MODALS[id].component"
       :key="id"
       :target="target"
-      @close="closeModal(id)"
+      v-on="modalListeners(id)"
     />
 
     <!-- GridFS modal -->

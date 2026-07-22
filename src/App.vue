@@ -872,6 +872,12 @@ provide('appModals', {
     onPrefsSaved: onPrefsSaved,
     onKeybindingsSaved: onKeybindingsSaved,
   },
+  // Extra domain events for registry-driven modals: modal id → { eventName: handler }.
+  // `close` is wired generically by AppModals; only the modal's other events go here.
+  modalEmits: {
+    validator: { saved: onValidatorSaved },
+    reschema: { applied: onReschemaApplied },
+  },
   prefs: { defaultQueryLimit: defaultQueryLimit, theme: theme, keyBindings: keyBindings },
   tabRename: { renameTabTarget: renameTabTarget, renameTabValue: renameTabValue, confirmRenameTab: confirmRenameTab },
 })

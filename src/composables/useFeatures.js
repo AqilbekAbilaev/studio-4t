@@ -24,7 +24,6 @@ export function useFeatures({
   const {
     showConnectionManager, showTasksModal,
     gridfsTarget,
-    validatorTarget, maskingTarget, reschemaTarget,
   } = modals
   const {
     openAddCollection, openAddDatabase, openAddView, openAddBucket,
@@ -164,13 +163,13 @@ export function useFeatures({
     'Data Compare':            modalFeature('compare'),
 
     // ── collection-scoped modals ──
-    'Add / Edit Validator…':   modal(validatorTarget, 'collection', COLL),
+    'Add / Edit Validator…':   modalFeature('validator'),
     'View Schema':             modalFeature('schema'),
     'Collection History':      modalFeature('history'),
     'Collection Stats':        modalFeature('stats'),
     'Open Map-Reduce':         modalFeature('mapReduce'),
-    'Data Masking':            modal(maskingTarget,   'collection', COLL),
-    'Reschema':                modal(reschemaTarget,  'collection', COLL),
+    'Data Masking':            modalFeature('masking'),
+    'Reschema':                modalFeature('reschema'),
     'SQL Migration':           modalFeature('migration'),
 
     // ── create/edit dialogs (state + seeders owned by useDbActions) ──
