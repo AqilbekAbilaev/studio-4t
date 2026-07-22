@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
+import { useToast } from '../../composables/useToast'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
@@ -20,7 +21,8 @@ import FormField from '../base/FormField.vue'
 const props = defineProps({
   target: { type: Object, required: true },  // { connId, connName, dbName, collName }
 })
-const emit = defineEmits(['close', 'toast'])
+const emit = defineEmits(['close'])
+const { showToast } = useToast()
 
 const STRATEGIES = [
   { value: 'keep',    label: 'Keep' },
@@ -112,7 +114,7 @@ async function runExport() {
       format: format.value,
       limit: lim,
     })
-    emit('toast', `Exported ${count} masked document${count === 1 ? '' : 's'}`)
+    showToast(`Exported ${count} masked document${count === 1 ? '' : 's'}`)
     emit('close')
   } catch (e) {
     error.value = errText(e)

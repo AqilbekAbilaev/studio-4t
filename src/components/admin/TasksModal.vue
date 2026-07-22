@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event'
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { errText } from '../../utils/errors'
 import { scheduleSummary } from '../../utils/taskSchedule'
+import { useToast } from '../../composables/useToast'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
@@ -21,7 +22,8 @@ import BaseModalBody from '../base/BaseModalBody.vue'
 // user can run on demand or on a schedule. Two views share this modal: the list of
 // saved tasks (run / edit / delete, live-refreshed on the backend `task-ran` event)
 // and the create/edit form.
-const emit = defineEmits(['close', 'toast'])
+const emit = defineEmits(['close'])
+const { showToast } = useToast()
 
 // The five task types that map to an existing operation command, plus the two
 // "coming soon" rows (no backing operation yet) shown disabled in the picker.
@@ -121,7 +123,7 @@ onMounted(async () => {
     const payload = event.payload
     if (payload && payload.run) {
       const name = taskName(payload.task_id)
-      emit('toast', `${name || 'Task'} ran: ${payload.run.status}`)
+      showToast(`${name || 'Task'} ran: ${payload.run.status}`)
     }
   })
 })
@@ -189,10 +191,10 @@ async function runNow(task) {
   running.value = new Set(running.value).add(task.id)
   try {
     const run = await invoke('run_task', { id: task.id })
-    emit('toast', `${task.name}: ${run.status === 'ok' ? 'ran successfully' : run.message}`)
+    showToast(`${task.name}: ${run.status === 'ok' ? 'ran successfully' : run.message}`)
     await refresh()
   } catch (e) {
-    emit('toast', `${task.name} failed: ${errText(e)}`)
+    showToast(`${task.name} failed: ${errText(e)}`)
   } finally {
     const next = new Set(running.value)
     next.delete(task.id)
@@ -204,9 +206,9 @@ async function remove(task) {
   try {
     await invoke('delete_task', { id: task.id })
     await refresh()
-    emit('toast', `Deleted "${task.name}"`)
+    showToast(`Deleted "${task.name}"`)
   } catch (e) {
-    emit('toast', `Could not delete: ${errText(e)}`)
+    showToast(`Could not delete: ${errText(e)}`)
   }
 }
 
@@ -371,12 +373,12 @@ function validate() {
 async function save() {
   const problem = validate()
   if (problem) {
-    emit('toast', problem)
+    showToast(problem)
     return
   }
   const spec = buildSpec()
   if (!spec) {
-    emit('toast', 'That task type is not available yet')
+    showToast('That task type is not available yet')
     return
   }
   const task = {
@@ -394,9 +396,9 @@ async function save() {
     await invoke('save_task', { task })
     await refresh()
     view.value = 'list'
-    emit('toast', form.id ? 'Task updated' : 'Task created')
+    showToast(form.id ? 'Task updated' : 'Task created')
   } catch (e) {
-    emit('toast', `Could not save: ${errText(e)}`)
+    showToast(`Could not save: ${errText(e)}`)
   } finally {
     saving.value = false
   }

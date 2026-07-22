@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
+import { useToast } from '../../composables/useToast'
 import { mongoStringify, syntaxHighlight } from '../../utils/mongoFormat'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
@@ -22,7 +23,8 @@ import BaseModalFoot from '../base/BaseModalFoot.vue'
 const props = defineProps({
   target: { type: Object, required: true },  // { connId, connName, dbName, collName }
 })
-const emit = defineEmits(['close', 'toast', 'applied'])
+const emit = defineEmits(['close', 'applied'])
+const { showToast } = useToast()
 
 const OP_KINDS = [
   { value: 'rename',     label: 'Rename field' },
@@ -180,7 +182,7 @@ async function runApply() {
     const where = mode.value === 'new_collection'
       ? `to ${newName.value.trim()}`
       : 'in place'
-    emit('toast', `Reschema applied ${where} — ${count} document${count === 1 ? '' : 's'}`)
+    showToast(`Reschema applied ${where} — ${count} document${count === 1 ? '' : 's'}`)
     emit('applied', {
       newCollection: mode.value === 'new_collection',
       connId: props.target.connId,

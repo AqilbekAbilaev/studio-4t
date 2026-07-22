@@ -2,6 +2,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText } from '../../utils/errors'
+import { useToast } from '../../composables/useToast'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseButton from '../base/BaseButton.vue'
 import BaseInput from '../base/BaseInput.vue'
@@ -20,7 +21,8 @@ const props = defineProps({
   historyRequest: { type: Object,  default: null },
   saveRequest:    { type: Object,  default: null },
 })
-const emit = defineEmits(['run', 'copy-query', 'paste-query', 'toggle-vqb', 'toast', 'open-browser'])
+const emit = defineEmits(['run', 'copy-query', 'paste-query', 'toggle-vqb', 'open-browser'])
+const { showToast } = useToast()
 
 // autofocus directive for the save-query input
 const vFocus = { mounted(el) { el.focus(); el.select() } }
@@ -127,9 +129,9 @@ async function setDefaultQuery() {
       pipeline:     tab.pipeline   || '',
     })
     showDefaultMenu.value = false
-    emit('toast', 'Default query set for this collection.')
+    showToast('Default query set for this collection.')
   } catch (e) {
-    emit('toast', 'Failed: ' + errText(e))
+    showToast('Failed: ' + errText(e))
   }
 }
 
@@ -143,9 +145,9 @@ async function clearDefaultQuery() {
       collection:   tab.collectionName,
     })
     showDefaultMenu.value = false
-    emit('toast', 'Default query cleared.')
+    showToast('Default query cleared.')
   } catch (e) {
-    emit('toast', 'Failed: ' + errText(e))
+    showToast('Failed: ' + errText(e))
   }
 }
 
@@ -166,9 +168,9 @@ async function saveCurrentQuery() {
     })
     showSaveForm.value = false
     saveName.value = ''
-    emit('toast', `Saved as "${name}"`)
+    showToast(`Saved as "${name}"`)
   } catch (e) {
-    emit('toast', 'Save failed: ' + errText(e))
+    showToast('Save failed: ' + errText(e))
   }
 }
 

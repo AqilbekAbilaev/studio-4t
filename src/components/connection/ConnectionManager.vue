@@ -5,6 +5,7 @@ import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText } from '../../utils/errors'
 import { useConfirmDelete } from '../../composables/useConfirmDelete'
+import { useToast } from '../../composables/useToast'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
@@ -13,7 +14,8 @@ import ToolbarButton from '../base/ToolbarButton.vue'
 import NewConnection from './NewConnection.vue'
 import ContextMenu from '../base/ContextMenu.vue'
 
-const emit = defineEmits(['close', 'connect', 'toast'])
+const emit = defineEmits(['close', 'connect'])
+const { showToast } = useToast()
 
 const connections = ref([])
 const selectedId = ref(null)
@@ -125,9 +127,9 @@ async function duplicateSelected() {
     const copy = await invoke('duplicate_connection', { id: selectedId.value })
     connections.value.push(copy)
     selectedId.value = copy.id
-    emit('toast', `Duplicated as "${copy.name}"`)
+    showToast(`Duplicated as "${copy.name}"`)
   } catch (e) {
-    emit('toast', 'Duplicate failed: ' + errText(e))
+    showToast('Duplicate failed: ' + errText(e))
   }
 }
 
@@ -136,9 +138,9 @@ async function copyUri() {
   try {
     const uri = await invoke('connection_uri', { id: selectedId.value })
     await navigator.clipboard.writeText(uri)
-    emit('toast', 'Connection URI copied (password excluded)')
+    showToast('Connection URI copied (password excluded)')
   } catch (e) {
-    emit('toast', 'To URI failed: ' + errText(e))
+    showToast('To URI failed: ' + errText(e))
   }
 }
 
@@ -150,15 +152,15 @@ async function exportConnections() {
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
   } catch (e) {
-    emit('toast', 'Export failed: ' + errText(e))
+    showToast('Export failed: ' + errText(e))
     return
   }
   if (!path) return  // user cancelled
   try {
     const count = await invoke('export_connections', { path: path })
-    emit('toast', `Exported ${count} connection${count !== 1 ? 's' : ''} (passwords excluded)`)
+    showToast(`Exported ${count} connection${count !== 1 ? 's' : ''} (passwords excluded)`)
   } catch (e) {
-    emit('toast', 'Export failed: ' + errText(e))
+    showToast('Export failed: ' + errText(e))
   }
 }
 
@@ -170,16 +172,16 @@ async function importConnections() {
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
   } catch (e) {
-    emit('toast', 'Import failed: ' + errText(e))
+    showToast('Import failed: ' + errText(e))
     return
   }
   if (!path) return  // user cancelled
   try {
     const count = await invoke('import_connections', { path: String(path) })
     connections.value = await invoke('list_connections')
-    emit('toast', `Imported ${count} connection${count !== 1 ? 's' : ''} — re-enter passwords to connect`)
+    showToast(`Imported ${count} connection${count !== 1 ? 's' : ''} — re-enter passwords to connect`)
   } catch (e) {
-    emit('toast', 'Import failed: ' + errText(e))
+    showToast('Import failed: ' + errText(e))
   }
 }
 
@@ -252,7 +254,7 @@ async function newFolder() {
   try {
     startRenameFolder(await createUniqueFolder())
   } catch (e) {
-    emit('toast', 'Create folder failed: ' + errText(e))
+    showToast('Create folder failed: ' + errText(e))
   }
 }
 
@@ -274,7 +276,7 @@ async function commitRenameFolder(f) {
     const target = folders.value.find(x => x.id === f.id)
     if (target) target.name = name
   } catch (e) {
-    emit('toast', 'Rename failed: ' + errText(e))
+    showToast('Rename failed: ' + errText(e))
   }
 }
 
@@ -290,7 +292,7 @@ async function deleteFolder(f) {
     // Connections inside were moved back to root server-side; reload to reflect.
     connections.value = await invoke('list_connections')
   } catch (e) {
-    emit('toast', 'Delete folder failed: ' + errText(e))
+    showToast('Delete folder failed: ' + errText(e))
   }
 }
 
@@ -334,7 +336,7 @@ async function onMovePick(value) {
       await applyMove(connId, folder.id)
       startRenameFolder(folder)
     } catch (e) {
-      emit('toast', 'Create folder failed: ' + errText(e))
+      showToast('Create folder failed: ' + errText(e))
     }
     return
   }
@@ -349,7 +351,7 @@ async function applyMove(connId, folderId) {
     if (c) c.folder_id = folderId
     if (folderId && !isExpanded(folderId)) expandedFolders.value.push(folderId)
   } catch (e) {
-    emit('toast', 'Move failed: ' + errText(e))
+    showToast('Move failed: ' + errText(e))
   }
 }
 

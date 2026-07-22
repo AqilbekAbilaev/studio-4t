@@ -21,6 +21,7 @@ import TabStrip from '../base/TabStrip.vue'
 import Resizer from '../base/Resizer.vue'
 import FieldError from '../base/FieldError.vue'
 import { useDocumentActions } from '../../composables/useDocumentActions'
+import { useToast } from '../../composables/useToast'
 
 const props = defineProps({
   activeTab:   { type: Object,  required: true },
@@ -38,7 +39,8 @@ const props = defineProps({
 // `run` re-runs the active tab in its current mode (the toolbar refresh button).
 // `requery` re-runs the find query with an explicit history flag (pagination, CRUD
 // refresh). Both delegate to the parent, which owns the parse + run pipeline.
-const emit = defineEmits(['run', 'requery', 'select-rtab', 'explain-verbosity', 'open-vqb', 'close-vqb', 'toast', 'cancel', 'follow-reference'])
+const emit = defineEmits(['run', 'requery', 'select-rtab', 'explain-verbosity', 'open-vqb', 'close-vqb', 'cancel', 'follow-reference'])
+const { showToast } = useToast()
 
 const viewMode     = ref('table')
 const viewMenu     = ref(false)
@@ -112,7 +114,7 @@ async function goLast() {
     tab.skip = total === 0 ? 0 : Math.floor((total - 1) / limit) * limit
     emit('requery', false)
   } catch (e) {
-    emit('toast', 'Count failed: ' + errText(e))
+    showToast('Count failed: ' + errText(e))
   }
 }
 
@@ -121,9 +123,9 @@ async function countDocuments() {
   if (!tab || isCountDisabled.value) return
   try {
     const total = await fetchCount(tab)
-    emit('toast', `${total.toLocaleString()} document${total !== 1 ? 's' : ''} match this query`)
+    showToast(`${total.toLocaleString()} document${total !== 1 ? 's' : ''} match this query`)
   } catch (e) {
-    emit('toast', 'Count failed: ' + errText(e))
+    showToast('Count failed: ' + errText(e))
   }
 }
 
@@ -150,7 +152,7 @@ const {
   activeTab: () => props.activeTab,
   docMenuRequest: () => props.docMenuRequest,
   viewMode: viewMode,
-  showToast: (message) => emit('toast', message),
+  showToast: showToast,
   requery: (history) => emit('requery', history),
 })
 
@@ -340,7 +342,6 @@ function toggleReadOnly() {
     <QueryCodeView
       v-else-if="rtab === 'Query Code'"
       :active-tab="activeTab"
-      @toast="emit('toast', $event)"
     />
 
     <!-- Explain sub-tab -->

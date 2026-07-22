@@ -7,6 +7,7 @@ import BaseSelect from '../base/BaseSelect.vue'
 import BaseButton from '../base/BaseButton.vue'
 import CodeEditor from '../base/CodeEditor.vue'
 import { generateCode, LANGUAGES } from '../../utils/queryCodegen'
+import { useToast } from '../../composables/useToast'
 
 const languageOptions = LANGUAGES.map((lang) => ({ value: lang.id, label: lang.label }))
 
@@ -17,7 +18,7 @@ const props = defineProps({
   activeTab: { type: Object, required: true },
 })
 
-const emit = defineEmits(['toast'])
+const { showToast } = useToast()
 
 // Target language for the generated snippet (session-scoped, defaults to Shell).
 const queryCodeLang = ref('shell')
@@ -47,8 +48,8 @@ const queryCode = computed(() => {
 
 function copyQueryCode() {
   navigator.clipboard.writeText(queryCode.value ?? '')
-    .then(() => emit('toast', 'Query code copied to clipboard'))
-    .catch(() => emit('toast', 'Copy to clipboard failed'))
+    .then(() => showToast('Query code copied to clipboard'))
+    .catch(() => showToast('Copy to clipboard failed'))
 }
 </script>
 

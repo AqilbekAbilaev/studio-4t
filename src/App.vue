@@ -207,6 +207,9 @@ function showToast(msg) {
   toast.value = msg
   toastTimer = setTimeout(() => { toast.value = null }, 2200)
 }
+// Toast is an app-wide concern, so it's provided once here and injected by any
+// component that needs it (see useToast) rather than bubbled up as a `toast` event.
+provide('showToast', showToast)
 
 const { tagOverrides, loadNodeTags, applyColorTag } = useNodeTags({ showToast: showToast })
 
@@ -860,7 +863,6 @@ provide('appModals', {
   dbActions: dbActionsApi,
   ssh: sshApi,
   handlers: {
-    showToast: showToast,
     setTheme: setTheme,
     onManagerConnect: onManagerConnect,
     onValidatorSaved: onValidatorSaved,
@@ -946,7 +948,6 @@ provide('appModals', {
         @toggle-vqb="vqbOpen = !vqbOpen"
         @open-vqb="vqbOpen = true"
         @close-vqb="vqbOpen = false"
-        @toast="showToast"
         @copy-query="onCopyQuery"
         @paste-query="onPasteQuery"
         @follow-reference="openCollectionTab"

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
+import { useToast } from '../../composables/useToast'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -25,7 +26,8 @@ const EXPORT_FORMATS = [
 const props = defineProps({
   target: { type: Object, required: true },   // { connId, connName, dbName, collName }
 })
-const emit = defineEmits(['close', 'toast'])
+const emit = defineEmits(['close'])
+const { showToast } = useToast()
 
 // The per-field type coercions the backend understands. 'auto' keeps the value
 // as parsed (no coercion).
@@ -178,7 +180,7 @@ async function run() {
       fields: mappingPayload(),
       incremental: incremental.value,
     })
-    emit('toast', `Exported ${count} document${count === 1 ? '' : 's'} to ${format.value.toUpperCase()}`)
+    showToast(`Exported ${count} document${count === 1 ? '' : 's'} to ${format.value.toUpperCase()}`)
     emit('close')
   } catch (e) {
     setError(e)

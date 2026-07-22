@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
 import { useConfirmDelete } from '../../composables/useConfirmDelete'
+import { useToast } from '../../composables/useToast'
 import { parseField } from '../../utils/queryParser'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -22,7 +23,8 @@ const props = defineProps({
   target: { type: Object, required: true },  // { connId, connName, dbName }
   menuRequest: { type: Object, default: null },  // { action, nonce } from the GridFS menu
 })
-const emit = defineEmits(['close', 'toast'])
+const emit = defineEmits(['close'])
+const { showToast } = useToast()
 
 const buckets = ref([])
 const selectedBucket = ref('fs')
@@ -55,7 +57,7 @@ watch(() => props.menuRequest && props.menuRequest.nonce, (nonce) => {
 })
 
 function needFile() {
-  if (!selectedFile.value) { emit('toast', 'Select a file first'); return false }
+  if (!selectedFile.value) { showToast('Select a file first'); return false }
   return true
 }
 
@@ -88,7 +90,7 @@ async function doRename() {
       id: props.target.connId, database: props.target.dbName,
       bucket: selectedBucket.value, fileId: file.id, newName: name,
     })
-    emit('toast', 'File renamed')
+    showToast('File renamed')
     renameTarget.value = null
     await loadFiles()
   } catch (e) {
@@ -116,7 +118,7 @@ async function doSetMeta() {
       id: props.target.connId, database: props.target.dbName,
       bucket: selectedBucket.value, fileId: file.id, metadata: ejson,
     })
-    emit('toast', 'Metadata saved')
+    showToast('Metadata saved')
     metaTarget.value = null
     await loadFiles()
   } catch (e) {
@@ -136,7 +138,7 @@ async function doCopyBucket() {
       id: props.target.connId, database: props.target.dbName,
       bucket: selectedBucket.value, newBucket: name,
     })
-    emit('toast', `Bucket copied to "${name}"`)
+    showToast(`Bucket copied to "${name}"`)
     copyBucketOpen.value = false
     await loadBuckets()
   } catch (e) {
@@ -157,7 +159,7 @@ async function dropBucket() {
     await invoke('gridfs_drop_bucket', {
       id: props.target.connId, database: props.target.dbName, bucket: bucket,
     })
-    emit('toast', `Dropped bucket "${bucket}"`)
+    showToast(`Dropped bucket "${bucket}"`)
     selectedBucket.value = 'fs'
     await loadBuckets()
     await loadFiles()
@@ -237,7 +239,7 @@ async function upload() {
       bucket: selectedBucket.value,
       path,
     })
-    emit('toast', 'File uploaded')
+    showToast('File uploaded')
     await loadBuckets()
     await loadFiles()
   } catch (e) {
@@ -263,7 +265,7 @@ async function download(file) {
       fileId: file.id,
       dest,
     })
-    emit('toast', `Downloaded ${file.filename}`)
+    showToast(`Downloaded ${file.filename}`)
   } catch (e) {
     error.value = errText(e)
     errorCode.value = errCode(e)
@@ -282,7 +284,7 @@ async function confirmDelete(file) {
       bucket: selectedBucket.value,
       fileId: file.id,
     })
-    emit('toast', `Deleted ${file.filename}`)
+    showToast(`Deleted ${file.filename}`)
     await loadFiles()
   } catch (e) {
     error.value = errText(e)

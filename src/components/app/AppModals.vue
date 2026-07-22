@@ -122,7 +122,6 @@ const {
 } = ctx.ssh
 
 const {
-  showToast,
   onManagerConnect,
   onValidatorSaved,
   openImportTab,
@@ -142,7 +141,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       v-if="showConnectionManager"
       @close="showConnectionManager = false"
       @connect="onManagerConnect"
-      @toast="showToast"
     />
 
     <ValidatorModal
@@ -155,7 +153,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <!-- Tasks panel -->
     <TasksModal
       v-if="showTasksModal"
-      @toast="showToast"
       @close="showTasksModal = false"
     />
 
@@ -163,7 +160,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <MaskingModal
       v-if="maskingTarget"
       :target="maskingTarget"
-      @toast="showToast"
       @close="maskingTarget = null"
     />
 
@@ -179,7 +175,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <ExportWizard
       v-if="exportWizardTarget"
       :target="exportWizardTarget"
-      @toast="showToast"
       @close="exportWizardTarget = null"
     />
 
@@ -187,7 +182,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <ReschemaModal
       v-if="reschemaTarget"
       :target="reschemaTarget"
-      @toast="showToast"
       @applied="onReschemaApplied"
       @close="reschemaTarget = null"
     />
@@ -208,7 +202,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
       v-if="gridfsTarget"
       :target="gridfsTarget"
       :menu-request="gridfsRequest"
-      @toast="showToast"
       @close="gridfsTarget = null"
     />
 
