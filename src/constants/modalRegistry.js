@@ -41,4 +41,6 @@ export const MODALS = {
   masking:   { component: lazy(() => import('../components/tools/MaskingModal.vue')),           level: 'collection' },
   validator: { component: lazy(() => import('../components/admin/ValidatorModal.vue')),         level: 'collection' },
   reschema:  { component: lazy(() => import('../components/tools/ReschemaModal.vue')),          level: 'collection' },
+  export:    { component: lazy(() => import('../components/tools/ExportWizard.vue')),           level: 'collection' },
+  import:    { component: lazy(() => import('../components/tools/ImportFormatModal.vue')),      level: 'collection' },
 }

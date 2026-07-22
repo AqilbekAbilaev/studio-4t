@@ -145,8 +145,6 @@ const {
   gridfsTarget,
   gridfsRequest,
   showTasksModal,
-  importWizardTarget,
-  exportWizardTarget,
   showShortcuts,
   showAbout,
   showPreferences,
@@ -222,8 +220,7 @@ const {
 } = useDbTransfer({
   showToast: showToast,
   connectionTreeRef: connectionTreeRef,
-  exportWizardTarget: exportWizardTarget,
-  importWizardTarget: importWizardTarget,
+  openModal: modalsApi.openModal,
 })
 
 const indexesApi = useIndexes({ showToast: showToast })
@@ -877,6 +874,12 @@ provide('appModals', {
   modalEmits: {
     validator: { saved: onValidatorSaved },
     reschema: { applied: onReschemaApplied },
+    import: {
+      configure: (format) => {
+        openImportTab(modalsApi.openModals.import, format)
+        modalsApi.closeModal('import')
+      },
+    },
   },
   prefs: { defaultQueryLimit: defaultQueryLimit, theme: theme, keyBindings: keyBindings },
   tabRename: { renameTabTarget: renameTabTarget, renameTabValue: renameTabValue, confirmRenameTab: confirmRenameTab },

@@ -17,8 +17,6 @@ export function useModals() {
   const gridfsTarget = ref(null)        // { connId, connName, dbName } for the GridFS modal
   const gridfsRequest = ref(null)       // { action, nonce } signal to the open GridFS modal
   const showTasksModal = ref(false)     // Tasks panel (top-bar Tasks button / File → Open Tasks)
-  const importWizardTarget = ref(null)  // { connId, connName, dbName, collName } for the Import wizard
-  const exportWizardTarget = ref(null)  // { connId, connName, dbName, collName } for the Export wizard
   const showShortcuts = ref(false)      // Help → Keyboard Shortcuts reference
   const showAbout = ref(false)          // Help → About
   const showPreferences = ref(false)    // File → Preferences
@@ -32,8 +30,6 @@ export function useModals() {
     gridfsTarget: gridfsTarget,
     gridfsRequest: gridfsRequest,
     showTasksModal: showTasksModal,
-    importWizardTarget: importWizardTarget,
-    exportWizardTarget: exportWizardTarget,
     showShortcuts: showShortcuts,
     showAbout: showAbout,
     showPreferences: showPreferences,

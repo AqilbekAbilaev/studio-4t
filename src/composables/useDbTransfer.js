@@ -5,28 +5,29 @@ import { errText } from '../utils/errors'
 // Import / export flows. The per-collection wizard (stepped, with column→field mapping
 // and a live preview) just sets its modal target; the database-level Export/Import
 // Collections… run the plain per-collection commands in a loop over a chosen folder/files.
-// `showToast` and `connectionTreeRef` are injected; `exportWizardTarget`/`importWizardTarget`
-// are the modal refs from useModals so App.vue keeps a single source of modal state.
-export function useDbTransfer({ showToast, connectionTreeRef, exportWizardTarget, importWizardTarget }) {
+// `showToast` and `connectionTreeRef` are injected; `openModal` is the registry opener
+// from useModals so the export/import wizards open through the same path as every other
+// registry-driven modal.
+export function useDbTransfer({ showToast, connectionTreeRef, openModal }) {
   // Open the stepped Import / Export wizard for a single collection. `nodeData` is the
   // sidebar/tab shape ({ connId, connName, dbName, collName }); the wizard maps
   // columns→fields with per-field type coercion and shows a live preview before it runs.
   function openExportWizard(nodeData) {
-    exportWizardTarget.value = {
+    openModal('export', {
       connId: nodeData.connId,
       connName: nodeData.connName,
       dbName: nodeData.dbName,
       collName: nodeData.collName,
-    }
+    })
   }
 
   function openImportWizard(nodeData) {
-    importWizardTarget.value = {
+    openModal('import', {
       connId: nodeData.connId,
       connName: nodeData.connName,
       dbName: nodeData.dbName,
       collName: nodeData.collName,
-    }
+    })
   }
 
   // After a wizard import, refresh the connection so a newly-populated collection shows

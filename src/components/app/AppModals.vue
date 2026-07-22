@@ -12,8 +12,6 @@ import FieldError from '../base/FieldError.vue'
 import { indexSpecJson } from '../../utils/indexSpec'
 import ConnectionManager from '../connection/ConnectionManager.vue'
 import TasksModal from '../admin/TasksModal.vue'
-import ExportWizard from '../tools/ExportWizard.vue'
-import ImportFormatModal from '../tools/ImportFormatModal.vue'
 import GridFsModal from '../tools/GridFsModal.vue'
 import ShortcutsModal from './ShortcutsModal.vue'
 import AboutModal from './AboutModal.vue'
@@ -39,8 +37,6 @@ const {
   gridfsTarget,
   gridfsRequest,
   showTasksModal,
-  importWizardTarget,
-  exportWizardTarget,
   showShortcuts,
   showAbout,
   showPreferences,
@@ -124,7 +120,6 @@ const {
 
 const {
   onManagerConnect,
-  openImportTab,
   onPrefsSaved,
   onKeybindingsSaved,
 } = ctx.handlers
@@ -146,21 +141,6 @@ const { renameTabTarget, renameTabValue, confirmRenameTab } = ctx.tabRename
     <TasksModal
       v-if="showTasksModal"
       @close="showTasksModal = false"
-    />
-
-    <!-- Import: format picker → opens an import tab (ImportPane) on Configure -->
-    <ImportFormatModal
-      v-if="importWizardTarget"
-      :target="importWizardTarget"
-      @configure="(fmt) => { openImportTab(importWizardTarget, fmt); importWizardTarget = null }"
-      @close="importWizardTarget = null"
-    />
-
-    <!-- Export field-mapping wizard -->
-    <ExportWizard
-      v-if="exportWizardTarget"
-      :target="exportWizardTarget"
-      @close="exportWizardTarget = null"
     />
 
     <!-- Registry-driven modals: one entry per modal in constants/modalRegistry.js.
