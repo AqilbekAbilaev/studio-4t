@@ -16,7 +16,7 @@ import SelectCard from '../base/SelectCard.vue'
 import StateMessage from '../base/StateMessage.vue'
 
 // The Tasks panel: saved, parameterised invocations of an existing operation
-// (Export / Import / Data Masking / SQL Migration / IntelliShell Script) that the
+// (Export / Import / Data Masking / IntelliShell Script) that the
 // user can run on demand or on a schedule. Two views share this modal: the list of
 // saved tasks (run / edit / delete, live-refreshed on the backend `task-ran` event)
 // and the create/edit form.
@@ -28,7 +28,6 @@ const TYPES = [
   { value: 'export',    label: 'Export',              icon: 'export',    enabled: true },
   { value: 'import',    label: 'Import',              icon: 'import',    enabled: true },
   { value: 'masking',   label: 'Data Masking',        icon: 'mask',      enabled: true },
-  { value: 'migration', label: 'SQL Migration',       icon: 'migration', enabled: true },
   { value: 'shell',     label: 'IntelliShell Script', icon: 'shell',     enabled: true },
 ]
 const TYPE_META = Object.fromEntries(TYPES.map(t => [t.value, t]))
@@ -91,7 +90,6 @@ function blankForm() {
     format: 'json',
     filter: '{}',
     limit: '',
-    tableName: '',
     code: '',
     rules: [],
     schedKind: 'manual',            // 'manual' | 'interval' | 'daily' | 'weekly'
@@ -231,7 +229,6 @@ async function startEdit(task) {
   next.format = spec.format || 'json'
   next.filter = spec.filter || '{}'
   next.limit = spec.limit == null ? '' : String(spec.limit)
-  next.tableName = spec.table_name || ''
   next.code = spec.code || ''
   next.rules = (spec.rules || []).map(r => ({
     field: r.field || '',
@@ -322,13 +319,6 @@ function buildSpec() {
         path: form.path, format: form.format,
         limit: numOrNull(form.limit),
       }
-    case 'migration':
-      return {
-        kind: 'migration', database, collection,
-        table_name: form.tableName.trim() ? form.tableName.trim() : null,
-        limit: numOrNull(form.limit),
-        path: form.path,
-      }
     case 'shell':
       return { kind: 'shell', database, code: form.code }
     default:
@@ -356,7 +346,7 @@ function validate() {
   if (!form.database.trim()) return 'Choose a database'
   if (needsCollection.value && !form.collection.trim()) return 'Choose a collection'
   if (form.type === 'shell' && !form.code.trim()) return 'Enter a script to run'
-  if ((form.type === 'export' || form.type === 'import' || form.type === 'masking' || form.type === 'migration') && !form.path.trim()) {
+  if ((form.type === 'export' || form.type === 'import' || form.type === 'masking') && !form.path.trim()) {
     return 'Choose a file path'
   }
   if (form.schedKind === 'interval' && !(numOrNull(form.everyMinutes) > 0)) {
@@ -423,7 +413,7 @@ async function save() {
         <div v-else-if="!tasks.length" class="tk-empty">
           <BaseIcon name="tasks" :size="26" />
           <p>No tasks yet.</p>
-          <span class="tk-empty-sub">Create a task to save an Export, Import, Masking, SQL Migration or IntelliShell operation you can run on demand or on a schedule.</span>
+          <span class="tk-empty-sub">Create a task to save an Export, Import, Masking or IntelliShell operation you can run on demand or on a schedule.</span>
         </div>
 
         <ul v-else class="tk-list">
@@ -553,28 +543,6 @@ async function save() {
           <FormField label="Destination file">
             <div class="tk-path">
               <BaseInput v-model="form.path" class="tk-input" placeholder="/path/to/output" />
-              <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
-            </div>
-          </FormField>
-        </template>
-
-        <!-- Migration: table name, limit, path -->
-        <template v-else-if="form.type === 'migration'">
-          <div class="tk-two">
-            <div class="tk-col">
-              <FormField label="Table name (optional)">
-                <BaseInput v-model="form.tableName" class="tk-input" :placeholder="form.collection || 'table'" />
-              </FormField>
-            </div>
-            <div class="tk-col">
-              <FormField label="Sample limit (optional)">
-                <BaseInput v-model="form.limit" class="tk-input" placeholder="e.g. 1000" />
-              </FormField>
-            </div>
-          </div>
-          <FormField label="Destination .sql file">
-            <div class="tk-path">
-              <BaseInput v-model="form.path" class="tk-input" placeholder="/path/to/migration.sql" />
               <BaseButton bordered @click="browseOutput">Browse…</BaseButton>
             </div>
           </FormField>

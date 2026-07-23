@@ -40,7 +40,6 @@ export function useFeatures({
     import:    'Import…',
     mask:      'Data Masking',
     schema:    'View Schema',
-    migration: 'SQL Migration',
     search:    'Search in…',
   }
 
@@ -164,7 +163,6 @@ export function useFeatures({
     'Collection Stats':        modalFeature('stats'),
     'Open Map-Reduce':         modalFeature('mapReduce'),
     'Data Masking':            { requires: 'collection', run: (n) => openMaskingTab(pick(n, COLL)) },
-    'SQL Migration':           modalFeature('migration'),
 
     // ── create/edit dialogs (state + seeders owned by useDbActions) ──
     'Add Collection…':         { requires: 'database',   run: openAddCollection },

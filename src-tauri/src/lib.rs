@@ -233,7 +233,6 @@ pub fn run() {
             collection_stats,
             duplicate_collection,
             server_info,
-            generate_sql_migration,
             search_collections,
             list_gridfs_buckets,
             list_gridfs_files,

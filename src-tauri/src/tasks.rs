@@ -47,14 +47,6 @@ pub enum TaskSpec {
         format: String,
         limit: Option<i64>,
     },
-    #[serde(rename = "migration")]
-    Migration {
-        database: String,
-        collection: String,
-        table_name: Option<String>,
-        limit: Option<i64>,
-        path: String,
-    },
     #[serde(rename = "shell")]
     Shell {
         database: String,

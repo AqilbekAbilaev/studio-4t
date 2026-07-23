@@ -15,5 +15,4 @@ export const TOOLS = [
   { name: 'export',    label: 'Export' },
   { name: 'import',    label: 'Import' },
   { name: 'mask',      label: 'Data Masking' },
-  { name: 'migration', label: 'SQL Migration', drop: true },
 ]

@@ -191,32 +191,6 @@ async fn execute_spec(app: &AppHandle, task: &TaskDef) -> Result<String, AppErro
             };
             Ok(format!("Exported {} masked document(s) to {}", count, path))
         }
-        TaskSpec::Migration {
-            database,
-            collection,
-            table_name,
-            limit,
-            path,
-        } => {
-            let sql = match super::generate_sql_migration(
-                app.state::<AppContext>(),
-                id,
-                database.clone(),
-                collection.clone(),
-                table_name.clone(),
-                *limit,
-            )
-            .await
-            {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
-            match write_text_file(path, &sql) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-            Ok(format!("Wrote SQL migration to {}", path))
-        }
         TaskSpec::Shell { database, code } => {
             // A task has no live console tab, so run the script in a throwaway
             // session (fresh JS context) and drop it afterwards.
@@ -258,16 +232,6 @@ fn shell_summary(result: &crate::shell::ShellResult) -> String {
         return String::from("Script completed");
     }
     summary
-}
-
-// Write `contents` to `path`, mapping an I/O failure into an AppError. The task's
-// destination is an arbitrary user path (not an app-data JSON file), so this uses
-// a plain write rather than the app-data atomic_write helper.
-fn write_text_file(path: &str, contents: &str) -> Result<(), AppError> {
-    match std::fs::write(path, contents.as_bytes()) {
-        Ok(()) => Ok(()),
-        Err(e) => Err(AppError::Io(e)),
-    }
 }
 
 // ── In-app scheduler ──────────────────────────────────────────────────────
@@ -356,28 +320,5 @@ fn lock_set(set: &Arc<Mutex<HashSet<String>>>) -> MutexGuard<'_, HashSet<String>
     match set.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn write_text_file_writes_contents() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("out.sql");
-        let path_str = path.to_str().unwrap();
-        write_text_file(path_str, "CREATE TABLE t (id INT);").unwrap();
-        let read_back = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(read_back, "CREATE TABLE t (id INT);");
-    }
-
-    #[test]
-    fn write_text_file_errors_on_bad_path() {
-        // A path whose parent directory does not exist fails as an I/O error.
-        let result = write_text_file("/nonexistent-dir-xyz/out.sql", "x");
-        assert!(result.is_err());
     }
 }

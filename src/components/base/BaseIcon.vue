@@ -16,7 +16,6 @@ const PATHS = {
   export:     '<ellipse cx="9" cy="6" rx="6" ry="2.4"/><path d="M3 6v7c0 1.3 2.7 2.4 6 2.4"/><path d="M16 9v8M16 9l-3 3M16 9l3 3" transform="translate(0 -1)"/>',
   import:     '<ellipse cx="9" cy="6" rx="6" ry="2.4"/><path d="M3 6v7c0 1.3 2.7 2.4 6 2.4"/><path d="M16 17V9M16 17l-3-3M16 17l3-3" transform="translate(0 -1)"/>',
   mask:       '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7.5 10v4M7.5 10l3 4M7.5 14l3-4M14 10v4M14 10l3 4M14 14l3-4" stroke-width="1.2"/>',
-  migration:  '<ellipse cx="7" cy="7" rx="4.5" ry="2"/><path d="M2.5 7v5c0 1.1 2 2 4.5 2"/><path d="M13 11h7m0 0l-2.5-2.5M20 11l-2.5 2.5"/><ellipse cx="19" cy="17" rx="2.5" ry="1.2"/>',
   caret:      '<path d="M9 6l6 6-6 6"/>',
   caretDown:  '<path d="M6 9l6 6 6-6"/>',
   dbSmall:    '<ellipse cx="12" cy="6" rx="6.5" ry="2.5"/><path d="M5.5 6v12c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5V6"/><path d="M5.5 12c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5"/>',

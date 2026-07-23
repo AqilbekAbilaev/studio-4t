@@ -40,8 +40,6 @@ const MENUS = {
     { label: 'Import…' },
     { label: 'Export…' },
     { sep: true },
-    { label: 'SQL Migration', sub: 'list', subItems: ['Migrate to SQL…', 'Schedule Migration…', 'Migration History'] },
-    { sep: true },
     { label: 'Refresh Selected Item', shortcut: '⇧⌘R' },
     { label: 'Refresh All',           shortcut: '⌘R' },
     { label: 'Choose Color', icon: 'brush', sub: 'color' },
@@ -165,7 +163,7 @@ function colorLabel(name) {
           <BaseIcon name="caret" :size="12" />
         </span>
 
-        <!-- text list submenu (Server Info, SQL Migration) -->
+        <!-- text list submenu (Server Info) -->
         <div
           v-if="item.sub === 'list' && hoveredItem === item.label"
           class="ctx-sub"
