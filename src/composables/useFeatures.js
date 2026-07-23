@@ -39,6 +39,7 @@ export function useFeatures({
     export:    'Export…',
     import:    'Import…',
     mask:      'Data Masking',
+    schema:    'View Schema',
     reschema:  'Reschema',
     migration: 'SQL Migration',
     search:    'Search in…',

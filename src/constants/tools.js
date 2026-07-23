@@ -2,15 +2,15 @@
 // `badge` is a small dot colour on the icon; `drop` shows a caret. `name` is both the
 // BaseIcon icon name and the action id handed to App.vue's handleTool dispatcher.
 export const TOOLS = [
-  { name: 'connect',   label: 'Connect',      badge: '#4caf78', drop: true },
+  { name: 'connect',   label: 'Connect',      drop: true },
   { name: 'collection',label: 'Collection' },
   { name: 'shell',     label: 'IntelliShell' },
-  { name: 'sql',       label: 'SQL',          badge: '#6ea8fe' },
-  { name: 'aggregate', label: 'Aggregate',    badge: '#b07ddb' },
+  { name: 'sql',       label: 'SQL' },
+  { name: 'aggregate', label: 'Aggregate' },
   { name: 'search',    label: 'Search in…' },
   { sep: true },
   { name: 'compare',   label: 'Compare' },
-  { name: 'schema',    label: 'Schema',       badge: '#4caf78' },
+  { name: 'schema',    label: 'Schema' },
   { name: 'reschema',  label: 'Reschema' },
   { name: 'tasks',     label: 'Tasks' },
   { sep: true },
