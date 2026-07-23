@@ -268,6 +268,8 @@ const { handleContextAction, handleTool, menuNode } = useFeatures({
   showToast: showToast, applyColorTag: applyColorTag, menuTarget: menuTarget,
   handleTabAction: handleTabAction, openCollectionTab: openCollectionTab,
   openShellTab: openShellTab, openIndexManagerTab: openIndexManagerTab, openSqlTab: openSqlTab,
+  openSchemaTab: openSchemaTab, openMaskingTab: openMaskingTab, openReschemaTab: openReschemaTab,
+  openCompareTab: openCompareTab, openTasksTab: openTasksTab,
   openExportWizard: openExportWizard, openImportWizard: openImportWizard,
   exportDatabase: exportDatabase, importDatabase: importDatabase,
 })
@@ -354,7 +356,7 @@ function handleMenuAction(id) {
     // --- toolbar dispatcher (targets the sidebar selection, else the active tab) ---
     case 'file:intellishell': handleTool('shell', menuTarget('database')); return
     case 'file:sql':          handleTool('sql', menuTarget('collection')); return
-    case 'file:tasks':        modalsApi.openModal('tasks'); return
+    case 'file:tasks':        openTasksTab(); return
     // File → Load / Save: the saved-query browser and save-query form live in the
     // active collection tab's QueryBar; signal it (no-op with a toast otherwise).
     case 'file:load':
@@ -711,6 +713,45 @@ function openIndexManagerTab({ connId, connName, dbName, collName }) {
   activeTabId.value = id
 }
 
+// Open (or focus) a collection-scoped tool tab — Studio-3T renders Schema, Data Masking,
+// Reschema, etc. as workspace tabs rather than modals. Reopening the same tool on the same
+// collection focuses the existing tab.
+function openCollectionToolTab(kind, titlePrefix, { connId, connName, dbName, collName }) {
+  const existing = tabs.value.find(t =>
+    t.kind === kind && t.connId === connId && t.dbName === dbName && t.collName === collName)
+  if (existing) { activeTabId.value = existing.id; return }
+  const id = 't' + Date.now()
+  tabs.value.push({
+    id: id, kind: kind, title: titlePrefix + ': ' + collName,
+    connId: connId, connName: connName, dbName: dbName, collName: collName,
+  })
+  activeTabId.value = id
+}
+function openSchemaTab(node)   { openCollectionToolTab('schema', 'Schema', node) }
+function openMaskingTab(node)  { openCollectionToolTab('masking', 'Masking', node) }
+function openReschemaTab(node) { openCollectionToolTab('reschema', 'Reschema', node) }
+
+// Tasks is app-level (not tied to a connection) — a standalone workspace tab.
+function openTasksTab() {
+  const existing = tabs.value.find(t => t.kind === 'tasks')
+  if (existing) { activeTabId.value = existing.id; return }
+  const id = 't' + Date.now()
+  tabs.value.push({ id: id, kind: 'tasks', title: 'Tasks' })
+  activeTabId.value = id
+}
+
+// Data Compare is database-scoped (it diffs two collections in one db).
+function openCompareTab({ connId, connName, dbName }) {
+  const existing = tabs.value.find(t => t.kind === 'compare' && t.connId === connId && t.dbName === dbName)
+  if (existing) { activeTabId.value = existing.id; return }
+  const id = 't' + Date.now()
+  tabs.value.push({
+    id: id, kind: 'compare', title: 'Compare: ' + dbName,
+    connId: connId, connName: connName, dbName: dbName,
+  })
+  activeTabId.value = id
+}
+
 // Opens an Import tab for a collection with the format chosen in the picker. The
 // pane (ImportPane) mutates the working state (sources, validate, preview) directly
 // on the tab, so it survives tab switches; the persisted subset (format, validate,
@@ -860,12 +901,12 @@ provide('appModals', {
     onReschemaApplied: onReschemaApplied,
     onPrefsSaved: onPrefsSaved,
     onKeybindingsSaved: onKeybindingsSaved,
+    openTasksTab: openTasksTab,
   },
   // Extra domain events for registry-driven modals: modal id → { eventName: handler }.
   // `close` is wired generically by AppModals; only the modal's other events go here.
   modalEmits: {
     validator: { saved: onValidatorSaved },
-    reschema: { applied: onReschemaApplied },
     import: {
       configure: (format) => {
         openImportTab(modalsApi.openModals.import, format)

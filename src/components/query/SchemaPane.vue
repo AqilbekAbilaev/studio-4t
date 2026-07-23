@@ -1,21 +1,19 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { errText, errCode } from '../../utils/errors'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
-import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
-import BaseModalBody from '../base/BaseModalBody.vue'
 
-// Opened from App.vue for a collection node. Samples documents server-side and
-// infers the field/type shape, the way Studio-3T's Schema Explorer does.
+// The Schema tab samples documents server-side and infers the field/type shape, the way
+// Studio-3T's Schema Explorer does. Each tab analyzes its own collection independently and
+// re-runs when the tab's collection changes.
 const props = defineProps({
-  target: { type: Object, required: true },  // { connId, connName, dbName, collName }
+  activeTab: { type: Object, required: true },  // { connId, connName, dbName, collName }
 })
-defineEmits(['close'])
 
 const SAMPLE_SIZES = [100, 500, 1000, 5000]
 const sampleSizeOptions = SAMPLE_SIZES.map((n) => ({ value: n, label: String(n) }))
@@ -24,7 +22,6 @@ const EXPORT_FORMAT_OPTIONS = [
   { value: 'docx', label: 'Word (.docx)' },
 ]
 
-// Changing the sample size re-runs the analysis (was the native select's @change).
 function onSampleSize(n) {
   sampleSize.value = n
   analyze()
@@ -42,9 +39,9 @@ async function analyze() {
   errorCode.value = null
   try {
     report.value = await invoke('analyze_schema', {
-      id: props.target.connId,
-      database: props.target.dbName,
-      collection: props.target.collName,
+      id: props.activeTab.connId,
+      database: props.activeTab.dbName,
+      collection: props.activeTab.collName,
       sampleSize: sampleSize.value,
     })
   } catch (e) {
@@ -57,6 +54,10 @@ async function analyze() {
 }
 
 onMounted(analyze)
+// Re-analyze if this tab is retargeted at a different collection.
+watch(() => props.activeTab.connId + ':' + props.activeTab.dbName + ':' + props.activeTab.collName, () => {
+  analyze()
+})
 
 const exporting = ref(false)
 const exportMsg = ref(null)
@@ -70,7 +71,7 @@ async function exportSchema() {
   let path
   try {
     path = await saveDialog({
-      defaultPath: `${props.target.collName}-schema.${ext}`,
+      defaultPath: `${props.activeTab.collName}-schema.${ext}`,
       filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
     })
   } catch (e) {
@@ -82,9 +83,9 @@ async function exportSchema() {
   exportMsg.value = null
   try {
     const count = await invoke('export_schema', {
-      id: props.target.connId,
-      database: props.target.dbName,
-      collection: props.target.collName,
+      id: props.activeTab.connId,
+      database: props.activeTab.dbName,
+      collection: props.activeTab.collName,
       sampleSize: sampleSize.value,
       path: String(path),
       format: format,
@@ -137,94 +138,123 @@ const fields = computed(() => (report.value ? report.value.fields : []))
 </script>
 
 <template>
-  <BaseModal :title="`Schema — ${target.dbName}.${target.collName}`" width="680px" max-width="92vw" @close="$emit('close')">
+  <div class="schema-pane">
+    <!-- Breadcrumb (mirrors the collection tab) -->
+    <div class="crumbs">
+      <BaseIcon name="connect" :size="15" class="c-ic" />
+      <span class="crumb">{{ activeTab.connName }}</span>
+      <BaseIcon name="caret" :size="11" class="sep" />
+      <BaseIcon name="dbSmall" :size="15" class="c-ic" />
+      <span class="crumb">{{ activeTab.dbName }}</span>
+      <BaseIcon name="caret" :size="11" class="sep" />
+      <BaseIcon name="collSmall" :size="15" class="c-ic" />
+      <span class="crumb">{{ activeTab.collName }}</span>
+      <BaseIcon name="caret" :size="11" class="sep" />
+      <BaseIcon name="schema" :size="15" class="c-ic" />
+      <span class="crumb">Schema</span>
+    </div>
 
-      <BaseModalBody>
-        <div class="sc-controls">
-          <label class="sc-sample">
-            Sample size
-            <BaseSelect :model-value="sampleSize" class="sc-select" :options="sampleSizeOptions"
-              :disabled="loading" size="sm" @update:model-value="onSampleSize" />
-          </label>
-          <div class="sc-count" v-if="report && !loading">
-            Sampled {{ report.sampled }} document{{ report.sampled === 1 ? '' : 's' }},
-            {{ fields.length }} field{{ fields.length === 1 ? '' : 's' }}
-          </div>
-          <span v-if="exportMsg" class="sc-export-msg">{{ exportMsg }}</span>
-          <BaseSelect
-            v-model="exportFormat"
-            class="sc-select sc-export-fmt"
-            :class="{ 'no-count': !(report && !loading) }"
-            :options="EXPORT_FORMAT_OPTIONS"
-            :disabled="loading || exporting || !fields.length"
-            size="sm"
-          />
-          <BaseButton
-            size="sm"
-            bordered
-            type="button"
-            :disabled="loading || exporting || !fields.length"
-            @click="exportSchema"
-          >
-            <BaseIcon name="export" :size="13" /> {{ exporting ? 'Exporting…' : 'Export' }}
-          </BaseButton>
+    <!-- Controls -->
+    <div class="sc-controls">
+      <label class="sc-sample">
+        Sample size
+        <BaseSelect :model-value="sampleSize" class="sc-select" :options="sampleSizeOptions"
+          :disabled="loading" size="sm" @update:model-value="onSampleSize" />
+      </label>
+      <div class="sc-count" v-if="report && !loading">
+        Sampled {{ report.sampled }} document{{ report.sampled === 1 ? '' : 's' }},
+        {{ fields.length }} field{{ fields.length === 1 ? '' : 's' }}
+      </div>
+      <span v-if="exportMsg" class="sc-export-msg">{{ exportMsg }}</span>
+      <BaseSelect
+        v-model="exportFormat"
+        class="sc-select sc-export-fmt"
+        :class="{ 'no-count': !(report && !loading) }"
+        :options="EXPORT_FORMAT_OPTIONS"
+        :disabled="loading || exporting || !fields.length"
+        size="sm"
+      />
+      <BaseButton
+        size="sm"
+        bordered
+        type="button"
+        :disabled="loading || exporting || !fields.length"
+        @click="exportSchema"
+      >
+        <BaseIcon name="export" :size="13" /> {{ exporting ? 'Exporting…' : 'Export' }}
+      </BaseButton>
+    </div>
+
+    <!-- Body -->
+    <div class="sc-body">
+      <StateMessage v-if="loading" mode="loading" label="Analyzing schema…" />
+      <StateMessage
+        v-else-if="error"
+        mode="error"
+        :message="error"
+        :code="errorCode"
+      />
+      <StateMessage
+        v-else-if="!fields.length"
+        mode="empty"
+        label="No documents to analyze"
+      />
+      <template v-else>
+        <div class="sc-head">
+          <span class="sc-h-field">Field</span>
+          <span class="sc-h-types">Types</span>
+          <span class="sc-h-cov">Coverage</span>
         </div>
-
-        <StateMessage v-if="loading" mode="loading" label="Analyzing schema…" />
-        <StateMessage
-          v-else-if="error"
-          mode="error"
-          :message="error"
-          :code="errorCode"
-        />
-        <StateMessage
-          v-else-if="!fields.length"
-          mode="empty"
-          label="No documents to analyze"
-        />
-        <template v-else>
-          <div class="sc-head">
-            <span class="sc-h-field">Field</span>
-            <span class="sc-h-types">Types</span>
-            <span class="sc-h-cov">Coverage</span>
+        <div class="sc-rows">
+          <div v-for="f in fields" :key="f.path" class="sc-row">
+            <span class="sc-field" :style="{ paddingLeft: (depth(f.path) * 16 + 2) + 'px' }" :title="f.path">
+              <span v-if="depth(f.path)" class="sc-nest-dot">└</span>
+              {{ leaf(f.path) }}
+            </span>
+            <span class="sc-types">
+              <span
+                v-for="t in f.types"
+                :key="t.bson_type"
+                class="sc-type"
+                :style="{ color: typeColor(t.bson_type) }"
+              >
+                {{ t.bson_type }}<span
+                  v-if="f.types.length > 1"
+                  class="sc-type-pct"
+                > {{ typePct(t.count, f.present) }}%</span>
+              </span>
+            </span>
+            <span class="sc-cov">
+              <span class="sc-bar"><span class="sc-bar-fill" :style="{ width: pct(f.present) + '%' }"></span></span>
+              <span class="sc-cov-pct">{{ pct(f.present) }}%</span>
+            </span>
           </div>
-          <div class="sc-rows">
-            <div v-for="f in fields" :key="f.path" class="sc-row">
-              <span class="sc-field" :style="{ paddingLeft: (depth(f.path) * 16 + 2) + 'px' }" :title="f.path">
-                <span v-if="depth(f.path)" class="sc-nest-dot">└</span>
-                {{ leaf(f.path) }}
-              </span>
-              <span class="sc-types">
-                <span
-                  v-for="t in f.types"
-                  :key="t.bson_type"
-                  class="sc-type"
-                  :style="{ color: typeColor(t.bson_type) }"
-                >
-                  {{ t.bson_type }}<span
-                    v-if="f.types.length > 1"
-                    class="sc-type-pct"
-                  > {{ typePct(t.count, f.present) }}%</span>
-                </span>
-              </span>
-              <span class="sc-cov">
-                <span class="sc-bar"><span class="sc-bar-fill" :style="{ width: pct(f.present) + '%' }"></span></span>
-                <span class="sc-cov-pct">{{ pct(f.present) }}%</span>
-              </span>
-            </div>
-          </div>
-        </template>
-      </BaseModalBody>
-    </BaseModal>
+        </div>
+      </template>
+    </div>
+  </div>
 </template>
 
 <style scoped>
+.schema-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-window); }
 
+/* Breadcrumb (mirrors the collection tab / Index Manager) */
+.crumbs {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 14px; font-size: 12.5px; color: var(--text-dim);
+  border-bottom: 1px solid var(--border); flex: none;
+}
+.sep { color: var(--text-faint); }
+.c-ic { color: var(--text-faint); }
 
 .sc-controls {
   display: flex;
   align-items: center;
   gap: 14px;
+  padding: 8px 14px;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border);
+  flex: none;
 }
 .sc-sample {
   font-size: 12px;
@@ -239,11 +269,16 @@ const fields = computed(() => (report.value ? report.value.fields : []))
 .sc-export-fmt.no-count { margin-left: auto; }
 .sc-export-fmt { margin-left: 0; }
 
+.sc-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 14px 0; }
+
 .sc-head {
   display: grid;
   grid-template-columns: 1fr 1.1fr 120px;
   gap: 10px;
   padding: 0 8px 6px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-window);
   border-bottom: 1px solid var(--border-soft);
   font-size: 11px;
   color: var(--text-faint);
@@ -251,7 +286,6 @@ const fields = computed(() => (report.value ? report.value.fields : []))
   letter-spacing: .04em;
 }
 .sc-rows {
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }

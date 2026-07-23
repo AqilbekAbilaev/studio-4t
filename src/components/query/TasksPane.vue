@@ -14,15 +14,12 @@ import FormField from '../base/FormField.vue'
 import BaseTextarea from '../base/BaseTextarea.vue'
 import SelectCard from '../base/SelectCard.vue'
 import StateMessage from '../base/StateMessage.vue'
-import BaseModal from '../base/BaseModal.vue'
-import BaseModalBody from '../base/BaseModalBody.vue'
 
 // The Tasks panel: saved, parameterised invocations of an existing operation
 // (Export / Import / Data Masking / SQL Migration / IntelliShell Script) that the
 // user can run on demand or on a schedule. Two views share this modal: the list of
 // saved tasks (run / edit / delete, live-refreshed on the backend `task-ran` event)
 // and the create/edit form.
-const emit = defineEmits(['close'])
 const { showToast } = useToast()
 
 // The five task types that map to an existing operation command, plus the two
@@ -406,10 +403,15 @@ async function save() {
 </script>
 
 <template>
-  <BaseModal :title="`${dialogTitle}`" width="720px" max-width="94vw" @close="$emit('close')">
+  <div class="tasks-pane">
+    <!-- Breadcrumb -->
+    <div class="crumbs">
+      <BaseIcon name="tasks" :size="15" class="c-ic" />
+      <span class="crumb">{{ dialogTitle }}</span>
+    </div>
 
       <!-- LIST VIEW -->
-      <BaseModalBody v-if="view === 'list'">
+      <div class="tk-body" v-if="view === 'list'">
         <div class="tk-toolbar">
           <BaseButton variant="primary" size="sm" @click="startCreate">
             <BaseIcon name="plus" :size="13" /> New Task
@@ -457,10 +459,10 @@ async function save() {
             </div>
           </li>
         </ul>
-      </BaseModalBody>
+      </div>
 
       <!-- FORM VIEW -->
-      <BaseModalBody v-else>
+      <div class="tk-body" v-else>
         <!-- Type picker -->
         <FormField label="Task type">
           <div class="tk-types">
@@ -613,12 +615,19 @@ async function save() {
             <BaseIcon name="save" :size="13" /> {{ saving ? 'Saving…' : (form.id ? 'Save changes' : 'Create task') }}
           </BaseButton>
         </div>
-      </BaseModalBody>
-    </BaseModal>
+      </div>
+  </div>
 </template>
 
 <style scoped>
-
+.tasks-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-window); }
+.crumbs {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 14px; font-size: 12.5px; color: var(--text-dim);
+  border-bottom: 1px solid var(--border); flex: none;
+}
+.c-ic { color: var(--text-faint); }
+.tk-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; }
 
 
 .tk-toolbar { display: flex; justify-content: flex-end; }

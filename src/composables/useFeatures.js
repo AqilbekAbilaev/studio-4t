@@ -19,6 +19,7 @@ export function useFeatures({
   // injected functions
   showToast, applyColorTag, menuTarget,
   handleTabAction, openCollectionTab, openShellTab, openIndexManagerTab, openSqlTab,
+  openSchemaTab, openMaskingTab, openReschemaTab, openCompareTab, openTasksTab,
   openExportWizard, openImportWizard, exportDatabase, importDatabase,
 }) {
   const {
@@ -156,16 +157,16 @@ export function useFeatures({
     'Stored Functions':        modalFeature('functions'),
     'GridFS…':                 modalFeature('gridfs'),
     'Search in…':              modalFeature('search'),
-    'Data Compare':            modalFeature('compare'),
+    'Data Compare':            { requires: 'database', run: (n) => openCompareTab(pick(n, DB)) },
 
     // ── collection-scoped modals ──
     'Add / Edit Validator…':   modalFeature('validator'),
-    'View Schema':             modalFeature('schema'),
+    'View Schema':             { requires: 'collection', run: (n) => openSchemaTab(pick(n, COLL)) },
     'Collection History':      modalFeature('history'),
     'Collection Stats':        modalFeature('stats'),
     'Open Map-Reduce':         modalFeature('mapReduce'),
-    'Data Masking':            modalFeature('masking'),
-    'Reschema':                modalFeature('reschema'),
+    'Data Masking':            { requires: 'collection', run: (n) => openMaskingTab(pick(n, COLL)) },
+    'Reschema':                { requires: 'collection', run: (n) => openReschemaTab(pick(n, COLL)) },
     'SQL Migration':           modalFeature('migration'),
 
     // ── create/edit dialogs (state + seeders owned by useDbActions) ──
@@ -247,7 +248,7 @@ export function useFeatures({
   // active tab) and routes through the shared feature registry.
   function handleTool(name, target = null) {
     if (name === 'connect') { modals.openModal('connectionManager'); return }
-    if (name === 'tasks')   { modals.openModal('tasks');            return }
+    if (name === 'tasks')   { openTasksTab();                       return }
 
     if (name === 'collection') {
       // Opens the collection currently highlighted in the sidebar, same as

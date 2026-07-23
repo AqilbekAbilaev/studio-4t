@@ -12,6 +12,11 @@ import ResultsPanel from '../results/ResultsPanel.vue'
 // Lazy-loaded so CodeMirror (a large dep) is only fetched when a shell tab opens.
 const ShellConsole = defineAsyncComponent(() => import('../app/ShellConsole.vue'))
 import IndexManagerPane from './IndexManagerPane.vue'
+import SchemaPane from './SchemaPane.vue'
+import MaskingPane from './MaskingPane.vue'
+import ReschemaPane from './ReschemaPane.vue'
+import ComparePane from './ComparePane.vue'
+import TasksPane from './TasksPane.vue'
 import ImportPane from './ImportPane.vue'
 import CsvImportPane from './CsvImportPane.vue'
 import QueryBrowserModal from './QueryBrowserModal.vue'
@@ -314,6 +319,21 @@ async function applyFromBrowser(entry) {
 
     <!-- Index Manager -->
     <IndexManagerPane v-else-if="activeTab.kind === 'indexes'" :active-tab="activeTab" />
+
+    <!-- Schema Explorer -->
+    <SchemaPane v-else-if="activeTab.kind === 'schema'" :active-tab="activeTab" />
+
+    <!-- Data Masking -->
+    <MaskingPane v-else-if="activeTab.kind === 'masking'" :active-tab="activeTab" />
+
+    <!-- Reschema -->
+    <ReschemaPane v-else-if="activeTab.kind === 'reschema'" :active-tab="activeTab" />
+
+    <!-- Data Compare -->
+    <ComparePane v-else-if="activeTab.kind === 'compare'" :active-tab="activeTab" />
+
+    <!-- Tasks (app-level) -->
+    <TasksPane v-else-if="activeTab.kind === 'tasks'" />
 
     <!-- Import (CSV uses the single-source, sub-tab layout; JSON the multi-source table) -->
     <CsvImportPane v-else-if="activeTab.kind === 'import' && activeTab.format === 'csv'" :active-tab="activeTab" />

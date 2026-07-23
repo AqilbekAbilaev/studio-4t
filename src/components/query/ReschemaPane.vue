@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { errText, errCode } from '../../utils/errors'
 import { useToast } from '../../composables/useToast'
@@ -11,20 +11,17 @@ import BaseRadio from '../base/BaseRadio.vue'
 import ReorderButtons from '../base/ReorderButtons.vue'
 import BaseSelect from '../base/BaseSelect.vue'
 import StateMessage from '../base/StateMessage.vue'
-import BaseModal from '../base/BaseModal.vue'
 import HintText from '../base/HintText.vue'
-import BaseModalBody from '../base/BaseModalBody.vue'
-import BaseModalFoot from '../base/BaseModalFoot.vue'
 
-// Top-bar "Reschema" tool for the active collection. Builds an ordered list of
-// transform ops (rename / remove / change type / move nested) and runs them as a
-// server-side aggregation. Preview shows the first N documents before and after;
-// apply writes either in place (over the source) or to a new collection.
+// The Reschema tab builds an ordered list of transform ops (rename / remove / change type /
+// move nested) and runs them as a server-side aggregation. Preview shows the first N docs
+// before and after; apply writes either in place or to a new collection.
 const props = defineProps({
-  target: { type: Object, required: true },  // { connId, connName, dbName, collName }
+  activeTab: { type: Object, required: true },  // { connId, connName, dbName, collName }
 })
-const emit = defineEmits(['close', 'applied'])
 const { showToast } = useToast()
+// onReschemaApplied refreshes the tree when a new collection is created (see App.vue).
+const bundle = inject('appModals')
 
 const OP_KINDS = [
   { value: 'rename',     label: 'Rename field' },
@@ -70,12 +67,16 @@ function collectPaths(value, prefix, out) {
   }
 }
 
-onMounted(async () => {
+async function loadFields() {
+  loading.value = true
+  error.value = null
+  errorCode.value = null
+  fieldPaths.value = []
   try {
     const sample = await invoke('find_documents', {
-      id: props.target.connId,
-      database: props.target.dbName,
-      collection: props.target.collName,
+      id: props.activeTab.connId,
+      database: props.activeTab.dbName,
+      collection: props.activeTab.collName,
       filter: '{}',
       projection: '{}',
       sort: '{}',
@@ -93,6 +94,13 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+}
+
+onMounted(loadFields)
+watch(() => props.activeTab.connId + ':' + props.activeTab.dbName + ':' + props.activeTab.collName, () => {
+  ops.value = []
+  preview.value = null
+  loadFields()
 })
 
 function addOp() {
@@ -146,9 +154,9 @@ async function runPreview() {
   previewing.value = true
   try {
     preview.value = await invoke('reschema_preview', {
-      id: props.target.connId,
-      database: props.target.dbName,
-      collection: props.target.collName,
+      id: props.activeTab.connId,
+      database: props.activeTab.dbName,
+      collection: props.activeTab.collName,
       ops: builtOps.value,
       limit: PREVIEW_LIMIT,
     })
@@ -170,9 +178,9 @@ async function runApply() {
   applying.value = true
   try {
     const count = await invoke('reschema_apply', {
-      id: props.target.connId,
-      database: props.target.dbName,
-      collection: props.target.collName,
+      id: props.activeTab.connId,
+      database: props.activeTab.dbName,
+      collection: props.activeTab.collName,
       ops: builtOps.value,
       target: {
         mode: mode.value,
@@ -183,11 +191,10 @@ async function runApply() {
       ? `to ${newName.value.trim()}`
       : 'in place'
     showToast(`Reschema applied ${where} — ${count} document${count === 1 ? '' : 's'}`)
-    emit('applied', {
+    bundle.handlers.onReschemaApplied({
       newCollection: mode.value === 'new_collection',
-      connId: props.target.connId,
+      connId: props.activeTab.connId,
     })
-    emit('close')
   } catch (e) {
     error.value = errText(e)
     errorCode.value = errCode(e)
@@ -198,105 +205,127 @@ async function runApply() {
 </script>
 
 <template>
-  <BaseModal :title="`Reschema — ${target.dbName}.${target.collName}`" width="760px" max-width="94vw" @close="$emit('close')">
+  <div class="reschema-pane">
+    <!-- Breadcrumb -->
+    <div class="crumbs">
+      <BaseIcon name="connect" :size="15" class="c-ic" />
+      <span class="crumb">{{ activeTab.connName }}</span>
+      <BaseIcon name="caret" :size="11" class="sep" />
+      <BaseIcon name="dbSmall" :size="15" class="c-ic" />
+      <span class="crumb">{{ activeTab.dbName }}</span>
+      <BaseIcon name="caret" :size="11" class="sep" />
+      <BaseIcon name="collSmall" :size="15" class="c-ic" />
+      <span class="crumb">{{ activeTab.collName }}</span>
+      <BaseIcon name="caret" :size="11" class="sep" />
+      <BaseIcon name="reschema" :size="15" class="c-ic" />
+      <span class="crumb">Reschema</span>
+    </div>
 
-      <BaseModalBody>
-        <StateMessage v-if="loading" mode="loading" label="Reading fields…" />
-        <template v-else>
-          <HintText dim>
-            Define an ordered list of transforms. They run as a server-side
-            aggregation — nothing is written until you apply.
-          </HintText>
+    <div class="rs-body">
+      <StateMessage v-if="loading" mode="loading" label="Reading fields…" />
+      <template v-else>
+        <HintText dim>
+          Define an ordered list of transforms. They run as a server-side
+          aggregation — nothing is written until you apply.
+        </HintText>
 
-          <datalist id="rs-fields">
-            <option v-for="p in fieldPaths" :key="p" :value="p" />
-          </datalist>
+        <datalist id="rs-fields">
+          <option v-for="p in fieldPaths" :key="p" :value="p" />
+        </datalist>
 
-          <div class="rs-ops">
-            <div v-for="(row, i) in ops" :key="i" class="rs-op">
-              <BaseSelect :model-value="row.kind" class="rs-select" :options="OP_KINDS" size="sm"
-                @update:model-value="v => { row.kind = v; preview = null }" />
+        <div class="rs-ops">
+          <div v-for="(row, i) in ops" :key="i" class="rs-op">
+            <BaseSelect :model-value="row.kind" class="rs-select" :options="OP_KINDS" size="sm"
+              @update:model-value="v => { row.kind = v; preview = null }" />
 
-              <template v-if="row.kind === 'rename' || row.kind === 'move'">
-                <BaseInput v-model="row.from" list="rs-fields" class="rs-input" placeholder="from path" />
-                <span class="rs-arrow">→</span>
-                <BaseInput v-model="row.to" class="rs-input" placeholder="to path" />
-              </template>
-              <template v-else-if="row.kind === 'changeType'">
-                <BaseInput v-model="row.field" list="rs-fields" class="rs-input" placeholder="field path" />
-                <span class="rs-arrow">→</span>
-                <BaseSelect v-model="row.toType" class="rs-select" :options="TYPE_OPTIONS" size="sm" />
-              </template>
-              <template v-else>
-                <BaseInput v-model="row.field" list="rs-fields" class="rs-input wide" placeholder="field path" />
-              </template>
+            <template v-if="row.kind === 'rename' || row.kind === 'move'">
+              <BaseInput v-model="row.from" list="rs-fields" class="rs-input" placeholder="from path" />
+              <span class="rs-arrow">→</span>
+              <BaseInput v-model="row.to" class="rs-input" placeholder="to path" />
+            </template>
+            <template v-else-if="row.kind === 'changeType'">
+              <BaseInput v-model="row.field" list="rs-fields" class="rs-input" placeholder="field path" />
+              <span class="rs-arrow">→</span>
+              <BaseSelect v-model="row.toType" class="rs-select" :options="TYPE_OPTIONS" size="sm" />
+            </template>
+            <template v-else>
+              <BaseInput v-model="row.field" list="rs-fields" class="rs-input wide" placeholder="field path" />
+            </template>
 
-              <span class="rs-row-actions">
-                <ReorderButtons
-                  :up-disabled="i === 0"
-                  :down-disabled="i === ops.length - 1"
-                  @up="moveOp(i, -1)"
-                  @down="moveOp(i, 1)"
-                />
-                <BaseButton icon="close" :icon-size="12" title="Remove op" @click="removeOp(i)" />
-              </span>
-            </div>
-
-            <BaseButton bordered @click="addOp">
-              <BaseIcon name="plus" :size="12" /> Add operation
-            </BaseButton>
+            <span class="rs-row-actions">
+              <ReorderButtons
+                :up-disabled="i === 0"
+                :down-disabled="i === ops.length - 1"
+                @up="moveOp(i, -1)"
+                @down="moveOp(i, 1)"
+              />
+              <BaseButton icon="close" :icon-size="12" title="Remove op" @click="removeOp(i)" />
+            </span>
           </div>
 
-          <StateMessage v-if="error" mode="error" :message="error" :code="errorCode" />
+          <BaseButton bordered @click="addOp">
+            <BaseIcon name="plus" :size="12" /> Add operation
+          </BaseButton>
+        </div>
 
-          <div v-if="preview" class="rs-preview">
-            <div class="rs-pane">
-              <div class="rs-pane-head">Before</div>
-              <div class="rs-docs">
-                <StateMessage v-if="!preview.before.length" mode="empty" label="No documents" />
-                <pre v-for="(doc, i) in preview.before" :key="i" class="rs-doc" v-html="renderDoc(doc)" />
-              </div>
-            </div>
-            <div class="rs-pane">
-              <div class="rs-pane-head">After</div>
-              <div class="rs-docs">
-                <StateMessage v-if="!preview.after.length" mode="empty" label="No documents" />
-                <pre v-for="(doc, i) in preview.after" :key="i" class="rs-doc" v-html="renderDoc(doc)" />
-              </div>
+        <StateMessage v-if="error" mode="error" :message="error" :code="errorCode" />
+
+        <div v-if="preview" class="rs-preview">
+          <div class="rs-col">
+            <div class="rs-col-head">Before</div>
+            <div class="rs-docs">
+              <StateMessage v-if="!preview.before.length" mode="empty" label="No documents" />
+              <pre v-for="(doc, i) in preview.before" :key="i" class="rs-doc" v-html="renderDoc(doc)" />
             </div>
           </div>
-        </template>
-      </BaseModalBody>
+          <div class="rs-col">
+            <div class="rs-col-head">After</div>
+            <div class="rs-docs">
+              <StateMessage v-if="!preview.after.length" mode="empty" label="No documents" />
+              <pre v-for="(doc, i) in preview.after" :key="i" class="rs-doc" v-html="renderDoc(doc)" />
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
 
-      <BaseModalFoot v-if="!loading">
-        <template #left>
-          <label class="rs-f">
-            <BaseRadio value="in_place" v-model="mode" /> In place
-          </label>
-          <label class="rs-f">
-            <BaseRadio value="new_collection" v-model="mode" /> New collection
-          </label>
-          <BaseInput
-            v-if="mode === 'new_collection'"
-            v-model="newName"
-            class="rs-input"
-            placeholder="new collection name"
-          />
-        </template>
-        <BaseButton bordered :disabled="!canRun || previewing" @click="runPreview">
-          {{ previewing ? 'Previewing…' : 'Preview' }}
-        </BaseButton>
-        <BaseButton variant="primary" :disabled="!canRun || applying" @click="runApply">
-          {{ applying ? 'Applying…' : 'Apply' }}
-        </BaseButton>
-      </BaseModalFoot>
-    </BaseModal>
+    <!-- Footer -->
+    <div v-if="!loading" class="rs-foot">
+      <label class="rs-f">
+        <BaseRadio value="in_place" v-model="mode" /> In place
+      </label>
+      <label class="rs-f">
+        <BaseRadio value="new_collection" v-model="mode" /> New collection
+      </label>
+      <BaseInput
+        v-if="mode === 'new_collection'"
+        v-model="newName"
+        class="rs-input rs-newname"
+        placeholder="new collection name"
+      />
+      <span class="rs-spacer"></span>
+      <BaseButton bordered :disabled="!canRun || previewing" @click="runPreview">
+        {{ previewing ? 'Previewing…' : 'Preview' }}
+      </BaseButton>
+      <BaseButton variant="primary" :disabled="!canRun || applying" @click="runApply">
+        {{ applying ? 'Applying…' : 'Apply' }}
+      </BaseButton>
+    </div>
+  </div>
 </template>
 
 <style scoped>
+.reschema-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-window); }
 
+.crumbs {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 14px; font-size: 12.5px; color: var(--text-dim);
+  border-bottom: 1px solid var(--border); flex: none;
+}
+.sep { color: var(--text-faint); }
+.c-ic { color: var(--text-faint); }
 
-
+.rs-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; }
 .rs-ops { display: flex; flex-direction: column; gap: 6px; }
 .rs-op {
   display: flex;
@@ -314,6 +343,7 @@ async function runApply() {
   font-family: var(--mono);
 }
 .base-input.rs-input.wide { flex: 2; }
+.base-input.rs-newname { flex: none; width: 220px; }
 .rs-arrow { color: var(--text-faint); flex: none; }
 .rs-row-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 
@@ -323,9 +353,10 @@ async function runApply() {
   gap: 10px;
   border-top: 1px solid var(--border-soft);
   padding-top: 10px;
+  margin-top: 10px;
 }
-.rs-pane { display: flex; flex-direction: column; min-width: 0; }
-.rs-pane-head {
+.rs-col { display: flex; flex-direction: column; min-width: 0; }
+.rs-col-head {
   font-size: 11px;
   color: var(--text-faint);
   text-transform: uppercase;
@@ -333,7 +364,7 @@ async function runApply() {
   margin-bottom: 5px;
 }
 .rs-docs {
-  max-height: 260px;
+  max-height: 320px;
   overflow: auto;
   background: var(--bg-input);
   border: 1px solid var(--border);
@@ -350,7 +381,15 @@ async function runApply() {
 }
 .rs-doc:last-child { margin-bottom: 0; }
 
-
+.rs-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-toolbar);
+  flex: none;
+}
 .rs-f { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; cursor: pointer; }
 .rs-spacer { margin-left: auto; }
 </style>
