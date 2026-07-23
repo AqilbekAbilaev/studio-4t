@@ -79,6 +79,10 @@ docx-rs = "0.4"
 # it doesn't perturb the pinned tauri/wry versions.
 arboard = { version = "3", features = ["wayland-data-control"] }
 sqlparser = "0.62.0"
+# Optional RegEx mode for "Search in…" (the search toolbar's RegEx toggle). Already
+# built transitively via mongodb; promoted to a direct dependency so we can compile
+# user-supplied patterns. Substring search is the default path and needs no regex.
+regex = "1"
 
 # keyring needs a per-platform backend feature; without one it silently uses an
 # in-memory mock store that loses every password when the app exits (which made
