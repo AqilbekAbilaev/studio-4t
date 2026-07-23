@@ -30,8 +30,6 @@ const TYPES = [
   { value: 'masking',   label: 'Data Masking',        icon: 'mask',      enabled: true },
   { value: 'migration', label: 'SQL Migration',       icon: 'migration', enabled: true },
   { value: 'shell',     label: 'IntelliShell Script', icon: 'shell',     enabled: true },
-  { value: 'reschema',  label: 'Reschema',            icon: 'reschema',  enabled: false },
-  { value: 'compare',   label: 'Data Compare & Sync', icon: 'compare',   enabled: false },
 ]
 const TYPE_META = Object.fromEntries(TYPES.map(t => [t.value, t]))
 

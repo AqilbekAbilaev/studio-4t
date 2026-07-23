@@ -187,8 +187,6 @@ pub fn menus() -> Vec<(&'static str, Vec<Spec>)> {
                 Spec::Action { id: "coll:mask", label: "Mask Collection/View", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:schema", label: "View Schema", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:history", label: "Collection History", accel: None, gate: Some(Gate::Collection) },
-                Spec::Placeholder { id: "coll:reschema", label: "Reschema…" },
-                Spec::Action { id: "coll:compare", label: "Compare To…", accel: None, gate: Some(Gate::Database) },
                 Spec::Separator,
                 Spec::Action { id: "coll:rename", label: "Rename Collection…", accel: None, gate: Some(Gate::Collection) },
                 Spec::Action { id: "coll:duplicate", label: "Duplicate Collection…", accel: None, gate: Some(Gate::Collection) },
@@ -893,7 +891,6 @@ mod tests {
         assert_eq!(gate_of("file:server_status"), Gate::Connection);
         assert_eq!(gate_of("file:intellishell"), Gate::Database);
         assert_eq!(gate_of("db:add_collection"), Gate::Database);
-        assert_eq!(gate_of("coll:compare"), Gate::Database);
         assert_eq!(gate_of("coll:schema"), Gate::Collection);
         assert_eq!(gate_of("db:collection_stats"), Gate::Collection);
         assert_eq!(gate_of("file:sql"), Gate::Collection);

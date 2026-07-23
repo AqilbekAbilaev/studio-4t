@@ -2,8 +2,8 @@
 import BaseIcon from './BaseIcon.vue'
 
 // Collapsible section header — a full-width row with a caret that flips open plus
-// slotted label content. The cm-sec-head / se-grp-head pattern from the compare and
-// search-results panels. Owns its <button> so feature code carries none.
+// slotted label content. The se-grp-head pattern from the search-results panel.
+// Owns its <button> so feature code carries none.
 defineProps({
   modelValue: { type: Boolean, default: false },
 })

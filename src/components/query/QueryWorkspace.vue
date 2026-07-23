@@ -14,8 +14,6 @@ const ShellConsole = defineAsyncComponent(() => import('../app/ShellConsole.vue'
 import IndexManagerPane from './IndexManagerPane.vue'
 import SchemaPane from './SchemaPane.vue'
 import MaskingPane from './MaskingPane.vue'
-import ReschemaPane from './ReschemaPane.vue'
-import ComparePane from './ComparePane.vue'
 import SearchPane from './SearchPane.vue'
 import TasksPane from './TasksPane.vue'
 import ImportPane from './ImportPane.vue'
@@ -326,12 +324,6 @@ async function applyFromBrowser(entry) {
 
     <!-- Data Masking -->
     <MaskingPane v-else-if="activeTab.kind === 'masking'" :active-tab="activeTab" />
-
-    <!-- Reschema -->
-    <ReschemaPane v-else-if="activeTab.kind === 'reschema'" :active-tab="activeTab" />
-
-    <!-- Data Compare -->
-    <ComparePane v-else-if="activeTab.kind === 'compare'" :active-tab="activeTab" />
 
     <!-- Search -->
     <SearchPane v-else-if="activeTab.kind === 'search'" :active-tab="activeTab" />

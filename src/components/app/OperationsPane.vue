@@ -21,10 +21,8 @@ const TYPE_ICON = {
   import: 'import',
   copy: 'duplicate',
   index: 'anchor',
-  compare: 'compare',
   gridfs: 'collection',
   mapReduce: 'aggregate',
-  reschema: 'reschema',
 }
 function typeIcon(op) {
   return TYPE_ICON[op.opType] || 'run'

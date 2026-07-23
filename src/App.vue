@@ -268,8 +268,8 @@ const { handleContextAction, handleTool, menuNode } = useFeatures({
   showToast: showToast, applyColorTag: applyColorTag, menuTarget: menuTarget,
   handleTabAction: handleTabAction, openCollectionTab: openCollectionTab,
   openShellTab: openShellTab, openIndexManagerTab: openIndexManagerTab, openSqlTab: openSqlTab,
-  openSchemaTab: openSchemaTab, openMaskingTab: openMaskingTab, openReschemaTab: openReschemaTab,
-  openCompareTab: openCompareTab, openSearchTab: openSearchTab, openTasksTab: openTasksTab,
+  openSchemaTab: openSchemaTab, openMaskingTab: openMaskingTab,
+  openSearchTab: openSearchTab, openTasksTab: openTasksTab,
   openExportWizard: openExportWizard, openImportWizard: openImportWizard,
   exportDatabase: exportDatabase, importDatabase: importDatabase,
 })
@@ -281,14 +281,6 @@ const activeCollectionKey = computed(() => {
     ? `${t.connectionId}/${t.dbName}/${t.collectionName}`
     : null
 })
-
-// After a Reschema apply: a new collection changes the tree, so refresh that
-// connection's node. An in-place rewrite leaves the tree structure untouched.
-async function onReschemaApplied(result) {
-  if (result?.newCollection && result.connId) {
-    await connectionTreeRef.value.refreshConn(result.connId)
-  }
-}
 
 // Help-menu link targets. Default to the project's real GitHub repo (from the git
 // remote); retarget as needed once dedicated pages exist.
@@ -372,7 +364,6 @@ function handleMenuAction(id) {
     case 'coll:export':       handleTool('export', menuTarget('collection')); return
     case 'coll:import':       handleTool('import', menuTarget('collection')); return
     case 'coll:mask':         handleTool('mask', menuTarget('collection')); return
-    case 'coll:compare':      handleTool('compare', menuTarget('database')); return
 
     // --- server / connection scoped ---
     case 'file:server_status': menuNode('Server Status', 'connection'); return
@@ -714,7 +705,7 @@ function openIndexManagerTab({ connId, connName, dbName, collName }) {
 }
 
 // Open (or focus) a collection-scoped tool tab — Studio-3T renders Schema, Data Masking,
-// Reschema, etc. as workspace tabs rather than modals. Reopening the same tool on the same
+// etc. as workspace tabs rather than modals. Reopening the same tool on the same
 // collection focuses the existing tab.
 function openCollectionToolTab(kind, titlePrefix, { connId, connName, dbName, collName }) {
   const existing = tabs.value.find(t =>
@@ -729,7 +720,6 @@ function openCollectionToolTab(kind, titlePrefix, { connId, connName, dbName, co
 }
 function openSchemaTab(node)   { openCollectionToolTab('schema', 'Schema', node) }
 function openMaskingTab(node)  { openCollectionToolTab('masking', 'Masking', node) }
-function openReschemaTab(node) { openCollectionToolTab('reschema', 'Reschema', node) }
 
 // Tasks is app-level (not tied to a connection) — a standalone workspace tab.
 function openTasksTab() {
@@ -737,18 +727,6 @@ function openTasksTab() {
   if (existing) { activeTabId.value = existing.id; return }
   const id = 't' + Date.now()
   tabs.value.push({ id: id, kind: 'tasks', title: 'Tasks' })
-  activeTabId.value = id
-}
-
-// Data Compare is database-scoped (it diffs two collections in one db).
-function openCompareTab({ connId, connName, dbName }) {
-  const existing = tabs.value.find(t => t.kind === 'compare' && t.connId === connId && t.dbName === dbName)
-  if (existing) { activeTabId.value = existing.id; return }
-  const id = 't' + Date.now()
-  tabs.value.push({
-    id: id, kind: 'compare', title: 'Compare: ' + dbName,
-    connId: connId, connName: connName, dbName: dbName,
-  })
   activeTabId.value = id
 }
 
@@ -910,7 +888,6 @@ provide('appModals', {
     onValidatorSaved: onValidatorSaved,
     onWizardImported: onWizardImported,
     openImportTab: openImportTab,
-    onReschemaApplied: onReschemaApplied,
     onPrefsSaved: onPrefsSaved,
     onKeybindingsSaved: onKeybindingsSaved,
     openTasksTab: openTasksTab,

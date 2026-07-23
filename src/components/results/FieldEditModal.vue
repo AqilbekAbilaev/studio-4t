@@ -91,8 +91,7 @@ const shownError = computed(() => localError.value || props.saveError)
         </FormField>
 
         <HintText v-if="mode === 'rename'" class="fe-hint">
-          Renames this field on the selected document only. To rename it across every
-          document, use the Reschema tool.
+          Renames this field on the selected document only.
         </HintText>
 
         <FormField v-if="showValue" label="Type">

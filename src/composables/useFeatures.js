@@ -19,7 +19,7 @@ export function useFeatures({
   // injected functions
   showToast, applyColorTag, menuTarget,
   handleTabAction, openCollectionTab, openShellTab, openIndexManagerTab, openSqlTab,
-  openSchemaTab, openMaskingTab, openReschemaTab, openCompareTab, openSearchTab, openTasksTab,
+  openSchemaTab, openMaskingTab, openSearchTab, openTasksTab,
   openExportWizard, openImportWizard, exportDatabase, importDatabase,
 }) {
   const {
@@ -40,10 +40,8 @@ export function useFeatures({
     import:    'Import…',
     mask:      'Data Masking',
     schema:    'View Schema',
-    reschema:  'Reschema',
     migration: 'SQL Migration',
     search:    'Search in…',
-    compare:   'Data Compare',
   }
 
   function pick(node, fields) {
@@ -158,7 +156,6 @@ export function useFeatures({
     'Stored Functions':        modalFeature('functions'),
     'GridFS…':                 modalFeature('gridfs'),
     'Search in…':              { requires: 'database', run: (n) => openSearchTab(pick(n, DB)) },
-    'Data Compare':            { requires: 'database', run: (n) => openCompareTab(pick(n, DB)) },
 
     // ── collection-scoped modals ──
     'Add / Edit Validator…':   modalFeature('validator'),
@@ -167,7 +164,6 @@ export function useFeatures({
     'Collection Stats':        modalFeature('stats'),
     'Open Map-Reduce':         modalFeature('mapReduce'),
     'Data Masking':            { requires: 'collection', run: (n) => openMaskingTab(pick(n, COLL)) },
-    'Reschema':                { requires: 'collection', run: (n) => openReschemaTab(pick(n, COLL)) },
     'SQL Migration':           modalFeature('migration'),
 
     // ── create/edit dialogs (state + seeders owned by useDbActions) ──
