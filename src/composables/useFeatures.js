@@ -19,7 +19,7 @@ export function useFeatures({
   // injected functions
   showToast, applyColorTag, menuTarget,
   handleTabAction, openCollectionTab, openShellTab, openIndexManagerTab, openSqlTab,
-  openSchemaTab, openMaskingTab, openReschemaTab, openCompareTab, openTasksTab,
+  openSchemaTab, openMaskingTab, openReschemaTab, openCompareTab, openSearchTab, openTasksTab,
   openExportWizard, openImportWizard, exportDatabase, importDatabase,
 }) {
   const {
@@ -156,7 +156,7 @@ export function useFeatures({
     'Manage Roles':            modalFeature('roles'),
     'Stored Functions':        modalFeature('functions'),
     'GridFS…':                 modalFeature('gridfs'),
-    'Search in…':              modalFeature('search'),
+    'Search in…':              { requires: 'database', run: (n) => openSearchTab(pick(n, DB)) },
     'Data Compare':            { requires: 'database', run: (n) => openCompareTab(pick(n, DB)) },
 
     // ── collection-scoped modals ──

@@ -269,7 +269,7 @@ const { handleContextAction, handleTool, menuNode } = useFeatures({
   handleTabAction: handleTabAction, openCollectionTab: openCollectionTab,
   openShellTab: openShellTab, openIndexManagerTab: openIndexManagerTab, openSqlTab: openSqlTab,
   openSchemaTab: openSchemaTab, openMaskingTab: openMaskingTab, openReschemaTab: openReschemaTab,
-  openCompareTab: openCompareTab, openTasksTab: openTasksTab,
+  openCompareTab: openCompareTab, openSearchTab: openSearchTab, openTasksTab: openTasksTab,
   openExportWizard: openExportWizard, openImportWizard: openImportWizard,
   exportDatabase: exportDatabase, importDatabase: importDatabase,
 })
@@ -747,6 +747,18 @@ function openCompareTab({ connId, connName, dbName }) {
   const id = 't' + Date.now()
   tabs.value.push({
     id: id, kind: 'compare', title: 'Compare: ' + dbName,
+    connId: connId, connName: connName, dbName: dbName,
+  })
+  activeTabId.value = id
+}
+
+// Search is database-scoped (it scans every collection in one db).
+function openSearchTab({ connId, connName, dbName }) {
+  const existing = tabs.value.find(t => t.kind === 'search' && t.connId === connId && t.dbName === dbName)
+  if (existing) { activeTabId.value = existing.id; return }
+  const id = 't' + Date.now()
+  tabs.value.push({
+    id: id, kind: 'search', title: 'Search: ' + dbName,
     connId: connId, connName: connName, dbName: dbName,
   })
   activeTabId.value = id

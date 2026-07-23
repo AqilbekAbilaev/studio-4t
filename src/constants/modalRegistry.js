@@ -34,7 +34,6 @@ export const MODALS = {
   users:     { component: lazy(() => import('../components/admin/UsersModal.vue')),         level: 'database' },
   roles:     { component: lazy(() => import('../components/admin/RolesModal.vue')),         level: 'database' },
   functions: { component: lazy(() => import('../components/admin/FunctionsModal.vue')),     level: 'database' },
-  search:    { component: lazy(() => import('../components/tools/SearchModal.vue')),        level: 'database' },
   gridfs:    { component: lazy(() => import('../components/tools/GridFsModal.vue')),        level: 'database' },
 
   // ── collection level ──

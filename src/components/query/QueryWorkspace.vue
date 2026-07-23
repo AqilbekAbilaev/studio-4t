@@ -16,6 +16,7 @@ import SchemaPane from './SchemaPane.vue'
 import MaskingPane from './MaskingPane.vue'
 import ReschemaPane from './ReschemaPane.vue'
 import ComparePane from './ComparePane.vue'
+import SearchPane from './SearchPane.vue'
 import TasksPane from './TasksPane.vue'
 import ImportPane from './ImportPane.vue'
 import CsvImportPane from './CsvImportPane.vue'
@@ -331,6 +332,9 @@ async function applyFromBrowser(entry) {
 
     <!-- Data Compare -->
     <ComparePane v-else-if="activeTab.kind === 'compare'" :active-tab="activeTab" />
+
+    <!-- Search -->
+    <SearchPane v-else-if="activeTab.kind === 'search'" :active-tab="activeTab" />
 
     <!-- Tasks (app-level) -->
     <TasksPane v-else-if="activeTab.kind === 'tasks'" />
