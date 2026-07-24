@@ -24,7 +24,7 @@ body:
     attributes:
       label: OzenDB version
       description: Shown in the About dialog / app menu.
-      placeholder: "0.1.0"
+      placeholder: "0.1.2"
     validations:
       required: true
 
