@@ -68,6 +68,17 @@ export function useTabs({ tabs, activeTabId, contextMenu, runRestoredTab }) {
     const [tab] = tabs.value.splice(idx, 1)
     tabs.value.unshift(tab)
   }
+  // Reorder: move `id` to sit before `beforeId` (null = to the end). Driven by the tab-strip
+  // drag. The new order is the tab array itself, so session persistence saves it for free.
+  function moveTab(id, beforeId) {
+    if (id === beforeId) return
+    const from = tabs.value.findIndex(t => t.id === id)
+    if (from < 0) return
+    const [tab] = tabs.value.splice(from, 1)
+    let to = beforeId == null ? tabs.value.length : tabs.value.findIndex(t => t.id === beforeId)
+    if (to < 0) to = tabs.value.length
+    tabs.value.splice(to, 0, tab)
+  }
   function duplicateTab(tabId) {
     const src = tabs.value.find(t => t.id === tabId)
     if (!src) return
@@ -144,6 +155,7 @@ export function useTabs({ tabs, activeTabId, contextMenu, runRestoredTab }) {
     activateTab: activateTab,
     cycleTab: cycleTab,
     closeTab: closeTab,
+    moveTab: moveTab,
     onTabContext: onTabContext,
     handleTabAction: handleTabAction,
     renameTabTarget: renameTabTarget,

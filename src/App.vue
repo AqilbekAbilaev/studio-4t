@@ -243,7 +243,7 @@ const { runQuery, runAggregate, cancelQuery, runRestoredTab } = useQueryRunner({
 // (openCollectionTab/openShellTab/openIndexManagerTab/openQuickstart) stay too, as
 // they depend on the query runner and settings.
 const {
-  activateTab, cycleTab, closeTab, onTabContext, handleTabAction,
+  activateTab, cycleTab, closeTab, moveTab, onTabContext, handleTabAction,
   renameTabTarget, renameTabValue, confirmRenameTab,
 } = useTabs({ tabs: tabs, activeTabId: activeTabId, contextMenu: contextMenu, runRestoredTab: runRestoredTab })
 
@@ -984,6 +984,7 @@ provide('appModals', {
         :save-query-request="saveQueryRequest"
         @activate-tab="activateTab"
         @close-tab="closeTab"
+        @reorder-tab="moveTab"
         @tab-context="onTabContext"
         @run-query="runQuery"
         @run-aggregate="runAggregate"

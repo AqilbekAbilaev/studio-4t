@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 import { colorHex, tabColorName } from '../../utils/tabColor.js'
+import { findDropIndex } from '../../composables/useColumnReorder'
 
 const props = defineProps({
   tabs:         { type: Array,  required: true },
@@ -10,7 +11,7 @@ const props = defineProps({
   // A tab with no colour of its own inherits the colour of the node it opened.
   tagOverrides: { type: Object, default: () => ({}) },
 })
-const emit = defineEmits(['activate-tab', 'close-tab', 'tab-context'])
+const emit = defineEmits(['activate-tab', 'close-tab', 'reorder-tab', 'tab-context'])
 
 // The colour name shown on a tab, resolved (with inheritance) by the shared util.
 function tabColor(t) {
@@ -135,6 +136,83 @@ function pickHidden(id) {
   showOverflow.value = false
   emit('activate-tab', id)
 }
+
+// ── drag a tab to reorder ───────────────────────────────
+// Raw mouse events (like the grid's drag) so a plain click still activates: a drag only
+// begins past a small threshold, an accent line marks the drop slot, and on release we emit
+// `reorder-tab(id, beforeId)` (beforeId null = drop at the end). Reordering is confined to the
+// visible tabs; ones collapsed into the overflow menu aren't drop targets.
+const DRAG_THRESHOLD = 5
+const dragId       = ref(null)   // id of the tab being dragged (null = not dragging)
+const dragging     = ref(false)  // past the threshold
+const dropBeforeId = ref(null)   // insert before this visible tab (null = at the end)
+let dragStartX = 0
+let dragStartY = 0
+let suppressClick = false
+
+const lastVisibleId = computed(() => {
+  const vis = layout.value.visible
+  return vis.length ? vis[vis.length - 1].id : null
+})
+
+function visibleTabRects() {
+  if (!barEl.value) return []
+  const out = []
+  layout.value.visible.forEach((t, i) => {
+    const el = barEl.value.querySelector(`.tab[data-id="${t.id}"]`)
+    if (el) out.push({ index: i, rect: el.getBoundingClientRect() })
+  })
+  return out
+}
+
+function onTabMouseDown(e, t) {
+  if (e.button !== 0) return
+  if (e.target.closest('.x')) return  // the close button owns this press
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  dragId.value = t.id
+  dragging.value = false
+  // Clear any suppression stranded by a prior cross-tab drag (whose trailing click landed on
+  // the strip, not a tab, so it never got consumed) before this gesture's own click.
+  suppressClick = false
+  document.addEventListener('mousemove', onTabMove)
+  document.addEventListener('mouseup', onTabUp)
+}
+
+function onTabMove(e) {
+  if (!dragging.value) {
+    if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) < DRAG_THRESHOLD) return
+    dragging.value = true
+    document.body.style.cursor = 'grabbing'
+  }
+  const vis = layout.value.visible
+  const idx = findDropIndex(e.clientX, visibleTabRects())  // 0..vis.length
+  dropBeforeId.value = idx >= 0 && idx < vis.length ? vis[idx].id : null
+}
+
+function onTabUp() {
+  document.removeEventListener('mousemove', onTabMove)
+  document.removeEventListener('mouseup', onTabUp)
+  document.body.style.cursor = ''
+  if (dragging.value && dragId.value) {
+    emit('reorder-tab', dragId.value, dropBeforeId.value)
+    suppressClick = true  // swallow the click that trails a real drag
+  }
+  dragId.value = null
+  dragging.value = false
+  dropBeforeId.value = null
+}
+
+function onTabClick(t) {
+  if (suppressClick) { suppressClick = false; return }
+  emit('activate-tab', t.id)
+}
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onTabMove)
+  document.removeEventListener('mouseup', onTabUp)
+  document.body.style.cursor = ''
+})
 </script>
 
 <template>
@@ -144,8 +222,14 @@ function pickHidden(id) {
       :key="t.id"
       :data-id="t.id"
       class="tab"
-      :class="{ active: t.id === activeTabId }"
-      @click="emit('activate-tab', t.id)"
+      :class="{
+        active: t.id === activeTabId,
+        dragsrc: dragging && dragId === t.id,
+        dropbefore: dragging && dropBeforeId === t.id,
+        dropafter: dragging && dropBeforeId === null && t.id === lastVisibleId,
+      }"
+      @mousedown="onTabMouseDown($event, t)"
+      @click="onTabClick(t)"
       @contextmenu.prevent="emit('tab-context', { id: t.id, x: $event.clientX, y: $event.clientY })"
     >
       <span v-if="colorHex(tabColor(t))" class="dot" :style="{ background: colorHex(tabColor(t)) }"></span>
@@ -213,6 +297,10 @@ function pickHidden(id) {
   flex: none;
 }
 .tab.active { background: var(--bg-window); color: var(--text); border-bottom-color: var(--accent); }
+/* Reorder feedback: the dragged tab dims, an accent line marks the slot it will drop into. */
+.tab.dragsrc { opacity: .45; }
+.tab.dropbefore { box-shadow: inset 2px 0 0 var(--accent); }
+.tab.dropafter  { box-shadow: inset -2px 0 0 var(--accent); }
 .tab .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .tab .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .tab .x { color: var(--text-faint); border-radius: 4px; padding: 1px; display: grid; place-items: center; flex: none; }
