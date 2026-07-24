@@ -6,6 +6,7 @@ import { errText } from '../../utils/errors'
 import { valueToClipboard } from '../../utils/clipboardCopy'
 import { dbRefOf, idFilterString } from '../../utils/dbRef'
 import { useResultSearch } from '../../composables/useResultSearch'
+import { useColumnReorder } from '../../composables/useColumnReorder'
 import BaseIcon from '../base/BaseIcon.vue'
 import BaseInput from '../base/BaseInput.vue'
 import SearchBar from '../base/SearchBar.vue'
@@ -26,6 +27,7 @@ const props = defineProps({
 const emit = defineEmits(['dragged-field', 'drag-over-section', 'vqb-drop', 'open-vqb', 'close-vqb', 'crud-error', 'update:drillPath', 'follow-reference'])
 
 function onThClick(col) {
+  if (suppressNextClick) { suppressNextClick = false; return }
   if (!props.vqbOpen) return
   emit('dragged-field', col)
   nextTick(() => { emit('dragged-field', '') })
@@ -381,7 +383,30 @@ const gridDocs = computed(() => {
   })
 })
 
-const gridColumns = computed(() => columns(gridDocs.value))
+// Column headers can be dragged to reorder; the chosen order is stored per drill path on the
+// tab and applied over the derived column list. The gesture, drop indicator and edge
+// auto-scroll all live in useColumnReorder — here we only supply the deps and read back the
+// pieces the template binds. `reorderPressed` drives the grabbing cursor, `reorderDragging` the
+// ghost, `dropIndicator` the insertion line, `reorderGhost` the floating label.
+const derivedColumns = computed(() => columns(gridDocs.value))
+
+const {
+  gridColumns,
+  onHeaderMouseDown,
+  pressed:  reorderPressed,
+  dragging: reorderDragging,
+  dropIndicator,
+  ghost:    reorderGhost,
+} = useColumnReorder({
+  activeTab:      () => props.activeTab,
+  drillPath:      () => props.drillPath,
+  derivedColumns: derivedColumns,
+  tableRef:       tableRef,
+  gridWrapRef:    gridWrapRef,
+  headerLabel:    headerLabel,
+  onBeforePress:  () => { if (inlineEdit.value) commitInlineEdit() },
+  onReordered:    () => { suppressNextClick = true },
+})
 
 // ── per-cell display data (memoized) ────────────────────
 // Derive each cell's formatted text, colour classes and drillability once per result
@@ -904,6 +929,7 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
     <template v-else>
       <table
         class="grid"
+        :class="{ reordering: reorderPressed }"
         ref="tableRef"
       >
         <thead>
@@ -912,8 +938,10 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
             <th
               v-for="col in gridColumns"
               :key="col"
+              :data-col="col"
               :style="thWidthStyle(col)"
               @click.stop="onThClick(col)"
+              @mousedown="onHeaderMouseDown($event, col)"
             >
               {{ col === '_id' ? '{Document id}' : (/^\d+$/.test(col) ? `[${col}]` : col) }}
               <div class="col-resize-handle" draggable="false" @dragstart.prevent @mousedown="startResize($event, col)" @dblclick.stop="autoFitColumn($event, col)"></div>
@@ -1016,6 +1044,20 @@ onUnmounted(() => window.removeEventListener('focus', repaintGridOnFocus))
     class="drag-ghost"
     :style="{ left: dragGhost.x + 14 + 'px', top: dragGhost.y + 14 + 'px' }"
   >{{ dragGhost.label }}</div>
+
+  <!-- Drag-ghost for column reorder (reuses the same ghost class + CSS) -->
+  <div
+    v-if="reorderDragging"
+    class="drag-ghost"
+    :style="{ left: reorderGhost.x + 14 + 'px', top: reorderGhost.y + 14 + 'px' }"
+  >{{ reorderGhost.label }}</div>
+
+  <!-- Drop-insertion line for column reorder -->
+  <div
+    v-if="dropIndicator"
+    class="drop-indicator"
+    :style="{ left: dropIndicator.left + 'px', top: dropIndicator.top + 'px', height: dropIndicator.height + 'px' }"
+  ></div>
 </template>
 
 <style scoped>
@@ -1190,6 +1232,25 @@ th.col-filler, td.col-filler { border-right: none; width: 100%; }
     var(--bg-row-alt) 25px 50px
   );
   border-right: 1px solid var(--border-soft);
+}
+
+/* Data-column headers are draggable to reorder (row-number + filler headers are not; the
+   resize handle overrides its own right-edge cursor). */
+table.grid thead th:not(.rownum):not(.col-filler) { cursor: grab; }
+/* While a header is pressed (mousedown through release) show the closed hand across every
+   header, so the drag reads as grabbing the whole time — not just once it starts moving. The
+   second rule covers the resize handle that straddles each column border, which would
+   otherwise flip the cursor to col-resize as the pointer crosses a boundary mid-drag. */
+table.grid.reordering thead th:not(.rownum):not(.col-filler) { cursor: grabbing; }
+table.grid.reordering .col-resize-handle { cursor: grabbing; }
+
+/* Drop-indicator line for column reorder */
+.drop-indicator {
+  position: fixed;
+  z-index: 10;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
 }
 
 /* Inline cell editor */

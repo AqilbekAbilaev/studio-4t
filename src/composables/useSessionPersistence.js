@@ -64,6 +64,7 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
         connectionId: t.connectionId, connectionName: t.connectionName,
         dbName: t.dbName, collectionName: t.collectionName,
         mode: 'sql', sql: t.sql || '',
+        colOrder: t.colOrder || null,
       }
     }
     return {
@@ -73,6 +74,7 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
       filter: t.filter, sort: t.sort, projection: t.projection,
       skip: t.skip, limit: t.limit, mode: t.mode, pipeline: t.pipeline,
       vqb: t.vqb,
+      colOrder: t.colOrder || null,
     }
   }
 
@@ -166,7 +168,7 @@ export function useSessionPersistence({ tabs, activeTabId, runRestoredTab }) {
                 dbName: t.dbName, collectionName: t.collectionName,
                 mode: 'sql', sql: t.sql || '', sqlError: null,
                 filter: '', projection: '', sort: '', skip: 0, limit: 50, pipeline: '',
-                vqb: null,
+                vqb: null, colOrder: t.colOrder || {},
                 results: [], hasRun: false, isRunning: false, runError: null,
                 selectedRow: -1, selectedRows: [], elapsedMs: null,
               }

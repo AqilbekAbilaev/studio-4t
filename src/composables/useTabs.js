@@ -94,6 +94,7 @@ export function useTabs({ tabs, activeTabId, contextMenu, runRestoredTab }) {
       filter: src.filter, projection: src.projection, sort: src.sort,
       skip: src.skip, limit: src.limit, mode: src.mode, pipeline: src.pipeline,
       color: src.color ?? null,
+      colOrder: src.colOrder || {},
       results: [], hasRun: false, isRunning: false, runError: null,
       selectedRow: -1, selectedRows: [], elapsedMs: null,
     }
