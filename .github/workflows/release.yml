@@ -5,10 +5,12 @@ name: Release
 #
 #   git tag v0.1.0 && git push origin v0.1.0
 #
-# The release is created as a DRAFT so you can review the artifacts and write
-# notes before publishing. Builds are UNSIGNED for now — code-signing secrets
-# (Apple Developer ID, Windows cert) can be wired in later without changing the
-# shape of this workflow.
+# The matrix builds into a DRAFT release (so all platforms attach to the same
+# release), then the `publish` job flips it to published once every platform has
+# finished. Release notes are filled automatically from the matching CHANGELOG.md
+# section, so a tag push goes all the way to the live website with no manual step.
+# Builds are UNSIGNED for now — code-signing secrets (Apple Developer ID, Windows
+# cert) can be wired in later without changing the shape of this workflow.
 
 on:
   push:
@@ -75,6 +77,24 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Extract changelog for this tag
+        id: changelog
+        shell: bash
+        run: |
+          # Pull the "## <tag>" section from CHANGELOG.md, up to the next "## "
+          # heading. Exact-match the heading so v0.1.2 won't grab v0.1.20.
+          # Empty for non-tag (nightly) runs, which is fine.
+          notes=$(awk -v tag="## ${GITHUB_REF_NAME}" '
+            $0 == tag       { flag=1; next }
+            /^## / && flag  { exit }
+            flag            { print }
+          ' CHANGELOG.md)
+          {
+            echo 'body<<CHANGELOG_EOF'
+            echo "$notes"
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -87,6 +107,26 @@ jobs:
           # nightly-style tag for manual runs so they don't collide.
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('nightly-{0}', github.run_number) }}
           releaseName: ${{ github.ref_type == 'tag' && format('OzenDB {0}', github.ref_name) || 'OzenDB nightly' }}
+          # Notes come from the matching CHANGELOG.md section (see step above).
+          releaseBody: ${{ steps.changelog.outputs.body }}
+          # Stay a draft here; the publish job releases it once all platforms
+          # finish, so `release: published` fires with every installer attached.
           releaseDraft: true
           prerelease: ${{ github.ref_type != 'tag' }}
           args: ${{ matrix.args }}
+
+  # Publishes the draft once every matrix build has succeeded, so the release
+  # (and the website deploy hook it triggers) only goes live with all installers
+  # present. Tag pushes only — nightlies stay draft/prerelease.
+  publish:
+    needs: release
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false --latest
